@@ -12,6 +12,7 @@ const calculateLevelXP = require('./utils/calculateLevelXp');
 const User = require('./models/User');
 const Cooldown = require('./models/Cooldown');
 const Hilow = require('./models/Hilow');
+const { OpenAI } = require('openai');
 
 // Function to get a Random Number
 function getRandomNumber(x, y) {
@@ -529,6 +530,12 @@ function getOdds(hl, num) {
     }
 }
 
+// Call OpenAI
+const openai = new OpenAI({
+    organization: process.env.OPENAI_ORG,
+    apiKey: process.env.OPENAI_KEY,
+});
+
 // Slash Commands Name and Descriptions
 const commands = [
     {
@@ -554,6 +561,18 @@ const commands = [
             {
                 name: 'txn-hash',
                 description: 'Choose a TXN Hash to Lookup',
+                type: ApplicationCommandOptionType.String,
+                required: true
+            }
+        ]
+    },
+    {
+        name: 'openai',
+        description: 'Send an OpenAI Query to ChatGPT',
+        options: [
+            {
+                name: 'openai-string',
+                description: 'Choose a OpenAI Search Query',
                 type: ApplicationCommandOptionType.String,
                 required: true
             }
@@ -1987,6 +2006,60 @@ client.on('interactionCreate', async (interaction) => {
         }
     }
 
+    if (interaction.commandName === "openai") {
+        if (interaction.member.id === process.env.DEV_ID) {
+            if (!interaction.inGuild()) {
+                interaction.reply({
+                    content: 'You can only run this command inside a server.',
+                    ephemeral: true,
+                });
+                return;
+            } try {
+                await interaction.deferReply();
+            
+                const query = {
+                    userId: interaction.member.id,
+                    guildId: interaction.guild.id,
+                };
+    
+                let user = await User.findOne(query);
+    
+                if (!user) {
+                    user = new User({
+                        ...query,
+                        lastDaily: new Date(),
+                    });
+                }
+                const bet = interaction.options.get('openai-string').value;
+                if (!bet) {
+                    interaction.editReply('Choose a OpenAI Search Query');
+                    return;
+                }
+                if (user.balance) {
+                    const response = await openai.chat.completions.create({
+                        model: 'text-davinci-003',
+                        prompt: bet,
+                        max_tokens: 4000,
+                    }).catch((error) => {
+                        console.log((`Error with /test2 response: ${error}`))
+                    });
+
+                    if (!response) {
+                        interaction.editReply(`Could not obtain a response from OpenAI`);
+                    };
+                    interaction.editReply(`${response.data.choices[0]}`);
+                } else {
+                    interaction.editReply(`Your balance is ${user.balance}:dollar:`);
+                }
+            } catch (error) {
+                interaction.editReply(`OpenAI Error: Check Console`);
+                console.log(`Error with /openai: ${error}`);
+            }
+        } else {
+            interaction.reply('Only my bot DEV can use this command as OpenAI Is a Paid Feature');
+        }
+    }
+
     if (interaction.commandName === "test") {
         if (interaction.member.id === process.env.DEV_ID) {
             if (!interaction.inGuild()) {
@@ -2057,9 +2130,9 @@ client.on('interactionCreate', async (interaction) => {
                         lastDaily: new Date(),
                     });
                 }
-                const bet = interaction.options.get('bet-amount').value;
+                const bet = interaction.options.get('txn-hash').value;
                 if (!bet) {
-                    interaction.editReply(`Please choose a bet amount`);
+                    interaction.editReply(`Please choose a TXN HASH to Lookup`);
                     return;
                 }
                 if (user.balance) {
@@ -2073,7 +2146,7 @@ client.on('interactionCreate', async (interaction) => {
                 }
             } catch (error) {
                 interaction.editReply(`Please try the Command Again`);
-                console.log(`Error with /test: ${error}`);
+                console.log(`Error with /test1: ${error}`);
             }
         } else {
             interaction.reply('Only my bot DEV can use this command');
