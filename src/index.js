@@ -10,6 +10,7 @@ const { Web3 } = require('web3');
 const web3 = new Web3(Web3.givenProvider || process.env.NODE_WEBSOCKET);
 const calculateLevelXP = require('./utils/calculateLevelXp');
 const User = require('./models/User');
+const Towers = require('./models/Towers');
 const Cooldown = require('./models/Cooldown');
 const Hilow = require('./models/Hilow');
 const { OpenAI } = require('openai');
@@ -543,20 +544,50 @@ const commands = [
         description: 'Help Command'
     },
     {
-        name: 'test',
-        description: 'test',
+        name: 'towers',
+        description: 'Play a Game of Towers',
         options: [
             {
-                name: 'bet-amount',
-                description: 'Choose how much to bet',
+                name: 'tower-choice',
+                description: 'Choose Which tower you want to Advance to',
                 type: ApplicationCommandOptionType.Number,
-                required: true
+                required: true,
+                choices: [
+                    {
+                        name: "Tower 1",
+                        value: 1
+                    },
+                    {
+                        name: "Tower 2",
+                        value: 2
+                    },
+                    {
+                        name: "Tower 3",
+                        value: 3
+                    }
+                ]
+            },
+            {
+                name: 'bet-amount',
+                description: 'Choose how much to bet (if you havent already started a Game)',
+                type: ApplicationCommandOptionType.Number
+            },
+            {
+                name: 'game-end',
+                description: 'Choose if you would like to end the game or not after this play.',
+                type: ApplicationCommandOptionType.Number,
+                choices: [
+                    {
+                        name: "END GAME",
+                        value: 1 
+                    }
+                ]
             }
         ]
     },
     {
-        name: 'test1',
-        description: 'test1',
+        name: 'test',
+        description: 'test',
         options: [
             {
                 name: 'txn-hash',
@@ -1968,33 +1999,87 @@ client.on('interactionCreate', async (interaction) => {
                     let odds = getOdds(hl, number);
                     interaction.editReply(`${odds}`);
                     if (raNumber === odds.number) {
-                        interaction.editReply(`:stop_button::stop_button::stop_button::stop_button::stop_button:\n:stop_button:${numtoemo(raNumber)}:arrow_up:Higher\n:stop_button:${numtoemo(odds.number)}:arrow_left:Your Number\n:stop_button::stop_button::stop_button::stop_button::stop_button:\n-0:dollar:`);
-                        return;
+                        if (raNumber < 100) {
+                            interaction.editReply(`:stop_button::stop_button::stop_button::stop_button::stop_button:\n:stop_button::stop_button:${numtoemo(raNumber)}:arrow_up:Higher\n:stop_button::stop_button:${numtoemo(odds.number)}:arrow_left:Your Number\n:stop_button::stop_button::stop_button::stop_button::stop_button:\n-0:dollar:`);
+                            return;
+                        } else {
+                            interaction.editReply(`:stop_button::stop_button::stop_button::stop_button::stop_button:\n:stop_button:${numtoemo(raNumber)}:arrow_up:Higher\n:stop_button:${numtoemo(odds.number)}:arrow_left:Your Number\n:stop_button::stop_button::stop_button::stop_button::stop_button:\n-0:dollar:`);
+                            return;
+                        }
                     }
                     if (raNumber < odds.number) {
                         user.balance += Math.trunc(bet*odds.win-bet);
                         user.save();
-                        interaction.editReply(`:stop_button::stop_button::stop_button::stop_button::stop_button:\n:stop_button:${numtoemo(raNumber)}:arrow_up:Higher\n:stop_button:${numtoemo(odds.number)}:arrow_left:Your Number\n:stop_button::stop_button::stop_button::stop_button::stop_button:\n:fire:+${Math.trunc(bet*odds.win-bet)}:dollar:\nYour new balance is\n${numtoemo(user.balance)}:dollar:`);
+                        if (raNumber < 100) {
+                            if (odds.number < 100) {
+                                interaction.editReply(`:stop_button::stop_button::stop_button::stop_button::stop_button:\n:stop_button::stop_button:${numtoemo(raNumber)}:arrow_up:Higher\n:stop_button::stop_button:${numtoemo(odds.number)}:arrow_left:Your Number\n:stop_button::stop_button::stop_button::stop_button::stop_button:\n:fire:+${Math.trunc(bet*odds.win-bet)}:dollar:\nYour new balance is\n${numtoemo(user.balance)}:dollar:`);
+                            } else {
+                                interaction.editReply(`:stop_button::stop_button::stop_button::stop_button::stop_button:\n:stop_button::stop_button:${numtoemo(raNumber)}:arrow_up:Higher\n:stop_button:${numtoemo(odds.number)}:arrow_left:Your Number\n:stop_button::stop_button::stop_button::stop_button::stop_button:\n:fire:+${Math.trunc(bet*odds.win-bet)}:dollar:\nYour new balance is\n${numtoemo(user.balance)}:dollar:`);
+                            }
+                        }
+                        if (odds.number < 100) {
+                            interaction.editReply(`:stop_button::stop_button::stop_button::stop_button::stop_button:\n:stop_button:${numtoemo(raNumber)}:arrow_up:Higher\n:stop_button::stop_button:${numtoemo(odds.number)}:arrow_left:Your Number\n:stop_button::stop_button::stop_button::stop_button::stop_button:\n:fire:+${Math.trunc(bet*odds.win-bet)}:dollar:\nYour new balance is\n${numtoemo(user.balance)}:dollar:`);
+                        } else {
+                            interaction.editReply(`:stop_button::stop_button::stop_button::stop_button::stop_button:\n:stop_button:${numtoemo(raNumber)}:arrow_up:Higher\n:stop_button:${numtoemo(odds.number)}:arrow_left:Your Number\n:stop_button::stop_button::stop_button::stop_button::stop_button:\n:fire:+${Math.trunc(bet*odds.win-bet)}:dollar:\nYour new balance is\n${numtoemo(user.balance)}:dollar:`);
+                        }
                     } else {
                         user.balance -= bet;
                         user.save();
-                        interaction.editReply(`:stop_button::stop_button::stop_button::stop_button::stop_button:\n:stop_button:${numtoemo(raNumber)}:arrow_up:Higher\n:stop_button:${numtoemo(odds.number)}:arrow_left:Your Number\n:stop_button::stop_button::stop_button::stop_button::stop_button:\n-${bet}:dollar:\nYour new balance is\n${numtoemo(user.balance)}:dollar:`);
+                        if (raNumber < 100) {
+                            if (odds.number < 100) {
+                                interaction.editReply(`:stop_button::stop_button::stop_button::stop_button::stop_button:\n:stop_button::stop_button:${numtoemo(raNumber)}:arrow_up:Higher\n:stop_button::stop_button:${numtoemo(odds.number)}:arrow_left:Your Number\n:stop_button::stop_button::stop_button::stop_button::stop_button:\n-${bet}:dollar:\nYour new balance is\n${numtoemo(user.balance)}:dollar:`);
+                            } else {
+                                interaction.editReply(`:stop_button::stop_button::stop_button::stop_button::stop_button:\n:stop_button::stop_button:${numtoemo(raNumber)}:arrow_up:Higher\n:stop_button:${numtoemo(odds.number)}:arrow_left:Your Number\n:stop_button::stop_button::stop_button::stop_button::stop_button:\n-${bet}:dollar:\nYour new balance is\n${numtoemo(user.balance)}:dollar:`);
+                            }
+                        }
+                        if (odds.number < 100) {
+                            interaction.editReply(`:stop_button::stop_button::stop_button::stop_button::stop_button:\n:stop_button:${numtoemo(raNumber)}:arrow_up:Higher\n:stop_button::stop_button:${numtoemo(odds.number)}:arrow_left:Your Number\n:stop_button::stop_button::stop_button::stop_button::stop_button:\n-${bet}:dollar:\nYour new balance is\n${numtoemo(user.balance)}:dollar:`);
+                        } else {
+                            interaction.editReply(`:stop_button::stop_button::stop_button::stop_button::stop_button:\n:stop_button:${numtoemo(raNumber)}:arrow_up:Higher\n:stop_button:${numtoemo(odds.number)}:arrow_left:Your Number\n:stop_button::stop_button::stop_button::stop_button::stop_button:\n-${bet}:dollar:\nYour new balance is\n${numtoemo(user.balance)}:dollar:`);
+                        }
                     }
                 } else {
                     let odds = getOdds(hl ,number);
                     interaction.editReply(`${odds}`);
                     if (raNumber === odds.number) {
-                        interaction.editReply(`:stop_button::stop_button::stop_button::stop_button::stop_button:\n:stop_button:${numtoemo(raNumber)}:arrow_down:Lower\n:stop_button:${numtoemo(odds.number)}:arrow_left:Your Number\n:stop_button::stop_button::stop_button::stop_button::stop_button:\n-0:dollar:`);
-                        return;
+                        if (raNumber < 100) {
+                            interaction.editReply(`:stop_button::stop_button::stop_button::stop_button::stop_button:\n:stop_button::stop_button:${numtoemo(raNumber)}:arrow_down:Lower\n:stop_button::stop_button:${numtoemo(odds.number)}:arrow_left:Your Number\n:stop_button::stop_button::stop_button::stop_button::stop_button:\n-0:dollar:`);
+                            return;
+                        } else {
+                            interaction.editReply(`:stop_button::stop_button::stop_button::stop_button::stop_button:\n:stop_button:${numtoemo(raNumber)}:arrow_down:Lower\n:stop_button:${numtoemo(odds.number)}:arrow_left:Your Number\n:stop_button::stop_button::stop_button::stop_button::stop_button:\n-0:dollar:`);
+                            return;
+                        }
                     }
                     if (raNumber > odds.number) {
                         user.balance += Math.trunc(bet*odds.win-bet);
                         user.save();
-                        interaction.editReply(`:stop_button::stop_button::stop_button::stop_button::stop_button:\n:stop_button:${numtoemo(raNumber)}:arrow_down:Lower\n:stop_button:${numtoemo(odds.number)}:arrow_left:Your Number\n:stop_button::stop_button::stop_button::stop_button::stop_button:\n:fire:+${Math.trunc(bet*odds.win-bet)}:dollar:\nYour new balance is\n${numtoemo(user.balance)}:dollar:`);
+                        if (raNumber < 100) {
+                            if (odds.number < 100) {
+                                interaction.editReply(`:stop_button::stop_button::stop_button::stop_button::stop_button:\n:stop_button::stop_button:${numtoemo(raNumber)}:arrow_down:Lower\n:stop_button::stop_button:${numtoemo(odds.number)}:arrow_left:Your Number\n:stop_button::stop_button::stop_button::stop_button::stop_button:\n:fire:+${Math.trunc(bet*odds.win-bet)}:dollar:\nYour new balance is\n${numtoemo(user.balance)}:dollar:`);
+                            } else {
+                                interaction.editReply(`:stop_button::stop_button::stop_button::stop_button::stop_button:\n:stop_button::stop_button:${numtoemo(raNumber)}:arrow_down:Lower\n:stop_button:${numtoemo(odds.number)}:arrow_left:Your Number\n:stop_button::stop_button::stop_button::stop_button::stop_button:\n:fire:+${Math.trunc(bet*odds.win-bet)}:dollar:\nYour new balance is\n${numtoemo(user.balance)}:dollar:`);
+                            }
+                        }
+                        if (odds.number < 100) {
+                            interaction.editReply(`:stop_button::stop_button::stop_button::stop_button::stop_button:\n:stop_button:${numtoemo(raNumber)}:arrow_down:Lower\n:stop_button::stop_button:${numtoemo(odds.number)}:arrow_left:Your Number\n:stop_button::stop_button::stop_button::stop_button::stop_button:\n:fire:+${Math.trunc(bet*odds.win-bet)}:dollar:\nYour new balance is\n${numtoemo(user.balance)}:dollar:`);
+                        } else {
+                            interaction.editReply(`:stop_button::stop_button::stop_button::stop_button::stop_button:\n:stop_button:${numtoemo(raNumber)}:arrow_down:Lower\n:stop_button:${numtoemo(odds.number)}:arrow_left:Your Number\n:stop_button::stop_button::stop_button::stop_button::stop_button:\n:fire:+${Math.trunc(bet*odds.win-bet)}:dollar:\nYour new balance is\n${numtoemo(user.balance)}:dollar:`);
+                        }
                     } else {
                         user.balance -= bet;
                         user.save();
-                        interaction.editReply(`:stop_button::stop_button::stop_button::stop_button::stop_button:\n:stop_button:${numtoemo(raNumber)}:arrow_down:Lower\n:stop_button:${numtoemo(odds.number)}:arrow_left:Your Number\n:stop_button::stop_button::stop_button::stop_button::stop_button:\n-${bet}:dollar:\nYour new balance is\n${numtoemo(user.balance)}:dollar:`);
+                        if (raNumber < 100) {
+                            if (odds.number < 100) {
+                                interaction.editReply(`:stop_button::stop_button::stop_button::stop_button::stop_button:\n:stop_button::stop_button:${numtoemo(raNumber)}:arrow_down:Lower\n:stop_button::stop_button:${numtoemo(odds.number)}:arrow_left:Your Number\n:stop_button::stop_button::stop_button::stop_button::stop_button:\n-${bet}:dollar:\nYour new balance is\n${numtoemo(user.balance)}:dollar:`);
+                            } else {
+                                interaction.editReply(`:stop_button::stop_button::stop_button::stop_button::stop_button:\n:stop_button::stop_button:${numtoemo(raNumber)}:arrow_down:Lower\n:stop_button:${numtoemo(odds.number)}:arrow_left:Your Number\n:stop_button::stop_button::stop_button::stop_button::stop_button:\n-${bet}:dollar:\nYour new balance is\n${numtoemo(user.balance)}:dollar:`);
+                            }
+                        }
+                        if (odds.number < 100) {
+                            interaction.editReply(`:stop_button::stop_button::stop_button::stop_button::stop_button:\n:stop_button:${numtoemo(raNumber)}:arrow_down:Lower\n:stop_button::stop_button:${numtoemo(odds.number)}:arrow_left:Your Number\n:stop_button::stop_button::stop_button::stop_button::stop_button:\n-${bet}:dollar:\nYour new balance is\n${numtoemo(user.balance)}:dollar:`);
+                        } else {
+                            interaction.editReply(`:stop_button::stop_button::stop_button::stop_button::stop_button:\n:stop_button:${numtoemo(raNumber)}:arrow_down:Lower\n:stop_button:${numtoemo(odds.number)}:arrow_left:Your Number\n:stop_button::stop_button::stop_button::stop_button::stop_button:\n-${bet}:dollar:\nYour new balance is\n${numtoemo(user.balance)}:dollar:`);
+                        }
                     }
                 }
             } else {
@@ -2060,7 +2145,7 @@ client.on('interactionCreate', async (interaction) => {
         }
     }
 
-    if (interaction.commandName === "test") {
+    if (interaction.commandName === "towers") {
         if (interaction.member.id === process.env.DEV_ID) {
             if (!interaction.inGuild()) {
                 interaction.reply({
@@ -2077,6 +2162,7 @@ client.on('interactionCreate', async (interaction) => {
                 };
     
                 let user = await User.findOne(query);
+                let game = await Towers.findOne(query);
     
                 if (!user) {
                     user = new User({
@@ -2084,29 +2170,115 @@ client.on('interactionCreate', async (interaction) => {
                         lastDaily: new Date(),
                     });
                 }
-                const bet = interaction.options.get('bet-amount').value;
-                if (!bet) {
-                    interaction.editReply(`Please choose a bet amount`);
-                    return;
+
+                if (!game) {
+                    game = new Towers({
+                        ...query,
+                        status: 0,
+                        Item1: 1,
+                        Item2: 1,
+                        Item3: 1,
+                        Item4: 1,
+                        Item5: 1,
+                        Item6: 1,
+                        Item7: 1,
+                        Item8: 1,
+                        Item9: 1,
+                    });
                 }
-                if (bet > 50) {
-                    giveXp(interaction.member.id, interaction.guild.id, interaction, bet);
-                }
-                if (user.balance >= bet && bet >= 1) {
-    
+
+                const bet = interaction.options.get('bet-amount')?.value;
+                const endGame = interaction.options.get('game-end')?.value;
+                const tower = interaction.options.get('tower-choice').value;
+                if (game.status === 0) {
+                    if (!bet) {
+                        interaction.editReply(`Please choose a bet amount`);
+                        return;
+                    }
+                    if (endGame) {
+                        interaction.editReply(`You can only end the game on or after the Third Level`);
+                        return;
+                    }
+                    if (bet > 50) {
+                        giveXp(interaction.member.id, interaction.guild.id, interaction, bet);
+                    }
+                    if (user.balance >= bet && bet >= 1) {
+                        r1 = getRandomNumber(1,3);
+                        r2 = getRandomNumber(1,3);
+                        r3 = getRandomNumber(1,3);
+                        r4 = getRandomNumber(1,3);
+                        r5 = getRandomNumber(1,3);
+                        r6 = getRandomNumber(1,3);
+                        r7 = getRandomNumber(1,3);
+                        r8 = getRandomNumber(1,3);
+                        r9 = getRandomNumber(1,3);
+                        user.balance -= bet;
+                        user.save();
+                        game.Item1 = r1;
+                        game.Item2 = r2;
+                        game.Item3 = r3;
+                        game.Item4 = r4;
+                        game.Item5 = r5;
+                        game.Item6 = r6;
+                        game.Item7 = r7;
+                        game.Item8 = r8;
+                        game.Item9 = r9;
+                        if (tower === r1) {
+                            game.status = 0;
+                            game.save();
+                            // LOSE
+                        } else {
+                            game.status = 2;
+                            game.save();
+                            // Continue Game
+                        }
+                    } else {
+                        interaction.editReply(`Your balance is ${user.balance}:dollar:`);
+                    }
                 } else {
-                    interaction.editReply(`Your balance is ${user.balance}:dollar:`);
+                    if (bet) {
+                        interaction.editReply(`You dont need to choose a bet once the game has been started.\nPlease Retry without a bet amount until the game has been finished`);
+                    } else {
+                        if (game.status === 2) {
+                            if (endGame) {
+                                interaction.editReply(`You can only end the game on or after the Third Level`);
+                                return;
+                            }
+                        }
+                        if (game.status === 3) {
+                          //Allow Game END  
+                        }
+                        if (game.status === 4) {
+                            //Allow Game END  
+                        }
+                        if (game.status === 5) {
+                            //Allow Game END  
+                        }
+                        if (game.status === 6) {
+                            //Allow Game END  
+                        }
+                        if (game.status === 7) {
+                            //Allow Game END  
+                        }
+                        if (game.status === 8) {
+                            //Allow Game END  
+                        }
+                        if (game.status === 9) {
+                            //Allow Game END  
+                            
+                        }
+                    }
                 }
             } catch (error) {
                 interaction.editReply(`Please try the Command Again`);
-                console.log(`Error with /test: ${error}`);
+                console.log(`Error with /towers: ${error}`);
             }
         } else {
-            interaction.reply('Only my bot DEV can use this command');
+            interaction.reply('Only my bot DEV can use this command as it is incomplete');
         }
     }
 
-    if (interaction.commandName === "test1") {
+    if (interaction.commandName === "test") {
         if (interaction.member.id === process.env.DEV_ID) {
             if (!interaction.inGuild()) {
                 interaction.reply({

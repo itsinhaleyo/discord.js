@@ -8,6 +8,7 @@ BANK_KEY =
 BOT_USER = 
 DB_LOGIN = 
 DB_PASS = 
-DB_LINK = 
+DB_NAME = 
+DB_LINK = mongodb+srv://DB_LOGIN:DB_PASS@DB_NAME.xyuxkxq.mongodb.net/?retryWrites=true&w=majority
 OPENAI_KEY = 
 OPENAI_ORG = 
