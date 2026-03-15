@@ -9,6 +9,7 @@ const ytdl = require('youtube-dl-exec');
 const fetch = require('isomorphic-unfetch');
 const { getDetails, getTracks } = require('spotify-url-info')(fetch);
 const { PassThrough } = require('stream');
+const { join } = require('path');
 
 //Audio Player
 const musictimers = new Map();
@@ -40,22 +41,23 @@ async function playSong(guildId) {
         if (serverQueue.lastMessage) {
             try { await serverQueue.lastMessage.delete(); } catch (err) {}
         }
-        const output = await ytdl(song.url, { 
+        const seekSeconds = Math.floor(serverQueue.currentTimestamp / 1000);
+        const urlWithSeek = seekSeconds > 0 ? `${song.url}&t=${seekSeconds}s` : song.url;
+        const output = await ytdl(urlWithSeek, { 
             dumpSingleJson: true, 
             format: 'bestaudio/best', 
             noCheckCertificates: true, 
             jsRuntimes: 'node' 
         });
-        const videoTitle = output.title || output.entries?.[0]?.title || "Unknown Title";
-        const totalDurationSeconds = output.duration || output.entries?.[0]?.duration || 0;
-        const totalMs = totalDurationSeconds * 1000;
         const generateEmbed = () => {
             const start = 1 + (serverQueue.page * 5);
             const upcoming = serverQueue.songs.slice(start, start + 5);
             const queueList = upcoming.length > 0 
                 ? upcoming.map((s, i) => `\`${start + i}.\` ${s.title}`).join('\n') 
                 : "No more songs in this page.";
-            const totalMs = (output.duration || 0) * 1000;
+            const videoTitle = output.title || output.entries?.[0]?.title || "Unknown Title";
+            const totalDurationSeconds = output.duration || output.entries?.[0]?.duration || 0;
+            const totalMs = totalDurationSeconds * 1000;
             const progressBar = createProgressBar(serverQueue.currentTimestamp, totalMs);
             return new EmbedBuilder()
                 .setTitle("Now Playing 🎶")
@@ -85,10 +87,7 @@ async function playSong(guildId) {
             inputType: StreamType.Arbitrary,
             inlineVolume: true,
             highWaterMark: 1024 * 1024 * 64, 
-            ffmpegOptions: [        
-                '-ss', String(Math.floor(serverQueue.currentTimestamp / 1000)),
-                '-reconnect', '1', '-reconnect_streamed', '1', '-reconnect_delay_max', '1'
-            ]
+            ffmpegOptions: ['-ss', String(Math.floor(serverQueue.currentTimestamp / 1000)), '-i', output.url, '-reconnect', '1', '-reconnect_streamed', '1', '-reconnect_delay_max', '1', '-analyzeduration', '0', '-loglevel', '0']
         });
         serverQueue.player.play(resource);
         const collector = sentMessage.createMessageComponentCollector({ componentType: ComponentType.Button, time: 600000 });
