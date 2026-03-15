@@ -40,30 +40,34 @@ async function playSong(guildId) {
         if (serverQueue.lastMessage) {
             try { await serverQueue.lastMessage.delete(); } catch (err) {}
         }
-        const seekSeconds = Math.floor(serverQueue.currentTimestamp / 1000);
-        const urlWithSeek = seekSeconds > 0 ? `${song.url}&t=${seekSeconds}s` : song.url;
-        const output = await ytdl(urlWithSeek, { dumpSingleJson: true, format: 'bestaudio', noCheckCertificates: true, noWarnings: true, preferFreeFormats: true, jsRuntimes: 'node', addHeader: ['referer:youtube.com', 'user-agent:googlebot'] });
+        const output = await ytdl(song.url, { 
+            dumpSingleJson: true, 
+            format: 'bestaudio/best', 
+            noCheckCertificates: true, 
+            jsRuntimes: 'node' 
+        });
+        const videoTitle = output.title || output.entries?.[0]?.title || "Unknown Title";
+        const totalDurationSeconds = output.duration || output.entries?.[0]?.duration || 0;
+        const totalMs = totalDurationSeconds * 1000;
         const generateEmbed = () => {
             const start = 1 + (serverQueue.page * 5);
             const upcoming = serverQueue.songs.slice(start, start + 5);
             const queueList = upcoming.length > 0 
                 ? upcoming.map((s, i) => `\`${start + i}.\` ${s.title}`).join('\n') 
                 : "No more songs in this page.";
-            const currentFormatted = formatTime(serverQueue.currentTimestamp);
-            const totalMs = output.duration * 1000;
-            const totalFormatted = formatTime(totalMs);
-            const progressBar = createProgressBar(serverQueue.currentTimestamp, totalMs)
+            const totalMs = (output.duration || 0) * 1000;
+            const progressBar = createProgressBar(serverQueue.currentTimestamp, totalMs);
             return new EmbedBuilder()
                 .setTitle("Now Playing 🎶")
-                .setDescription(`**[${output.title}](${song.url})**\n${progressBar}`)
-                .setThumbnail(output.thumbnail || null)
+                .setDescription(`**[${videoTitle}](${song.url})**\n${progressBar}`)
+                .setThumbnail(output.thumbnail || output.entries?.[0]?.thumbnail || null)
                 .addFields(
-                    { name: 'Duration', value: `\`${currentFormatted} / ${totalFormatted}\``, inline: true },
+                    { name: 'Duration', value: `\`${formatTime(serverQueue.currentTimestamp)} / ${formatTime(totalMs)}\``, inline: true },
                     { name: 'Queue Size', value: `${serverQueue.songs.length} songs`, inline: true },
                     { name: `Upcoming (Page ${serverQueue.page + 1}):`, value: queueList }
                 )
                 .setColor("#00ff00");
-            };
+        };
         const navRow = new ActionRowBuilder().addComponents(
             new ButtonBuilder().setCustomId('prev_page').setLabel('⬅️').setStyle(ButtonStyle.Secondary),
             new ButtonBuilder().setCustomId('next_page').setLabel('➡️').setStyle(ButtonStyle.Secondary),
@@ -72,13 +76,10 @@ async function playSong(guildId) {
         );
         const musicRow = new ActionRowBuilder().addComponents(
             new ButtonBuilder().setCustomId('pause_resume').setLabel('⏸️/▶️').setStyle(ButtonStyle.Primary),
-            new ButtonBuilder().setCustomId('stop_music').setLabel('🛑').setStyle(ButtonStyle.Danger),
             new ButtonBuilder().setCustomId('skip_song').setLabel('⏭️').setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder().setCustomId('stop_music').setLabel('🛑').setStyle(ButtonStyle.Danger),
         );
-        const sentMessage = await serverQueue.textChannel.send({ 
-            embeds: [generateEmbed()], 
-            components: [musicRow, navRow] 
-        });
+        const sentMessage = await serverQueue.textChannel.send({ embeds: [generateEmbed()], components: [musicRow, navRow] });
         serverQueue.lastMessage = sentMessage;
         const resource = createAudioResource(output.url, {
             inputType: StreamType.Arbitrary,
@@ -86,12 +87,7 @@ async function playSong(guildId) {
             highWaterMark: 1024 * 1024 * 64, 
             ffmpegOptions: [        
                 '-ss', String(Math.floor(serverQueue.currentTimestamp / 1000)),
-                '-i', output.url,
-                '-reconnect', '1',
-                '-reconnect_streamed', '1',
-                '-reconnect_delay_max', '1',
-                '-analyzeduration', '0',
-                '-loglevel', '0'
+                '-reconnect', '1', '-reconnect_streamed', '1', '-reconnect_delay_max', '1'
             ]
         });
         serverQueue.player.play(resource);
@@ -130,7 +126,7 @@ async function playSong(guildId) {
                 collector.stop();
             } else if (i.customId === 'stop_music') {
                 serverQueue.songs = [];
-                serverQueue.isSkipping = true
+                serverQueue.isSkipping = true;
                 serverQueue.currentTimestamp = 0;
                 serverQueue.player.stop();
                 await i.reply({ content: "Stopped 🛑", flags: [MessageFlags.Ephemeral] });
@@ -152,14 +148,12 @@ async function playSong(guildId) {
                     if (serverQueue.currentTimestamp % 10000 === 0 && serverQueue.lastMessage) {
                         await serverQueue.lastMessage.edit({ embeds: [generateEmbed()] }).catch(() => {});
                     }
-                } else {
-                    clearInterval(timer);
-                }
+                } else { clearInterval(timer); }
             }, 1000);
         });
         serverQueue.player.once(AudioPlayerStatus.Idle, () => {
             collector.stop();
-            const totalDurationMs = output.duration * 1000;
+            const totalDurationMs = (output.duration || 0) * 1000;
             if (serverQueue.isSkipping) {
                 serverQueue.isSkipping = false;
                 serverQueue.currentTimestamp = 0;
@@ -167,22 +161,14 @@ async function playSong(guildId) {
                 return playSong(guildId);
             }
             if (serverQueue.currentTimestamp < totalDurationMs - 5000) {
-                console.log(`Song cut out at ${serverQueue.currentTimestamp}ms. Resuming...`);
                 return playSong(guildId);
             }
             serverQueue.currentTimestamp = 0;
             serverQueue.songs.shift();
             playSong(guildId);
         });
-        serverQueue.player.once('error', error => {
-            console.error(`Audio Player Error: ${error.message}`);
-            serverQueue.currentTimestamp = 0;
-            serverQueue.songs.shift();
-            playSong(guildId);
-        });
     } catch (error) {
         console.error("Playback Error:", error);
-        serverQueue.currentTimestamp = 0;
         serverQueue.songs.shift();
         playSong(guildId);
     }
@@ -5137,118 +5123,58 @@ client.on('interactionCreate', async (interaction) => {
         const guildId = interaction.guildId;
         let songsToAdd = [];
         const existingTimer = musictimers.get(guildId);
-        if (existingTimer) {
-            clearTimeout(existingTimer);
-            musictimers.delete(guildId);
-        } try {
+        if (existingTimer) { clearTimeout(existingTimer); musictimers.delete(guildId); }
+        try {
             if (query.includes('spotify.com')) {
                 let searchTerms = [];
-                try {
-                    if (query.includes('/playlist/') || query.includes('/album/')) {
-                        const tracks = await getTracks(query);
-                        searchTerms = tracks.map(t => {
-                            const name = t.name || t.title;
-                            const artistName = t.artists?.[0]?.name || t.artist || ""; 
-                            return `${name} ${artistName}`.trim();
-                        }).filter(term => term.length > 0);
-                        await interaction.editReply(`Processing **${searchTerms.length}** Spotify tracks...`);
-                    } else {
-                        const data = await getDetails(query);
-                        const name = data.preview?.title || data.title;
-                        const artist = data.preview?.artist || data.artists?.[0]?.name || "";
-                        searchTerms.push(`${name} ${artist}`.trim());
-                    }
-                    for (const term of searchTerms) {
-                        try {
-                            const output = await ytdl(term, { 
-                                dumpSingleJson: true, 
-                                format: 'bestaudio', 
-                                noCheckCertificates: true, 
-                                noWarnings: true, 
-                                preferFreeFormats: true, 
-                                jsRuntimes: 'node', 
-                                addHeader: ['referer:youtube.com', 'user-agent:googlebot']
-                            });
-                            const videoData = output.entries ? output.entries[0] : output;
-                            if (videoData) {
-                                songsToAdd.push({
-                                    title: videoData.title,
-                                    url: videoData.webpage_url || videoData.url
-                                });
-                            }
-                        } catch (e) {
-                            console.error(`Failed to find YouTube version for: ${term}`);
-                        }
-                    }
-                } catch (err) {
-                    console.error("Spotify Metadata Error:", err);
-                    return interaction.editReply("Failed to get Spotify data. Ensure the link is public.");
+                if (query.includes('/playlist/') || query.includes('/album/')) {
+                    const tracks = await getTracks(query);
+                    searchTerms = tracks.map(t => `${t.name} ${t.artists?.[0]?.name || t.artist || ""}`);
+                    await interaction.editReply(`Processing **${searchTerms.length}** Spotify tracks...`);
+                } else {
+                    const data = await getDetails(query);
+                    searchTerms.push(`${data.preview.title} ${data.preview.artist}`);
+                }
+                for (const term of searchTerms) {
+                    const output = await ytdl(term, { dumpSingleJson: true, defaultSearch: 'ytsearch1:', format: 'bestaudio', jsRuntimes: 'node' });
+                    const videoData = output.entries ? output.entries[0] : output;
+                    if (videoData) songsToAdd.push({ title: videoData.title, url: videoData.webpage_url || videoData.url });
                 }
             } else {
-                const output = await ytdl(query, {
-                    dumpSingleJson: true,
-                    noWarnings: true,
-                    flatPlaylist: true,
-                    format: 'bestaudio',
-                    defaultSearch: 'ytsearch1:' 
-                });
-                if (output.entries && output.entries.length > 0) {
-                    songsToAdd = output.entries.map(entry => ({
-                        title: entry.title,
-                        url: entry.url || entry.webpage_url
-                    }));
+                const output = await ytdl(query, { dumpSingleJson: true, flatPlaylist: true, format: 'bestaudio', defaultSearch: 'ytsearch1:' });
+                if (output.entries) {
+                    songsToAdd = output.entries.map(e => ({ title: e.title, url: e.url || e.webpage_url }));
                 } else {
-                    songsToAdd.push({
-                        title: output.title,
-                        url: output.url || output.webpage_url
-                    });
+                    songsToAdd.push({ title: output.title, url: output.url || output.webpage_url });
                 }
             }
             if (songsToAdd.length === 0) return interaction.editReply("Could not find any songs.");
             let serverQueue = musicqueues.get(guildId);
             if (!serverQueue) {
-                const player = createAudioPlayer({
-                    behaviors: { noSubscriber: NoSubscriberBehavior.Play }
-                });
+                const player = createAudioPlayer({ behaviors: { noSubscriber: NoSubscriberBehavior.Play } });
                 const connection = getVoiceConnection(guildId);
                 if (connection) {
                     connection.subscribe(player);
                     connection.on('stateChange', (oldState, newState) => {
-                        if (oldState.status === VoiceConnectionStatus.Ready && newState.status === VoiceConnectionStatus.Connecting) {
-                            connection.configureNetworking();
-                        }
+                        if (oldState.status === VoiceConnectionStatus.Ready && newState.status === VoiceConnectionStatus.Connecting) connection.configureNetworking();
                     });
                 }
-                serverQueue = {
-                    songs: songsToAdd,
-                    player: player,
-                    textChannel: interaction.channel,
-                    lastMessage: null,
-                    currentTimestamp: 0,
-                    isSkipping: false,
-                    page: 0
-                };
+                serverQueue = { songs: songsToAdd, player, textChannel: interaction.channel, lastMessage: null, currentTimestamp: 0, isSkipping: false, page: 0 };
                 musicqueues.set(guildId, serverQueue);
                 playSong(guildId);
-                const msg = songsToAdd.length > 1 
-                    ? `Added **${songsToAdd.length}** songs to queue.` 
-                    : `Now playing: **${songsToAdd[0].title}**`;
-                await interaction.editReply(msg);
+                await interaction.editReply(songsToAdd.length > 1 ? `Added **${songsToAdd.length}** songs.` : `Now playing: **${songsToAdd[0].title}**`);
             } else {
                 serverQueue.songs.push(...songsToAdd);
                 if (serverQueue.player.state.status === AudioPlayerStatus.Idle) {
-                    const connection = getVoiceConnection(guildId);
-                    if (connection) connection.subscribe(serverQueue.player);
+                    const conn = getVoiceConnection(guildId);
+                    if (conn) conn.subscribe(serverQueue.player);
                     playSong(guildId);
                 }
-                const msg = songsToAdd.length > 1 
-                    ? `Added **${songsToAdd.length}** songs to queue.` 
-                    : `Added **${songsToAdd[0].title}** to queue!`;
-                await interaction.editReply(msg);
+                await interaction.editReply(songsToAdd.length > 1 ? `Added **${songsToAdd.length}** songs.` : `Added **${songsToAdd[0].title}** to queue!`);
             }
-        } catch (error) {
-            console.error("Play Command Error:", error);
-            await interaction.editReply("Failed to load music. Check the link or try again.");
+        } catch (e) {
+            console.error(e);
+            await interaction.editReply("Error loading music.");
         }
     }
 
