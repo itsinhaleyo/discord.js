@@ -1,4 +1,5 @@
 # discord.js
+
 YOU WILL NEED TO INSTALL THE LATEST VERISON AVAILABLE OF NPM FROM: https://nodejs.org/en/download
 
 Once NPM has been downloaded,
@@ -80,4 +81,20 @@ NOW YOU SHOULD BE ALL SET TO RUN THE BOT!
 
 to run the bot open terminal in the bot folder and enter "nodemon"
 
+and if nodemon doesnt work use this line "npx nodemon index.js"
+
+if you want to run the bot to hide deprication warnings run "npx nodemon --exec --no-deprecation" src/index.js"
+
 this will restart the bot everytime you save a change to the code!
+
+
+
+NOTE TO DEVELOPERS:
+
+Once the bot is used and a user file has been created, there is a GameMaster Entry that will create a type of audit so you know how much currency is being given away or being lost by games!
+
+The GameMaster Entry will show up in the MongoDB.
+
+The /Dig and /Daily Commands will not count in this audit but there is a line added to allow you to audit these commands aswell if you wish.
+
+just search for "<--- Remove this note and the // at the beginning of the line and Remove the next 2 Lines if you wish to Audit this Command Aswell"

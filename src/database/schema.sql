@@ -1,0 +1,35 @@
+CREATE DATABASE discordjs;
+
+CREATE TABLE users (
+    userid VARCHAR(100) NOT NULL PRIMARY KEY,
+    balance BIGINT NOT NULL,
+    daily VARCHAR(100) NOT NULL,
+    xp VARCHAR(100) NOT NULL,
+    level VARCHAR(100) NOT NULL
+);
+
+CREATE TABLE cooldown (
+    userid VARCHAR(100) NOT NULL PRIMARY KEY,
+    commandName VARCHAR(10) NOT NULL,
+    endsAt VARCHAR(100) NOT NULL
+);
+
+CREATE TABLE towers (
+    userid VARCHAR(100) NOT NULL PRIMARY KEY,
+    status VARCHAR(2) NOT NULL,
+    bet VARCHAR(20) NOT NULL,
+    item1 VARCHAR(5) NOT NULL,
+    item2 VARCHAR(5) NOT NULL,
+    item3 VARCHAR(5) NOT NULL,
+    item4 VARCHAR(5) NOT NULL,
+    item5 VARCHAR(5) NOT NULL
+);
+
+CREATE TABLE hilow (
+    userid VARCHAR(100) NOT NULL PRIMARY KEY,
+    lastNumber VARCHAR(5) NOT NULL
+);
+
+CREATE TABLE guilds(
+    guildid VARCHAR(100) NOT NULL PRIMARY KEY
+);

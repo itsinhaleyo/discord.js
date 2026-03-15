@@ -4,6 +4,11 @@ const path = require('path');
 module.exports = (directory, foldersOnly = false) => {
   let fileNames = [];
 
+  // Add this check to prevent the ENOENT error
+  if (!fs.existsSync(directory)) {
+    return []; 
+  }
+
   const files = fs.readdirSync(directory, { withFileTypes: true });
 
   for (const file of files) {

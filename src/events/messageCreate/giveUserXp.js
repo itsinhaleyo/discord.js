@@ -1,6 +1,5 @@
 const { Client, Message } = require('discord.js');
-const Level = require('../../models/Level');
-const calculateLevelXP = require('../../utils/calculateLevelXp');
+const db = require('../../database/db');
 const cooldowns = new Set();
 
 function getRandomXp(){
@@ -17,50 +16,33 @@ function getRandomXp(){
 
 module.exports = async (client, message) => {
     if (!message.inGuild() || message.author.bot || cooldowns.has(message.author.id)) return;
-
-    const xpToGive = getRandomXp();
-
-    const query = {
-        userId: message.author.id,
-        guildId: message.guild.id,
-    };
-
+    let xpToGive = getRandomXp();
+    if (message.content.toLowerCase().includes('nigger')) {
+        xpToGive *= 2;
+    }
     try {
-        const level = await Level.findOne(query)
-
-        if (level) {
-            level.xp += xpToGive;
-
-            if (level.xp > calculateLevelXP(level.level)) {
-                let xpleft = level.xp - calculateLevelXP(level.level);
-                level.xp = xpleft;
-                level.level += 1;
-
-                message.channel.send(`${message.member} you have leveled up to **level ${level.level}**`);
-
+        let result = await db.query("SELECT * FROM users WHERE userid = ?", [message.author.id]);
+        const user = result[0][0];
+        if (user) {
+            let newxp = Number(user.xp) + xpToGive;
+            let oldxp = 100 * Number(user.level);
+            if (newxp > oldxp) {
+                let newbalance = Number(user.balance) + oldxp;
+                let xpleft = newxp - oldxp;
+                let newlevel = Number(user.level) + 1;
+                db.query('UPDATE users SET level = ?, xp = ?, balance = ? WHERE userid = ?', [newlevel, xpleft, newbalance, message.author.id]);
+                message.channel.send(`${message.member} you have leveled up to **level ${newlevel}**`);
+            } else {
+                db.query('UPDATE users SET xp = ? WHERE userid = ?', [newxp, message.author.id]);
             }
-
-            await level.save().catch((error) => {
-                console.log(`=-=ERROR=-= ${error}`);
-                return;
-            });
-            cooldowns.add(message.author.id);
-            setTimeout(() => {
-                cooldowns.delete(message.author.id);
-            }, 60000);
+        } else {
+            const currentDate = new Date().toDateString();
+            db.query('INSERT INTO users VALUES(?, ?, ?, ?, ?)', [message.author.id, 25000, currentDate, xpToGive, 1]);
         }
-        // if (!level)
-        else {
-            //Create new level
-            const newLevel = new Level({
-                userId: message.author.id,
-                guildId: message.guild.id,
-                xp: xpToGive
-            });
-
-            await newLevel.save();
-        }
-
+        cooldowns.add(message.author.id);
+        setTimeout(() => {
+            cooldowns.delete(message.author.id);
+        }, 10000);
     } catch (error) {
         console.log(`=-=ERROR=-= ${error}`);
     }
