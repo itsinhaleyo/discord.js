@@ -5,7 +5,7 @@ const { VoiceConnectionStatus, joinVoiceChannel, createAudioPlayer, createAudioR
 const eventHandler = require('./handlers/eventHandler');
 const canvacord = require('canvacord');
 const { GoogleGenAI } = require("@google/genai");
-const ytdl = require('yt-dlp-exec');
+const ytdl = require('youtube-dl-exec');
 const fetch = require('isomorphic-unfetch');
 const { getDetails, getTracks } = require('spotify-url-info')(fetch);
 const { PassThrough } = require('stream');
@@ -42,7 +42,7 @@ async function playSong(guildId) {
         }
         const seekSeconds = Math.floor(serverQueue.currentTimestamp / 1000);
         const urlWithSeek = seekSeconds > 0 ? `${song.url}&t=${seekSeconds}s` : song.url;
-        const output = await ytdl(urlWithSeek, { dumpSingleJson: true, format: 'bestaudio/best'});
+        const output = await ytdl(urlWithSeek, { dumpSingleJson: true, format: 'bestaudio', noCheckCertificates: true, noWarnings: true, preferFreeFormats: true, jsRuntimes: 'node', addHeader: ['referer:youtube.com', 'user-agent:googlebot'] });
         const generateEmbed = () => {
             const start = 1 + (serverQueue.page * 5);
             const upcoming = serverQueue.songs.slice(start, start + 5);
@@ -126,7 +126,7 @@ async function playSong(guildId) {
                 serverQueue.isSkipping = true;
                 serverQueue.currentTimestamp = 0; 
                 serverQueue.player.stop();
-                await i.reply({ content: "Skipped ⏭️", ephemeral: true });
+                await i.reply({ content: "Skipped ⏭️", flags: [MessageFlags.Ephemeral] });
                 collector.stop();
             } else if (i.customId === 'stop_music') {
                 serverQueue.songs = [];
@@ -5160,11 +5160,14 @@ client.on('interactionCreate', async (interaction) => {
                     }
                     for (const term of searchTerms) {
                         try {
-                            const output = await ytdl(term, {
-                                dumpSingleJson: true,
-                                defaultSearch: 'ytsearch1:',
-                                noWarnings: true,
-                                format: 'bestaudio',
+                            const output = await ytdl(term, { 
+                                dumpSingleJson: true, 
+                                format: 'bestaudio', 
+                                noCheckCertificates: true, 
+                                noWarnings: true, 
+                                preferFreeFormats: true, 
+                                jsRuntimes: 'node', 
+                                addHeader: ['referer:youtube.com', 'user-agent:googlebot']
                             });
                             const videoData = output.entries ? output.entries[0] : output;
                             if (videoData) {
@@ -5186,7 +5189,7 @@ client.on('interactionCreate', async (interaction) => {
                     dumpSingleJson: true,
                     noWarnings: true,
                     flatPlaylist: true,
-                    format: 'bestaudio/best',
+                    format: 'bestaudio',
                     defaultSearch: 'ytsearch1:' 
                 });
                 if (output.entries && output.entries.length > 0) {
@@ -5287,10 +5290,24 @@ client.on('interactionCreate', async (interaction) => {
                 });
                 return;
             } try {
-                const url = interaction.options.get('url').value;
-                let yt_info = await play.video_basic_info(url);
-                console.log(yt_info)
-                await interaction.reply("-"+yt_info);
+                await interaction.deferReply();
+
+                try {
+                    // Using the object syntax is much safer and easier to read
+                    const output = await ytdl("https://www.youtube.com/watch?v=nvKu0cRQNto", {
+                        listFormats: true,
+                        noWarnings: true
+                    });
+
+                    // yt-dlp-exec returns a string for list-formats
+                    // Discord has a 2000 character limit, so we slice it just in case
+                    const result = output.length > 1900 ? output.substring(0, 1900) + "..." : output;
+                    
+                    await interaction.editReply("```\n" + result + "\n```");
+                } catch(error) {
+                    console.error(error);
+                    await interaction.editReply(`Error running test:\n\`\`\`${error.message}\`\`\``);
+                }
             } catch(error) {
                 interaction.reply(`Please try the Command Again\n`+error);
                 console.log(error);
