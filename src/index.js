@@ -6,6 +6,8 @@ const eventHandler = require('./handlers/eventHandler');
 const canvacord = require('canvacord');
 const { GoogleGenAI } = require("@google/genai");
 const ytdl = require('yt-dlp-exec');
+const fetch = require('isomorphic-unfetch');
+const { getDetails, getTracks } = require('spotify-url-info')(fetch);
 const { PassThrough } = require('stream');
 
 //Audio Player
@@ -40,7 +42,7 @@ async function playSong(guildId) {
         }
         const seekSeconds = Math.floor(serverQueue.currentTimestamp / 1000);
         const urlWithSeek = seekSeconds > 0 ? `${song.url}&t=${seekSeconds}s` : song.url;
-        const output = await ytdl(urlWithSeek, { dumpSingleJson: true, format: 'bestaudio', cookies: './cookies.txt' });
+        const output = await ytdl(urlWithSeek, { dumpSingleJson: true, format: 'bestaudio/best'});
         const generateEmbed = () => {
             const start = 1 + (serverQueue.page * 5);
             const upcoming = serverQueue.songs.slice(start, start + 5);
@@ -87,7 +89,7 @@ async function playSong(guildId) {
                 '-i', output.url,
                 '-reconnect', '1',
                 '-reconnect_streamed', '1',
-                '-reconnect_delay_max', '5',
+                '-reconnect_delay_max', '1',
                 '-analyzeduration', '0',
                 '-loglevel', '0'
             ]
@@ -696,15 +698,7 @@ const commands = [
     },
     {
         name: 'test',
-        description: 'test',
-        options: [
-            {
-                name: 'url',
-                description: 'The Youtube Link',
-                type: ApplicationCommandOptionType.String,
-                required: true
-            },
-        ]
+        description: 'test'
     },
     {
         name: 'join',
@@ -712,11 +706,11 @@ const commands = [
     },
     {
         name: 'play',
-        description: 'Plays a Youtube Song',
+        description: 'Plays a Song',
         options: [
             {
-                name: 'url',
-                description: 'The Youtube Link',
+                name: 'search',
+                description: 'A Youtube/Spotify Link',
                 type: ApplicationCommandOptionType.String,
                 required: true
             },
@@ -1334,7 +1328,7 @@ client.on('interactionCreate', async (interaction) => {
                 },
                 {
                     name: "/play",
-                    value: "Play a Youtube URL in the Music Player",
+                    value: "Play a Youtube or Spotify Song in the Music Player",
                     inline: true
                 },
                 {
@@ -5139,49 +5133,89 @@ client.on('interactionCreate', async (interaction) => {
     
     if (interaction.commandName === "play") {
         await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
-        const existingTimer = musictimers.get(interaction.guildId);
+        const query = interaction.options.getString('search');
+        const guildId = interaction.guildId;
+        let songsToAdd = [];
+        const existingTimer = musictimers.get(guildId);
         if (existingTimer) {
             clearTimeout(existingTimer);
-            musictimers.delete(interaction.guildId);
-        }
-        const query = interaction.options.getString('url');
-        const guildId = interaction.guildId;
-        try {
-            const output = await ytdl(query, {
-                dumpSingleJson: true,
-                noWarnings: true,
-                flatPlaylist: true,
-                format: 'bestaudio',
-                defaultSearch: 'ytsearch1:' 
-            });
-            let songsToAdd = [];
-            if (output.entries && output.entries.length > 0) {
-                songsToAdd = output.entries.map(entry => ({
-                    title: entry.title,
-                    url: entry.url || entry.webpage_url
-                }));
-                await interaction.editReply(`Added **${songsToAdd.length}** songs from the playlist: **${output.title}**`);
+            musictimers.delete(guildId);
+        } try {
+            if (query.includes('spotify.com')) {
+                let searchTerms = [];
+                try {
+                    if (query.includes('/playlist/') || query.includes('/album/')) {
+                        const tracks = await getTracks(query);
+                        searchTerms = tracks.map(t => {
+                            const name = t.name || t.title;
+                            const artistName = t.artists?.[0]?.name || t.artist || ""; 
+                            return `${name} ${artistName}`.trim();
+                        }).filter(term => term.length > 0);
+                        await interaction.editReply(`Processing **${searchTerms.length}** Spotify tracks...`);
+                    } else {
+                        const data = await getDetails(query);
+                        const name = data.preview?.title || data.title;
+                        const artist = data.preview?.artist || data.artists?.[0]?.name || "";
+                        searchTerms.push(`${name} ${artist}`.trim());
+                    }
+                    for (const term of searchTerms) {
+                        try {
+                            const output = await ytdl(term, {
+                                dumpSingleJson: true,
+                                defaultSearch: 'ytsearch1:',
+                                noWarnings: true,
+                                format: 'bestaudio',
+                            });
+                            const videoData = output.entries ? output.entries[0] : output;
+                            if (videoData) {
+                                songsToAdd.push({
+                                    title: videoData.title,
+                                    url: videoData.webpage_url || videoData.url
+                                });
+                            }
+                        } catch (e) {
+                            console.error(`Failed to find YouTube version for: ${term}`);
+                        }
+                    }
+                } catch (err) {
+                    console.error("Spotify Metadata Error:", err);
+                    return interaction.editReply("Failed to get Spotify data. Ensure the link is public.");
+                }
             } else {
-                songsToAdd.push({
-                    title: output.title,
-                    url: output.url || output.webpage_url
+                const output = await ytdl(query, {
+                    dumpSingleJson: true,
+                    noWarnings: true,
+                    flatPlaylist: true,
+                    format: 'bestaudio/best',
+                    defaultSearch: 'ytsearch1:' 
                 });
+                if (output.entries && output.entries.length > 0) {
+                    songsToAdd = output.entries.map(entry => ({
+                        title: entry.title,
+                        url: entry.url || entry.webpage_url
+                    }));
+                } else {
+                    songsToAdd.push({
+                        title: output.title,
+                        url: output.url || output.webpage_url
+                    });
+                }
             }
+            if (songsToAdd.length === 0) return interaction.editReply("Could not find any songs.");
             let serverQueue = musicqueues.get(guildId);
             if (!serverQueue) {
                 const player = createAudioPlayer({
                     behaviors: { noSubscriber: NoSubscriberBehavior.Play }
                 });
                 const connection = getVoiceConnection(guildId);
-                if (connection) connection.subscribe(player);
-                connection.on('stateChange', (oldState, newState) => {
-                    const oldStatus = oldState.status;
-                    const newStatus = newState.status;
-                    if (oldStatus === VoiceConnectionStatus.Ready && newStatus === VoiceConnectionStatus.Connecting) {
-                        console.log("Connection lost, re-configuring networking...");
-                        connection.configureNetworking();
-                    }
-                });
+                if (connection) {
+                    connection.subscribe(player);
+                    connection.on('stateChange', (oldState, newState) => {
+                        if (oldState.status === VoiceConnectionStatus.Ready && newState.status === VoiceConnectionStatus.Connecting) {
+                            connection.configureNetworking();
+                        }
+                    });
+                }
                 serverQueue = {
                     songs: songsToAdd,
                     player: player,
@@ -5193,9 +5227,10 @@ client.on('interactionCreate', async (interaction) => {
                 };
                 musicqueues.set(guildId, serverQueue);
                 playSong(guildId);
-                if (songsToAdd.length === 1) {
-                    await interaction.editReply(`Now playing: **${songsToAdd[0].title}**`);
-                }
+                const msg = songsToAdd.length > 1 
+                    ? `Added **${songsToAdd.length}** songs to queue.` 
+                    : `Now playing: **${songsToAdd[0].title}**`;
+                await interaction.editReply(msg);
             } else {
                 serverQueue.songs.push(...songsToAdd);
                 if (serverQueue.player.state.status === AudioPlayerStatus.Idle) {
@@ -5203,13 +5238,14 @@ client.on('interactionCreate', async (interaction) => {
                     if (connection) connection.subscribe(serverQueue.player);
                     playSong(guildId);
                 }
-                if (songsToAdd.length === 1) {
-                    await interaction.editReply(`Added **${songsToAdd[0].title}** to the queue!`);
-                }
+                const msg = songsToAdd.length > 1 
+                    ? `Added **${songsToAdd.length}** songs to queue.` 
+                    : `Added **${songsToAdd[0].title}** to queue!`;
+                await interaction.editReply(msg);
             }
         } catch (error) {
-            console.error("YT-DLP Playlist Error:", error);
-            await interaction.editReply("Failed to load playlist. Make sure the link is public.");
+            console.error("Play Command Error:", error);
+            await interaction.editReply("Failed to load music. Check the link or try again.");
         }
     }
 

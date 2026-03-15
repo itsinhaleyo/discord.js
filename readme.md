@@ -11,14 +11,7 @@ Run this command in the terminal: npm install -D nodemon
 
 For the .envexample File, remove the "example" from the title so the file is now ".env"
 
-You can delete the NODE_URL and NODE_WEBSOCKET and BANK_KEY if you dont want to include a Web3 Search/Transaction Functions into your bot.
-
-But you should also remove // Call Openai const and "openai" interactionCreate and the name: 'openai' under const commands and const { OpenAI } = require('openai'); in src/index.js
-
-
-You can also delete OPENAI_KEY and OPENAI_ORG if you dont want to include an OpenAI Query Function into your bot.
-
-But you should also remove "test1" interactionCreate and the name: 'test1' under const commands and const { Web3 } = require('web3'); const web3 = new Web3(Web3.givenProvider || process.env.NODE_WEBSOCKET); in src/index.js
+You can also delete GEMINI_API_KEY if you dont want to include an Google Gemini Query Function into your bot.
 
 Now for setting up your bot token:
 
@@ -61,20 +54,7 @@ For setting up the bot user:
 Enter your bots username that will be used beside BOT_USER = 
 
 
-For Setting Up your DATABASE: https://account.mongodb.com/account/login 
-
-goto the above link and create a new Account
-
-Under Overview once logged in, Create a new Database Deployment
-
-Make Sure to save your Database Login and Password into the .env file Under DB_LOGIN and DB_PASS
-
-Once the Deployment has been created,
-
-Next to DB_NAME = add the name of the deployment you created,
-
-Once all aboce steps have been created Replace the DB_LOGIN, DB_PASS and DB_NAME in the DB_LINK with your added variables.
-
+For Setting Up your DATABASE: use MySQL
 
 
 NOW YOU SHOULD BE ALL SET TO RUN THE BOT!
@@ -90,10 +70,6 @@ this will restart the bot everytime you save a change to the code!
 
 
 NOTE TO DEVELOPERS:
-
-Once the bot is used and a user file has been created, there is a GameMaster Entry that will create a type of audit so you know how much currency is being given away or being lost by games!
-
-The GameMaster Entry will show up in the MongoDB.
 
 The /Dig and /Daily Commands will not count in this audit but there is a line added to allow you to audit these commands aswell if you wish.
 
