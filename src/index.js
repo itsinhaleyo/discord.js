@@ -2228,7 +2228,7 @@ client.on('interactionCreate', async (interaction) => {
             await db.query('INSERT INTO towers VALUES(?, 0, 0, 1, 1, 1, 1, 1)', [userId]);
             game = { userid: interaction.member.id, status: 0, bet: 0, item1: 1, item2: 1, item3: 1, item4: 1, item5: 1 };
         }
-        const multipliers = { 1: 1.2, 2: 1.5, 3: 2, 4: 3.0, 5: 5.0 };
+        const multipliers = { 1: 1.2, 2: 1.5, 3: 2, 4: 3.0, 5: 5.0, 6: 10 };
         const colors = { win: "#00ff00", loss: "#ff0000", progress: "#ffff00", cashout: "#00ffff" };
         const getRow = (level, bombPos) => {
             const mult = multipliers[level] ? `[${multipliers[level]}x]` : "";
@@ -2283,13 +2283,14 @@ client.on('interactionCreate', async (interaction) => {
             if (currentLevel === 5) {
                 title = "🔥 DOUBLE OR NOTHING UNLOCKED!";
                 desc = `${boardArray.join("\n")}\n\n**Level 5 Cleared!** You are currently at **5.0x**.\nDo you dare try the **Level 6 Bonus?**\n\n⚠️ **WARNING:** Level 6 has **2 BOMBS** and pays **10.0x**!`;
-                color = "#ffaa00"; // Orange for bonus round
+                color = "#ffaa00";
             } else if (currentLevel === 6) {
+                const nextStatus = currentLevel - 1;
                 title = "👑 THE ULTIMATE CHAMPION!";
                 desc = `${boardArray.join("\n")}\n\n**You cleared the Bonus Round!**\nMultiplier: **10.0x**!! Cash out now!`;
                 color = "#ff00ff";
             }
-            await db.query('UPDATE towers SET status = ?, bet = ? WHERE userid = ?', [nextStatus, game.bet, user.userid]);
+            await db.query('UPDATE towers SET status = ? WHERE userid = ?', [nextStatus, user.userid]);
             embed.setTitle(title)
                 .setColor(color)
                 .setDescription(desc)
@@ -2518,26 +2519,22 @@ client.on('messageCreate', async (message) => {
         message.reply("Balance has been reset to 25000");
     }
 
-    if (message.content.slice(0, 14) === "https://x.com/") {
-        try{
-            if (message.author.id === process.env.CLIENT_ID) {
-                return;
+if (message.content.startsWith("https://x.com/")) {
+    try {
+        if (message.author.id === process.env.CLIENT_ID) return;
+        let replacement = "https://fixupx.com/" + message.content.slice(14);
+        await message.channel.send({
+            content: replacement,
+        });
+        await message.delete().catch(error => {
+            if (error.code !== 10008) {
+                console.error('Failed to delete:', error);
             }
-            let replacement = "https://fixupx.com/"+message.content.slice(14, 150);
-            message.reply({
-                content: replacement
-            })
-            await message.delete();
-            message.delete().catch(error => {
-            if (error.code !== 10008) { 
-                console.error('Failed to delete the message:', error);
-                return;
-                }
-            });
-        } catch(error) {
-            console.log("######"+error)
-        }
+        });
+    } catch (error) {
+        console.error("Critical error in X-fixer:", error);
     }
+}
 
     if (message.content.slice(0, 26) === "https://www.instagram.com/") {
         try{
@@ -2548,11 +2545,9 @@ client.on('messageCreate', async (message) => {
             message.reply({
                 content: replacement
             })
-            await message.delete();
-            message.delete().catch(error => {
-            if (error.code !== 10008) { 
-                console.error('Failed to delete the message:', error);
-                return;
+            await message.delete().catch(error => {
+                if (error.code !== 10008) {
+                    console.error('Failed to delete:', error);
                 }
             });
         } catch(error) {
@@ -2569,11 +2564,9 @@ client.on('messageCreate', async (message) => {
             message.reply({
                 content: replacement
             })
-            await message.delete();
-            message.delete().catch(error => {
-            if (error.code !== 10008) { 
-                console.error('Failed to delete the message:', error);
-                return;
+            await message.delete().catch(error => {
+                if (error.code !== 10008) {
+                    console.error('Failed to delete:', error);
                 }
             });
         } catch(error) {
@@ -2590,11 +2583,9 @@ client.on('messageCreate', async (message) => {
             message.reply({
                 content: replacement
             })
-            await message.delete();
-            message.delete().catch(error => {
-            if (error.code !== 10008) { 
-                console.error('Failed to delete the message:', error);
-                return;
+            await message.delete().catch(error => {
+                if (error.code !== 10008) {
+                    console.error('Failed to delete:', error);
                 }
             });
         } catch(error) {
@@ -2611,11 +2602,10 @@ client.on('messageCreate', async (message) => {
             message.reply({
                 content: replacement
             })
-            await message.delete();
-            message.delete().catch(error => {
-            if (error.code !== 10008) { 
-                console.error('Failed to delete the message:', error);
-                return;
+            await
+            await message.delete().catch(error => {
+                if (error.code !== 10008) {
+                    console.error('Failed to delete:', error);
                 }
             });
         } catch(error) {
