@@ -7,7 +7,7 @@ const canvacord = require('canvacord');
 const { GoogleGenAI } = require("@google/genai");
 const ytdl = require('youtube-dl-exec');
 const fetch = require('isomorphic-unfetch');
-const { getDetails, getTracks, getPreview } = require('spotify-url-info')(fetch);
+const { getData, getTracks } = require('spotify-url-info')(fetch);
 const fs = require('fs');
 const path = require('path');
 const songsDir = path.join(__dirname, 'songs');
@@ -47,11 +47,12 @@ async function playSong(guildId) {
                 jsRuntimes: 'node' 
             });
             const videoData = output.entries ? output.entries[0] : output;
+            if (!videoData || (!videoData.webpage_url && !videoData.url)) {
+                serverQueue.songs.shift();
+                return playSong(guildId);
+            }
             song.url = videoData.webpage_url || videoData.url;
-            song.duration = videoData.duration;
-            song.thumbnail = videoData.thumbnail;
         } catch (err) {
-            console.error(`Failed to resolve Spotify track: ${song.title}`, err);
             serverQueue.songs.shift();
             return playSong(guildId);
         }
@@ -178,7 +179,10 @@ async function playSong(guildId) {
             }, 1000);
         });
         serverQueue.player.once(AudioPlayerStatus.Idle, () => {
-            collector.stop();
+            if (serverQueue.currentTimestamp < 1000 && !serverQueue.isSkipping) {
+                console.error(`[Playback Error] Song ended too quickly. Retrying...`);
+                return playSong(guildId); 
+            }
             if (serverQueue.isSkipping) {
                 serverQueue.isSkipping = false;
                 serverQueue.currentTimestamp = 0;
@@ -5141,7 +5145,6 @@ client.on('interactionCreate', async (interaction) => {
         let songsToAdd = [];
         let serverQueue = musicqueues.get(guildId); 
         const existingTimer = musictimers.get(guildId);
-        
         if (existingTimer) { clearTimeout(existingTimer); musictimers.delete(guildId); }
         try {
             const voiceChannel = interaction.member.voice.channel;
@@ -5176,16 +5179,24 @@ client.on('interactionCreate', async (interaction) => {
                         }));
                         await interaction.editReply(`✅ Added **${songsToAdd.length}** tracks from Spotify!`);
                     } else {
-                        const track = await getPreview(cleanURL);
-                        songsToAdd.push({ 
-                            title: `${track.title} ${track.artist}`,
-                            displayTitle: track.title,
-                            displayArtist: track.artist,
-                            duration: track.duration ? track.duration / 1000 : 0,
-                            url: null, 
-                            isSpotify: true 
-                        });
-                        await interaction.editReply(`✅ Added **${track.title}** to the queue!`);
+                        try {
+                            const data = await getData(cleanURL);
+                            const trackName = data.name || data.title;
+                            const artistName = data.artists ? data.artists[0].name : (data.artist || "Unknown Artist");
+                            const durationMs = data.duration_ms || data.duration || 0;
+                            songsToAdd.push({ 
+                                title: `${trackName} ${artistName}`,
+                                displayTitle: trackName,
+                                displayArtist: artistName,
+                                duration: durationMs / 1000, 
+                                url: null, 
+                                isSpotify: true 
+                            });
+                            await interaction.editReply(`✅ Added **${trackName}** to the queue!`);
+                        } catch (err) {
+                            console.error("Spotify getData Error:", err);
+                            return interaction.editReply("❌ I couldn't parse that Spotify track. Is the link valid and public?");
+                        }
                     }
                 } catch (err) {
                     console.error("Spotify Error:", err);
