@@ -516,7 +516,7 @@ function calculateScore(hand) {
     return score;
 }
 
-// Get HashDice Odds
+// Hishdice Functions
 function getOdds(hl, num) {
     const winMultipliers = [5, 4, 3, 2, 1.5, 1.4, 1.3, 1.2, 1.1, 1, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1];
     const actualTarget = (hl === 1) ? (1000 - (num * 50)) : (num * 50);
@@ -525,17 +525,24 @@ function getOdds(hl, num) {
         number: actualTarget
     };
 }
+const diceChances = Array.from({ length: 19 }, (_, i) => ({
+    name: `${(i + 1) * 5}% Chance`,
+    value: i + 1
+}));
+
+// Roulette Command
+const blackNumbers = [2, 4, 6, 8, 10, 11, 13, 15, 17, 20, 22, 24, 26, 28, 29, 31, 33, 35];
+const redNumbers = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
+const mapToChoice = (num) => ({ name: `${num}`, value: num });
 
 // Slash Commands Name and Descriptions
 const commands = [
-    {
-        name: 'help',
-        description: 'Help Command'
-    },
-    {
-        name: 'test',
-        description: 'test'
-    },
+    { name: 'help', description: 'Help Command' },
+    { name: 'test', description: 'test' },
+    { name: 'dig', description: '60% chance to Collect 1-1000 every Minute' },
+    { name: 'daily', description: 'Collect 25000 Daily' },
+    { name: 'ping', description: 'Replies With the Bots Ping' },
+    { name: 'queue', description: 'Displays the current music queue' },
     {
         name: 'play',
         description: 'Plays a Song',
@@ -550,10 +557,6 @@ const commands = [
 
     },
     {
-        name: 'queue',
-        description: 'Displays the current music queue',
-    },
-    {
         name: 'ai',
         description: 'Interact with Gemini AI',
         options: [
@@ -566,14 +569,28 @@ const commands = [
         ]
     },
     {
-        name: 'bj' || "blackjack",
+        name: 'bj',
         description: 'Play a Game of Blackjack',
         options: [
             {
                 name: 'bet-amount',
                 description: 'Choose how much to bet (if you havent already started a Game)',
                 type: ApplicationCommandOptionType.Number,
-                required: true
+                required: true,
+                min_value: 1
+            }
+        ]
+    },
+    {
+        name: "blackjack",
+        description: 'Play a Game of Blackjack',
+        options: [
+            {
+                name: 'bet-amount',
+                description: 'Choose how much to bet (if you havent already started a Game)',
+                type: ApplicationCommandOptionType.Number,
+                required: true,
+                min_value: 1
             }
         ]
     },
@@ -586,24 +603,16 @@ const commands = [
                 description: 'Choose Which tower you want to Advance to',
                 type: ApplicationCommandOptionType.Number,
                 choices: [
-                    {
-                        name: "Option 1",
-                        value: 1
-                    },
-                    {
-                        name: "Option 2",
-                        value: 2
-                    },
-                    {
-                        name: "Option 3",
-                        value: 3
-                    }
+                    { name: "Option 1", value: 1 },
+                    { name: "Option 2", value: 2 },
+                    { name: "Option 3", value: 3 }
                 ]
             },
             {
                 name: 'bet-amount',
                 description: 'Choose how much to bet (if you havent already started a Game)',
-                type: ApplicationCommandOptionType.Number
+                type: ApplicationCommandOptionType.Number,
+                min_value: 1
             },
             {
                 name: 'game-end',
@@ -626,91 +635,15 @@ const commands = [
                 name: 'bet-amount',
                 description: 'Choose how much to bet',
                 type: ApplicationCommandOptionType.Number,
-                required: true
+                required: true,
+                min_value: 1
             },
             {
                 name: 'number',
                 description: 'Choose a Middle to Bet Against between 2-999 to Change your Odds',
                 type: ApplicationCommandOptionType.Number,
                 required: true,
-                choices: [
-                    {
-                        name: '5% Chance',
-                        value: 1,
-                    },
-                    {
-                        name: '10% Chance',
-                        value: 2,
-                    },
-                    {
-                        name: '15% Chance',
-                        value: 3,
-                    },
-                    {
-                        name: '20% Chance',
-                        value: 4,
-                    },
-                    {
-                        name: '25% Chance',
-                        value: 5,
-                    },
-                    {
-                        name: '30% Chance',
-                        value: 6,
-                    },
-                    {
-                        name: '35% Chance',
-                        value: 7,
-                    },
-                    {
-                        name: '40% Chance',
-                        value: 8,
-                    },
-                    {
-                        name: '45% Chance',
-                        value: 9,
-                    },
-                    {
-                        name: '50% Chance',
-                        value: 10,
-                    },
-                    {
-                        name: '55% Chance',
-                        value: 11,
-                    },
-                    {
-                        name: '60% Chance',
-                        value: 12,
-                    },
-                    {
-                        name: '65% Chance',
-                        value: 13,
-                    },
-                    {
-                        name: '70% Chance',
-                        value: 14,
-                    },
-                    {
-                        name: '75% Chance',
-                        value: 15,
-                    },
-                    {
-                        name: '80% Chance',
-                        value: 16,
-                    },
-                    {
-                        name: '85% Chance',
-                        value: 17,
-                    },
-                    {
-                        name: '90% Chance',
-                        value: 18,
-                    },
-                    {
-                        name: '95% Chance',
-                        value: 19,
-                    }
-                ]
+                choices: diceChances
             },
             {
                 name: 'higher-lower',
@@ -718,14 +651,8 @@ const commands = [
                 type: ApplicationCommandOptionType.Number,
                 required: true,
                 choices: [
-                    {
-                        name: 'Higher',
-                        value: 1,
-                    },
-                    {
-                        name: 'Lower',
-                        value: 2,
-                    }
+                    { name: 'Higher', value: 1, },
+                    { name: 'Lower', value: 2, }
                 ]
             }
         ]
@@ -738,7 +665,8 @@ const commands = [
                 name: 'bet-amount',
                 description: 'Choose how much to bet',
                 type: ApplicationCommandOptionType.Number,
-                required: true
+                required: true,
+                min_value: 1
             },
             {
                 name: 'game',
@@ -746,18 +674,9 @@ const commands = [
                 type: ApplicationCommandOptionType.Number,
                 required: true,
                 choices: [
-                    {
-                        name: "1 Line x 3 Long",
-                        value: 1,
-                    },
-                    {
-                        name: "1 Line x 5 Long",
-                        value: 2,
-                    },
-                    {
-                        name: "3 Lines x 3 Long",
-                        value: 3,
-                    }
+                    { name: "1 Line x 3 Long", value: 1 },
+                    { name: "1 Line x 5 Long", value: 2 },
+                    { name: "3 Lines x 3 Long", value: 3 }
                 ]
             }
         ]
@@ -767,182 +686,37 @@ const commands = [
         description: 'Play a Game of Roulette',
         options: [
             {
-                name: 'bet-amount',
-                description: 'Choose your Bet Amount',
-                type: ApplicationCommandOptionType.Number,
+                name: 'bet',
+                description: 'Amount to wager',
+                type: ApplicationCommandOptionType.Integer,
                 required: true,
+                min_value: 1
             },
             {
-                name: 'black-numbers',
-                description: 'Bet on a Black Number',
-                type: ApplicationCommandOptionType.Number,
+                name: 'black',
+                description: 'Bet on a black number or "All Black"',
+                type: ApplicationCommandOptionType.Integer,
                 choices: [
-                    {
-                        name: 'All Black',
-                        value: 420,
-                    },
-                    {
-                        name: '2',
-                        value: 2,
-                    },
-                    {
-                        name: '4',
-                        value: 4,
-                    },
-                    {
-                        name: '6',
-                        value: 6,
-                    },
-                    {
-                        name: '8',
-                        value: 8,
-                    },
-                    {
-                        name: '10',
-                        value: 10,
-                    },
-                    {
-                        name: '11',
-                        value: 11,
-                    },
-                    {
-                        name: '13',
-                        value: 13,
-                    },
-                    {
-                        name: '15',
-                        value: 15,
-                    },
-                    {
-                        name: '17',
-                        value: 17,
-                    },
-                    {
-                        name: '20',
-                        value: 20,
-                    },
-                    {
-                        name: '22',
-                        value: 22,
-                    },
-                    {
-                        name: '24',
-                        value: 24,
-                    },
-                    {
-                        name: '26',
-                        value: 26,
-                    },
-                    {
-                        name: '28',
-                        value: 28,
-                    },
-                    {
-                        name: '29',
-                        value: 29,
-                    },
-                    {
-                        name: '31',
-                        value: 31,
-                    },
-                    {
-                        name: '33',
-                        value: 33,
-                    },
-                    {
-                        name: '35',
-                        value: 35,
-                    }
+                    { name: '⬛ All Black (2x Payout)', value: 420 },
+                    ...blackNumbers.map(mapToChoice)
                 ]
             },
             {
-                name: 'red-numbers',
-                description: 'Bet on a Red Number',
-                type: ApplicationCommandOptionType.Number,
+                name: 'red',
+                description: 'Bet on a red number or "All Red"',
+                type: ApplicationCommandOptionType.Integer,
                 choices: [
-                    {
-                        name: 'All Red',
-                        value: 420,
-                    },
-                    {
-                        name: '1',
-                        value: 1,
-                    },
-                    {
-                        name: '3',
-                        value: 3,
-                    },
-                    {
-                        name: '5',
-                        value: 5,
-                    },
-                    {
-                        name: '7',
-                        value: 7,
-                    },
-                    {
-                        name: '9',
-                        value: 9,
-                    },
-                    {
-                        name: '12',
-                        value: 12,
-                    },
-                    {
-                        name: '14',
-                        value: 14,
-                    },
-                    {
-                        name: '16',
-                        value: 16,
-                    },
-                    {
-                        name: '18',
-                        value: 18,
-                    },
-                    {
-                        name: '19',
-                        value: 19,
-                    },
-                    {
-                        name: '21',
-                        value: 21,
-                    },
-                    {
-                        name: '23',
-                        value: 23,
-                    },
-                    {
-                        name: '25',
-                        value: 25,
-                    },
-                    {
-                        name: '27',
-                        value: 27,
-                    },
-                    {
-                        name: '30',
-                        value: 30,
-                    },
-                    {
-                        name: '32',
-                        value: 32,
-                    },
-                    {
-                        name: '34',
-                        value: 34,
-                    },
-                    {
-                        name: '36',
-                        value: 36,
-                    }
+                    { name: '🟥 All Red (2x Payout)', value: 420 },
+                    ...redNumbers.map(mapToChoice)
                 ]
+            },
+            {
+                name: 'green',
+                description: 'Bet on the green zero',
+                type: ApplicationCommandOptionType.Integer,
+                choices: [{ name: '🟩 0 (35x Payout)', value: 0 }]
             }
         ]
-    },
-    {
-        name: 'dig',
-        description: '60% chance to Collect 1-1000 every Minute'
     },
     {
         name: 'balance',
@@ -963,7 +737,8 @@ const commands = [
                 name: 'bet-amount',
                 description: 'Choose how much to bet',
                 type: ApplicationCommandOptionType.Number,
-                required: true
+                required: true,
+                min_value: 1
             }
         ]
     },
@@ -975,7 +750,8 @@ const commands = [
                 name: 'bet-amount',
                 description: 'Choose how much to bet',
                 type: ApplicationCommandOptionType.Number,
-                required: true
+                required: true,
+                min_value: 1
             }
         ]
     },
@@ -987,7 +763,8 @@ const commands = [
                 name: 'bet-amount',
                 description: 'Choose how much to bet',
                 type: ApplicationCommandOptionType.Number,
-                required: true
+                required: true,
+                min_value: 1
             }
         ]
     },
@@ -999,7 +776,8 @@ const commands = [
                 name: 'bet-amount',
                 description: 'Choose how much to bet',
                 type: ApplicationCommandOptionType.Number,
-                required: true
+                required: true,
+                min_value: 1
             }
         ]
     },
@@ -1011,7 +789,8 @@ const commands = [
                 name: 'bet-amount',
                 description: 'Choose how much to bet',
                 type: ApplicationCommandOptionType.Number,
-                required: true
+                required: true,
+                min_value: 1
             }
         ]
     },
@@ -1023,7 +802,8 @@ const commands = [
                 name: 'bet-amount',
                 description: 'Choose how much to bet',
                 type: ApplicationCommandOptionType.Number,
-                required: true
+                required: true,
+                min_value: 1
             }
         ]
     },
@@ -1035,13 +815,10 @@ const commands = [
                 name: 'bet-amount',
                 description: 'Choose how much to bet',
                 type: ApplicationCommandOptionType.Number,
-                required: true
+                required: true,
+                min_value: 1
             }
         ]
-    },
-    {
-        name: 'daily',
-        description: 'Collect 25000 Daily'
     },
     {
         name: 'level',
@@ -1054,10 +831,6 @@ const commands = [
             }
         ]
     },
-    {
-        name: 'ping',
-        description: 'Replies With the Bots Ping'
-    }
 ];
 
 // Defining REST Client
@@ -1159,24 +932,21 @@ client.on('interactionCreate', async (interaction) => {
         const embed = new EmbedBuilder()
             .setTitle('Commands List')
             .setColor('Blue')
-            .addFields(
-                { name: '🛠️ Utility\n/ping', value: 'Bot latency', inline: true },
-                { name: '\u200B\n/level', value: 'Server level', inline: true },
-                { name: '\u200B\n/ai', value: 'Google Gemini', inline: true },
-                { name: '\u200B', value: '\u200B', inline: false },
-                { name: '🎵 Music\n/play', value: 'YouTube/Spotify', inline: true },
-                { name: '\u200B\n/queue', value: 'View queue', inline: true },
-                { name: '\u200B', value: '\u200B', inline: false },
-                { name: '💰 Economy\n/balance', value: 'Check wallet', inline: true },
-                { name: "\u200B\n/daily", value: "Get 25k 💵", inline: true },
-                { name: "\u200B\n/dig", value: "Mine for 💵", inline: true },
-                { name: '\u200B', value: '\u200B', inline: false },
-                { name: '🎲 Games\n/blackjack', value: 'Play BJ', inline: true},
-                { name: "\u200B\n/slots", value: "Slot machines", inline: true },
-                { name: "\u200B\n/roulette", value: "Spin the wheel", inline: true },
-                { name: "/heads/tails", value: "Coin flip", inline: true },
-                { name: "/rock/paper/scissors", value: "Rock Paper Scissors", inline: true },
-                { name: "/towers", value: "Climb the tower", inline: true }
+            .setDescription(
+                '### 🛠️ Utility\n' +
+                '**/ping** - Replies with the bot\'s latency\n' +
+                '**/level** - Shows your server level\n' +
+                '**/ai** - Generate a response from Gemini\n\n' +
+                '### 🎵 Music\n'+
+                '**/play** - Play a Song/Playlist from a Youtube or Spotify Link\n'+
+                '**/queue** - View Current Music Queue\n\n'+
+                '### 💰 Economy\n' +
+                '**/balance** - View your wallet\n' +
+                '**/daily** - Claim your 25,000💵\n' +
+                '**/dig** - Mine for rewards (every minute)\n\n' +
+                '### 🎲 Games\n' +
+                '**/blackjack** • **/slots** • **/roulette**\n' +
+                '**/heads/tails** • **/rock/paper/scissors** • **/towers**'
             );
         interaction.reply({ embeds: [embed] });
     }
@@ -1675,91 +1445,61 @@ client.on('interactionCreate', async (interaction) => {
 
     if (interaction.commandName === "roulette") {
         if (!interaction.inGuild()) {
-            interaction.reply({
+            return interaction.reply({
                 content: 'You can only run this command inside a server.',
                 flags: [MessageFlags.Ephemeral],
             });
-            return;
-        } try {
+        }
+        try {
             await interaction.deferReply();
-            const currentDate = new Date().toDateString();
             let result = await db.query("SELECT * FROM users WHERE userid = ?", [interaction.member.id]);
             let user = result[0][0];
             if (!user) {
+                const currentDate = new Date().toDateString();
                 await db.query('INSERT INTO users VALUES(?, ?, ?, ?, ?)', [interaction.member.id, 25000, currentDate, 0, 1]);
                 user = { userid: interaction.member.id, balance: 25000 };
             }
-            const bet = interaction.options.get('bet-amount').value;
-            if (bet >= 1000) {
-                giveXp(interaction);
+            const bet = interaction.options.getInteger('bet');
+            const redChoice = interaction.options.getInteger('red');
+            const blackChoice = interaction.options.getInteger('black');
+            const greenChoice = interaction.options.getInteger('green');
+            if (user.balance < bet) {
+                return interaction.editReply(`You don't have enough money! Your balance is ${numtoemo(user.balance)}`);
             }
-            if (user.balance >= bet && bet >= 1) {
-                const redAmount = interaction.options.get('red-numbers')?.value;
-                const blackAmount = interaction.options.get('black-numbers')?.value;
-                const spin = getRandomNumber(1,36);
-                if (redAmount) {
-                    if (blackAmount) {
-                        interaction.editReply(`Please only choose one number`);
-                    } else {
-                        if (redAmount === 420) {
-                            const redNumbers = [1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36];
-                            const roulette = getRandomNumber(1,36);
-                            if (redNumbers.includes(roulette)) {
-                                let newbalance = user.balance + bet;
-                                await db.query('UPDATE users SET balance = ? WHERE userid = ?', [newbalance, interaction.member.id]);
-                                interaction.editReply(`🔥<${roulette}>🔥 +${bet}💵\nYour new balance is\n${numtoemo(newbalance)}`);
-                            } else {
-                                let newbalance = user.balance - bet;
-                                await db.query('UPDATE users SET balance = ? WHERE userid = ?', [newbalance, interaction.member.id]);
-                                interaction.editReply(`😭<${roulette}>😭 -${bet}💵\nYour new balance is\n${numtoemo(newbalance)}`);
-                            }
-                        } else {
-                            if (spin === redAmount) {
-                                let newbalance = user.balance + bet * 11;
-                                await db.query('UPDATE users SET balance = ? WHERE userid = ?', [newbalance, interaction.member.id]);
-                                interaction.editReply(`🔥<${spin}>🔥 +${bet*11}💵\nX11 WIN!!!\nYour new balance is\n${numtoemo(newbalance)}`);
-                            } else {
-                                let newbalance = user.balance - bet;
-                                await db.query('UPDATE users SET balance = ? WHERE userid = ?', [newbalance, interaction.member.id]);
-                                interaction.editReply(`😭<${spin}>😭 -${bet}💵\nBetter Luck Next Time!\nYour new balance is\n${numtoemo(newbalance)}`);
-                            }
-                        }
-                    }
-                } else {
-                    if (blackAmount) {
-                        if (blackAmount === 420) {
-                            const blackNumbers = [2,4,6,8,10,11,13,15,17,20,22,24,26,28,29,31,33,35];
-                            const roulette = getRandomNumber(1,36);
-                            if (blackNumbers.includes(roulette)) {
-                                let newbalance = user.balance + bet;
-                                await db.query('UPDATE users SET balance = ? WHERE userid = ?', [newbalance, interaction.member.id]);
-                                interaction.editReply(`🔥<${roulette}>🔥 +${bet}💵\nYour new balance is\n${numtoemo(newbalance)}`);
-                            } else {
-                                let newbalance = user.balance - bet;
-                                await db.query('UPDATE users SET balance = ? WHERE userid = ?', [newbalance, interaction.member.id]);
-                                interaction.editReply(`😭<${roulette}>😭 -${bet}💵\nYour new balance is\n${numtoemo(newbalance)}`);
-                            }
-                        } else {
-                            if (spin === blackAmount) {
-                                let newbalance = user.balance + bet * 11;
-                                await db.query('UPDATE users SET balance = ? WHERE userid = ?', [newbalance, interaction.member.id]);
-                                interaction.editReply(`🔥<${spin}>🔥 +${bet*11}💵\nX11 WIN!!!\nYour new balance is\n${numtoemo(newbalance)}`);
-                            } else {
-                                let newbalance = user.balance - bet;
-                                await db.query('UPDATE users SET balance = ? WHERE userid = ?', [newbalance, interaction.member.id]);
-                                interaction.editReply(`😭<${spin}>😭 -${bet}💵\nBetter Luck Next Time!\nYour new balance is\n${numtoemo(newbalance)}`);
-                            }
-                        }
-                    } else {
-                        interaction.editReply(`Please choose a Black or Red Number`);
-                    }
-                }
+            const choices = [redChoice, blackChoice, greenChoice].filter(v => v !== null && v !== undefined);
+            if (choices.length === 0) return interaction.editReply("You must pick a number or color to bet on!");
+            if (choices.length > 1) return interaction.editReply("Please only choose **one** bet per spin.");
+            if (bet >= 1000) giveXp(interaction);
+            const spin = getRandomNumber(0, 36);
+            let win = false;
+            let payout = 0;
+            const userChoice = choices[0];
+            if (userChoice === 420) {
+                const isRedBet = redChoice === 420;
+                if (isRedBet && redNumbers.includes(spin)) win = true;
+                if (!isRedBet && blackNumbers.includes(spin)) win = true;
+                payout = bet;
             } else {
-                interaction.editReply(`Your balance is ${user.balance}`);
+                if (spin === userChoice) win = true;
+                payout = userChoice === 0 ? bet * 35 : bet * 11; 
             }
+            const newBalance = win ? user.balance + payout : user.balance - bet;
+            await db.query('UPDATE users SET balance = ? WHERE userid = ?', [newBalance, interaction.member.id]);
+            const colorEmoji = spin === 0 ? '🟩' : (redNumbers.includes(spin) ? '🟥' : '⬛');
+            const resultEmbed = new EmbedBuilder()
+                .setTitle(win ? '🎉 Winner!' : '💀 Loser!')
+                .setColor(win ? 'Green' : 'Red')
+                .setDescription([
+                    `The ball landed on: **${colorEmoji} ${spin}**`,
+                    '',
+                    win ? `**Profit:** +${payout} 💵` : `**Loss:** -${bet} 💵`,
+                    `**New Balance:** ${numtoemo(newBalance)}`
+                ].join('\n'))
+                .setTimestamp();
+            await interaction.editReply({ embeds: [resultEmbed] });
         } catch (error) {
-            interaction.editReply(`Please try the Command Again`);
-            console.log(`Error with /roulette: ${error}`);
+            console.error(`Error with /roulette: ${error}`);
+            interaction.editReply(`An error occurred. Please try again.`);
         }
     }
 
@@ -2001,7 +1741,7 @@ client.on('interactionCreate', async (interaction) => {
         return interaction.editReply({ embeds: [embed] });
     }
 
-    if (interaction.commandName === "bj") {
+    if (interaction.commandName === "bj" || interaction.commandName == "blackjack") {
         if (!interaction.inGuild()) {
             return interaction.reply({
                 content: 'You can only run this command inside a server.',
