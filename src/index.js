@@ -1446,6 +1446,11 @@ client.on('interactionCreate', async (interaction) => {
                     inline: true
                 },
                 {
+                    name: "/blackjack /bj",
+                    value: "Play a Game of Blackjack",
+                    inline: true
+                },
+                {
                     name: "/towers",
                     value: "Play a Game of Towers",
                     inline: true
@@ -2118,133 +2123,69 @@ client.on('interactionCreate', async (interaction) => {
 
     if (interaction.commandName === "hashdice") {
         if (!interaction.inGuild()) {
-            interaction.reply({
+            return interaction.reply({
                 content: 'You can only run this command inside a server.',
-                flags: [MessageFlags.Ephemeral],
+                flags: [64],
             });
-            return;
-        } try {
+        }
+        try {
             await interaction.deferReply();
-            const currentDate = new Date().toDateString();
-            let result = await db.query("SELECT * FROM users WHERE userid = ?", [interaction.member.id]);
+            const bet = interaction.options.getNumber('bet-amount');
+            const targetNumber = interaction.options.getNumber('number');
+            const hl = interaction.options.getNumber('higher-lower');
+            const result = await db.query("SELECT * FROM users WHERE userid = ?", [interaction.member.id]);
             let user = result[0][0];
-            if (!user) {
-                await db.query('INSERT INTO users VALUES(?, ?, ?, ?, ?)', [interaction.member.id, 25000, currentDate, 0, 1]);
-                user = { userid: interaction.member.id, balance: 25000 };
+            if (!user || user.balance < bet || bet < 10) {
+                return interaction.editReply(`You need at least 10💵 and enough balance. Balance: ${numtoemo(user?.balance || 0)}💵`);
             }
-            const bet = interaction.options.get('bet-amount').value;
-            if (!bet) {
-                interaction.editReply(`Please choose a bet amount`);
-                return;
-            }
-            const number = interaction.options.get('number').value;
-            if (!number) {
-                interaction.editReply(`Please choose a Middle Number to Change Your Odds`);
-                return;
-            }
-            const hl = interaction.options.get('higher-lower').value;
-            if (!hl) {
-                interaction.editReply(`Please Choose to bet Higher or Lower than ${number}`);
-                return;
-            }
-            if (bet >= 1000) {
-                giveXp(interaction);
-            }
-            if (user.balance >= bet && bet >= 10) {
-                const raNumber = getRandomNumber(1,1000);
-                if (hl === 1) {
-                    let odds = getOdds(hl, number);
-                    interaction.editReply(`${odds}`);
-                    if (raNumber === odds.number) {
-                        if (raNumber < 100) {
-                            interaction.editReply(`⏹️⏹️⏹️⏹️⏹️\n⏹️⏹️${numtoemo(raNumber)}⬆️Higher\n⏹️⏹️${numtoemo(odds.number)}⬅️Your Number\n⏹️⏹️⏹️⏹️⏹️\n-0💵`);
-                            return;
-                        } else {
-                            interaction.editReply(`⏹️⏹️⏹️⏹️⏹️\n⏹️${numtoemo(raNumber)}⬆️Higher\n⏹️${numtoemo(odds.number)}⬅️Your Number\n⏹️⏹️⏹️⏹️⏹️\n-0💵`);
-                            return;
-                        }
-                    }
-                    if (raNumber < odds.number) {
-                        let newbalance = user.balance + Math.trunc(bet*odds.win);
-                        await db.query('UPDATE users SET balance = ? WHERE userid = ?', [newbalance, interaction.member.id]);
-                        if (raNumber < 100) {
-                            if (odds.number < 100) {
-                                interaction.editReply(`⏹️⏹️⏹️⏹️⏹️\n⏹️⏹️${numtoemo(raNumber)}⬆️Higher\n⏹️⏹️${numtoemo(odds.number)}⬅️Your Number\n⏹️⏹️⏹️⏹️⏹️\n🔥+${Math.trunc(bet*odds.win)}💵\nYour new balance is\n${numtoemo(user.balance+Math.trunc(bet*odds.win))}💵`);
-                            } else {
-                                interaction.editReply(`⏹️⏹️⏹️⏹️⏹️\n⏹️⏹️${numtoemo(raNumber)}⬆️Higher\n⏹️${numtoemo(odds.number)}⬅️Your Number\n⏹️⏹️⏹️⏹️⏹️\n🔥+${Math.trunc(bet*odds.win)}💵\nYour new balance is\n${numtoemo(user.balance+Math.trunc(bet*odds.win))}💵`);
-                            }
-                        }
-                        if (odds.number < 100) {
-                            interaction.editReply(`⏹️⏹️⏹️⏹️⏹️\n⏹️${numtoemo(raNumber)}⬆️Higher\n⏹️⏹️${numtoemo(odds.number)}⬅️Your Number\n⏹️⏹️⏹️⏹️⏹️\n🔥+${Math.trunc(bet*odds.win)}💵\nYour new balance is\n${numtoemo(user.balance+Math.trunc(bet*odds.win))}💵`);
-                        } else {
-                            interaction.editReply(`⏹️⏹️⏹️⏹️⏹️\n⏹️${numtoemo(raNumber)}⬆️Higher\n⏹️${numtoemo(odds.number)}⬅️Your Number\n⏹️⏹️⏹️⏹️⏹️\n🔥+${Math.trunc(bet*odds.win)}💵\nYour new balance is\n${numtoemo(user.balance+Math.trunc(bet*odds.win))}💵`);
-                        }
-                    } else {
-                        let newbalance = user.balance - bet * 11;
-                        await db.query('UPDATE users SET balance = ? WHERE userid = ?', [newbalance, interaction.member.id]);
-                        if (raNumber < 100) {
-                            if (odds.number < 100) {
-                                interaction.editReply(`⏹️⏹️⏹️⏹️⏹️\n⏹️⏹️${numtoemo(raNumber)}⬆️Higher\n⏹️⏹️${numtoemo(odds.number)}⬅️Your Number\n⏹️⏹️⏹️⏹️⏹️\n-${bet}💵\nYour new balance is\n${numtoemo(user.balance-bet)}💵`);
-                            } else {
-                                interaction.editReply(`⏹️⏹️⏹️⏹️⏹️\n⏹️⏹️${numtoemo(raNumber)}⬆️Higher\n⏹️${numtoemo(odds.number)}⬅️Your Number\n⏹️⏹️⏹️⏹️⏹️\n-${bet}💵\nYour new balance is\n${numtoemo(user.balance-bet)}💵`);
-                            }
-                        }
-                        if (odds.number < 100) {
-                            interaction.editReply(`⏹️⏹️⏹️⏹️⏹️\n⏹️${numtoemo(raNumber)}⬆️Higher\n⏹️⏹️${numtoemo(odds.number)}⬅️Your Number\n⏹️⏹️⏹️⏹️⏹️\n-${bet}💵\nYour new balance is\n${numtoemo(user.balance-bet)}💵`);
-                        } else {
-                            interaction.editReply(`⏹️⏹️⏹️⏹️⏹️\n⏹️${numtoemo(raNumber)}⬆️Higher\n⏹️${numtoemo(odds.number)}⬅️Your Number\n⏹️⏹️⏹️⏹️⏹️\n-${bet}💵\nYour new balance is\n${numtoemo(user.balance-bet)}💵`);
-                        }
-                    }
-                } else {
-                    let odds = getOdds(hl ,number);
-                    interaction.editReply(`${odds}`);
-                    if (raNumber === odds.number) {
-                        if (raNumber < 100) {
-                            interaction.editReply(`⏹️⏹️⏹️⏹️⏹️\n⏹️⏹️${numtoemo(raNumber)}⬇️Lower\n⏹️⏹️${numtoemo(odds.number)}⬅️Your Number\n⏹️⏹️⏹️⏹️⏹️\n-0💵`);
-                            return;
-                        } else {
-                            interaction.editReply(`⏹️⏹️⏹️⏹️⏹️\n⏹️${numtoemo(raNumber)}⬇️Lower\n⏹️${numtoemo(odds.number)}⬅️Your Number\n⏹️⏹️⏹️⏹️⏹️\n-0💵`);
-                            return;
-                        }
-                    }
-                    if (raNumber > odds.number) {
-                        let newbalance = user.balance + Math.trunc(bet*odds.win);
-                        await db.query('UPDATE users SET balance = ? WHERE userid = ?', [newbalance, interaction.member.id]);
-                        if (raNumber < 100) {
-                            if (odds.number < 100) {
-                                interaction.editReply(`⏹️⏹️⏹️⏹️⏹️\n⏹️⏹️${numtoemo(raNumber)}⬇️Lower\n⏹️⏹️${numtoemo(odds.number)}⬅️Your Number\n⏹️⏹️⏹️⏹️⏹️\n🔥+${Math.trunc(bet*odds.win)}💵\nYour new balance is\n${numtoemo(user.balance+Math.trunc(bet*odds.win))}💵`);
-                            } else {
-                                interaction.editReply(`⏹️⏹️⏹️⏹️⏹️\n⏹️⏹️${numtoemo(raNumber)}⬇️Lower\n⏹️${numtoemo(odds.number)}⬅️Your Number\n⏹️⏹️⏹️⏹️⏹️\n🔥+${Math.trunc(bet*odds.win)}💵\nYour new balance is\n${numtoemo(user.balance+Math.trunc(bet*odds.win))}💵`);
-                            }
-                        }
-                        if (odds.number < 100) {
-                            interaction.editReply(`⏹️⏹️⏹️⏹️⏹️\n⏹️${numtoemo(raNumber)}⬇️Lower\n⏹️⏹️${numtoemo(odds.number)}⬅️Your Number\n⏹️⏹️⏹️⏹️⏹️\n🔥+${Math.trunc(bet*odds.win)}💵\nYour new balance is\n${numtoemo(user.balance+Math.trunc(bet*odds.win))}💵`);
-                        } else {
-                            interaction.editReply(`⏹️⏹️⏹️⏹️⏹️\n⏹️${numtoemo(raNumber)}⬇️Lower\n⏹️${numtoemo(odds.number)}⬅️Your Number\n⏹️⏹️⏹️⏹️⏹️\n🔥+${Math.trunc(bet*odds.win)}💵\nYour new balance is\n${numtoemo(user.balance+Math.trunc(bet*odds.win))}💵`);
-                        }
-                    } else {
-                        let newbalance = user.balance - bet;
-                        await db.query('UPDATE users SET balance = ? WHERE userid = ?', [newbalance, interaction.member.id]);
-                        if (raNumber < 100) {
-                            if (odds.number < 100) {
-                                interaction.editReply(`⏹️⏹️⏹️⏹️⏹️\n⏹️⏹️${numtoemo(raNumber)}⬇️Lower\n⏹️⏹️${numtoemo(odds.number)}⬅️Your Number\n⏹️⏹️⏹️⏹️⏹️\n-${bet}💵\nYour new balance is\n${numtoemo(user.balance-bet)}💵`);
-                            } else {
-                                interaction.editReply(`⏹️⏹️⏹️⏹️⏹️\n⏹️⏹️${numtoemo(raNumber)}⬇️Lower\n⏹️${numtoemo(odds.number)}⬅️Your Number\n⏹️⏹️⏹️⏹️⏹️\n-${bet}💵\nYour new balance is\n${numtoemo(user.balance-bet)}💵`);
-                            }
-                        }
-                        if (odds.number < 100) {
-                            interaction.editReply(`⏹️⏹️⏹️⏹️⏹️\n⏹️${numtoemo(raNumber)}⬇️Lower\n⏹️⏹️${numtoemo(odds.number)}⬅️Your Number\n⏹️⏹️⏹️⏹️⏹️\n-${bet}💵\nYour new balance is\n${numtoemo(user.balance-bet)}💵`);
-                        } else {
-                            interaction.editReply(`⏹️⏹️⏹️⏹️⏹️\n⏹️${numtoemo(raNumber)}⬇️Lower\n⏹️${numtoemo(odds.number)}⬅️Your Number\n⏹️⏹️⏹️⏹️⏹️\n-${bet}💵\nYour new balance is\n${numtoemo(user.balance-bet)}💵`);
-                        }
-                    }
-                }
+            const raNumber = getRandomNumber(1, 1000);
+            const odds = getOdds(hl, targetNumber);
+            if (bet >= 1000) giveXp(interaction);
+            let finalBalanceChange = 0;
+            let resultTitle = "";
+            let embedColor = 0xFF0069;
+            if (raNumber === targetNumber) {
+                resultTitle = "It's a Tie! 🤝";
+                embedColor = 0xFFFF00;
             } else {
-                interaction.editReply(`Minimum bet of 10 for this Game\nYour balance is\n${numtoemo(user.balance)}💵`);
+                const won = (hl === 1) ? (raNumber > targetNumber) : (raNumber < targetNumber);
+                if (won) {
+                    finalBalanceChange = Math.trunc(bet * odds.win);
+                    await db.query('UPDATE users SET balance = balance + ? WHERE userid = ?', [finalBalanceChange, interaction.member.id]);
+                    resultTitle = "You Won! 🔥";
+                    embedColor = 0x00FF00;
+                } else {
+                    finalBalanceChange = -bet;
+                    await db.query('UPDATE users SET balance = balance - ? WHERE userid = ?', [bet, interaction.member.id]);
+                    resultTitle = "You Lost! 💀";
+                    embedColor = 0xFF0000;
+                }
             }
+            const hlText = (hl === 1) ? "⬆️Higher" : "⬇️Lower";
+            const displayRoll = raNumber < 10 ? `0${raNumber}` : raNumber.toString();
+            const displayTarget = targetNumber < 10 ? `0${targetNumber}` : targetNumber.toString();
+            const rollSpace = raNumber < 100 ? "⏹️⏹️" : "⏹️";
+            const targetSpace = targetNumber < 100 ? "⏹️⏹️" : "⏹️";
+            const diceDisplay = [
+                `⏹️⏹️⏹️⏹️⏹️`,
+                `${rollSpace}${numtoemo(displayRoll)} ${hlText}`,
+                `${targetSpace}${numtoemo(displayTarget)} ⬅️ Target`,
+                `⏹️⏹️⏹️⏹️⏹️`
+            ].join('\n');
+            const embed = new EmbedBuilder()
+                .setTitle(resultTitle)
+                .setColor(embedColor)
+                .setDescription(diceDisplay)
+                .addFields(
+                    { name: 'Bet Amount', value: `${bet} 💵`, inline: true },
+                    { name: 'Payout', value: `${finalBalanceChange >= 0 ? '+' : ''}${finalBalanceChange} 💵`, inline: true },
+                    { name: 'New Balance', value: `${numtoemo(user.balance + finalBalanceChange)} 💵`, inline: false }
+                )
+                .setTimestamp();
+            return await interaction.editReply({ embeds: [embed] });
         } catch (error) {
-            interaction.editReply(`Please try the Command Again`);
-            console.log(`Error with /hashdice: ${error}`);
+            console.error(`Error with /hashdice:`, error);
+            return interaction.editReply(`Something went wrong. Please try again!`);
         }
     }
 
@@ -2339,7 +2280,7 @@ client.on('interactionCreate', async (interaction) => {
         return interaction.editReply({ embeds: [embed] });
     }
 
-    if (interaction.commandName === "bj" || interaction.commandName === "blackjack") {
+    if (interaction.commandName === "bj") {
         if (!interaction.inGuild()) {
             return interaction.reply({
                 content: 'You can only run this command inside a server.',
@@ -2372,6 +2313,14 @@ client.on('interactionCreate', async (interaction) => {
                 )
                 .setFooter({ text: pScore > 21 ? 'Busted!' : 'React with 👊 to Hit or ✋ to Stand' });
         };
+        const playerHasBJ = calculateScore(playerHand) === 21;
+        if (playerHasBJ) {
+            const bjPayout = Math.floor(bet * 2.5);
+            await db.query("UPDATE users SET balance = balance + ? WHERE userid = ?", [bjPayout, interaction.user.id]);
+            const bjEmbed = generateEmbed("BLACKJACK! 🃏", true, 0x00FF00)
+                .setDescription(`Natural 21!\nYou won **+${bjPayout - bet}**!\nNew Balance: **${user.balance - bet + bjPayout}**`);
+            return await interaction.editReply({ embeds: [bjEmbed] });
+        }
         const gameMessage = await interaction.editReply({ 
             embeds: [generateEmbed(`${interaction.user.username}'s Blackjack`)], 
             fetchReply: true 
@@ -2421,6 +2370,7 @@ client.on('interactionCreate', async (interaction) => {
                     winLossMessage = `-${numtoemo(bet)}`;
                 } else {
                     embedColor = 0xFFFF00;
+                    payout = bet;
                     finalTitle = "It's a Tie! 🤝";
                     winLossMessage = `Your ${numtoemo(bet)} was returned.`;
                 }; 
@@ -2433,6 +2383,7 @@ client.on('interactionCreate', async (interaction) => {
             }
             const finalEmbed = generateEmbed(finalTitle, true)
                 .setColor(embedColor)
+                .setFooter(null)
                 .setDescription(`${winLossMessage}\nYour new balance: ${numtoemo(Number(user.balance) - bet + payout)}`);
             await interaction.editReply({ embeds: [finalEmbed] });
             await gameMessage.reactions.removeAll().catch(() => null);
@@ -2574,30 +2525,55 @@ client.on('interactionCreate', async (interaction) => {
     if (interaction.commandName === "queue") {
         const serverQueue = musicqueues.get(interaction.guildId);
         if (!serverQueue || serverQueue.songs.length === 0) {
-            return interaction.reply({
-                content: "The queue is currently empty.",
-                flags: [MessageFlags.Ephemeral]
+            return interaction.reply({ content: "The queue is currently empty.", flags: [MessageFlags.Ephemeral] });
+        }
+        const songsPerPage = 10;
+        const totalPages = Math.ceil(serverQueue.songs.length / songsPerPage);
+        let currentPage = 0;
+        const generateQueueEmbed = (page) => {
+            const start = page * songsPerPage;
+            const end = start + songsPerPage;
+            const currentSongs = serverQueue.songs.slice(start, end);
+            const embed = new EmbedBuilder()
+                .setTitle(`Queue for ${interaction.guild.name}`)
+                .setColor('#0099ff')
+                .setFooter({ text: `Page ${page + 1} of ${totalPages} • Total Songs: ${serverQueue.songs.length}` });
+            const list = currentSongs.map((song, index) => {
+                const overallIndex = start + index;
+                return `${overallIndex === 0 ? '🎶' : `**${overallIndex}.**`} ${song.title}`;
+            }).join('\n');
+            embed.setDescription(list);
+            return embed;
+        };
+        const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId('prev').setLabel('⬅️ Back').setStyle(ButtonStyle.Primary).setDisabled(true),
+            new ButtonBuilder().setCustomId('next').setLabel('Next ➡️').setStyle(ButtonStyle.Primary).setDisabled(totalPages === 1)
+        );
+        const response = await interaction.reply({
+            embeds: [generateQueueEmbed(0)],
+            components: totalPages > 1 ? [row] : [],
+            flags: [MessageFlags.Ephemeral],
+            fetchReply: true
+        });
+        if (totalPages === 1) return;
+        const collector = response.createMessageComponentCollector({
+            componentType: ComponentType.Button,
+            time: 60000
+        });
+        collector.on('collect', async (i) => {
+            if (i.customId === 'prev') currentPage--;
+            if (i.customId === 'next') currentPage++;
+            row.components[0].setDisabled(currentPage === 0);
+            row.components[1].setDisabled(currentPage === totalPages - 1);
+            await i.update({
+                embeds: [generateQueueEmbed(currentPage)],
+                components: [row]
             });
-        }
-        const currentSong = serverQueue.songs[0];
-        const upcoming = serverQueue.songs.slice(1, 11);
-        const embed = new EmbedBuilder()
-            .setTitle(`Queue for ${interaction.guild.name}`)
-            .setColor('#0099ff')
-            .addFields(
-                { name: 'Now Playing', value: `🎶 **${currentSong.title}**` }
-            );
-        if (upcoming.length > 0) {
-            const list = upcoming.map((song, index) => `${index + 1}. ${song.title}`).join('\n');
-            embed.addFields({ name: 'Upcoming', value: list });
-        }
-        if (serverQueue.songs.length > 11) {
-            embed.setFooter({ text: `...and ${serverQueue.songs.length - 11} more songs` });
-        }
-        return interaction.reply({ 
-                embeds: [embed],
-                flags: [MessageFlags.Ephemeral]
-            });
+        });
+        collector.on('end', () => {
+            row.components.forEach(btn => btn.setDisabled(true));
+            interaction.editReply({ components: [row] }).catch(() => null);
+        });
     }
 
     if (interaction.commandName === "test") {
@@ -2642,7 +2618,6 @@ client.on('messageCreate', async (message) => {
     if (message.author.username === process.env.BOT_USER) {
         return;
     }
-
     const date = new Date(message.createdTimestamp);
     const timestamp = date.toLocaleDateString('en-US', { hour: 'numeric', minute: 'numeric', second: 'numeric' });
     console.log(message.guild.id+" - "+timestamp+" - "+message.author.username+" - "+message.content);
