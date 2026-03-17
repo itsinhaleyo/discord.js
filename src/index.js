@@ -1158,84 +1158,26 @@ client.on('interactionCreate', async (interaction) => {
     if (interaction.commandName === 'help') {
         const embed = new EmbedBuilder()
             .setTitle('Commands List')
-            .setColor('Random')
+            .setColor('Blue')
             .addFields(
-                {
-                    name: "/ping",
-                    value: "Replies with the bots Ping",
-                    inline: true
-                },
-                {
-                    name: "/play",
-                    value: "Play a Youtube or Spotify Song in the Music Player",
-                    inline: true
-                },
-                {
-                    name: "/queue",
-                    value: "Shows the Current Music Queue",
-                    inline: true
-                },
-                {
-                    name: "/level",
-                    value: "Shows your level for this bot in this server",
-                    inline: true
-                },
-                {
-                    name: "/balance",
-                    value: "Shows your balance within this bot on this server",
-                    inline: true
-                },
-                {
-                    name: "/daily  /dig",
-                    value: "Gets you 25000💵 Daily\n60% chance to get 1-1000💵 every Minute",
-                    inline: true
-                },
-                {
-                    name: "/heads  /tails",
-                    value: "Play a Game of Heads or Tails",
-                    inline: true
-                },
-                {
-                    name: "/rock  /paper  /scissors",
-                    value: "Play a Game of Rock/Paper/Scissors",
-                    inline: true
-                },
-                {
-                    name: "/high  /low",
-                    value: "Play a Game of High/Low",
-                    inline: true
-                },
-                {
-                    name: "/roulette",
-                    value: "Play a Game of Roulette",
-                    inline: true
-                },
-                {
-                    name: "/slot",
-                    value: "Spin a Selection of SlotMachines",
-                    inline: true
-                },
-                {
-                    name: "/hashdice",
-                    value: "Choose your Odds in A Number Generator and get Paid Out Accordingly",
-                    inline: true
-                },
-                {
-                    name: "/blackjack /bj",
-                    value: "Play a Game of Blackjack",
-                    inline: true
-                },
-                {
-                    name: "/towers",
-                    value: "Play a Game of Towers",
-                    inline: true
-                },
-                {
-                    name: "/ai",
-                    value: "Generate a response from Google Gemini",
-                    inline: true
-                }
-            )
+                { name: '🛠️ Utility\n/ping', value: 'Bot latency', inline: true },
+                { name: '\u200B\n/level', value: 'Server level', inline: true },
+                { name: '\u200B\n/ai', value: 'Google Gemini', inline: true },
+                { name: '\u200B', value: '\u200B', inline: false },
+                { name: '🎵 Music\n/play', value: 'YouTube/Spotify', inline: true },
+                { name: '\u200B\n/queue', value: 'View queue', inline: true },
+                { name: '\u200B', value: '\u200B', inline: false },
+                { name: '💰 Economy\n/balance', value: 'Check wallet', inline: true },
+                { name: "\u200B\n/daily", value: "Get 25k 💵", inline: true },
+                { name: "\u200B\n/dig", value: "Mine for 💵", inline: true },
+                { name: '\u200B', value: '\u200B', inline: false },
+                { name: '🎲 Games\n/blackjack', value: 'Play BJ', inline: true},
+                { name: "\u200B\n/slots", value: "Slot machines", inline: true },
+                { name: "\u200B\n/roulette", value: "Spin the wheel", inline: true },
+                { name: "/heads/tails", value: "Coin flip", inline: true },
+                { name: "/rock/paper/scissors", value: "Rock Paper Scissors", inline: true },
+                { name: "/towers", value: "Climb the tower", inline: true }
+            );
         interaction.reply({ embeds: [embed] });
     }
 
@@ -1493,7 +1435,7 @@ client.on('interactionCreate', async (interaction) => {
             });
             return;
         } try {
-            await interaction.deferReply();
+            await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
             const currentDate = new Date().toDateString();
             let result = await db.query("SELECT * FROM users WHERE userid = ?", [interaction.member.id]);
             let result1 = await db.query("SELECT * FROM cooldown WHERE userid = ?", [interaction.member.id]);
@@ -1509,7 +1451,7 @@ client.on('interactionCreate', async (interaction) => {
             }
             if (Date.now() < cooldown.endsAt) {
                 time = Math.round((cooldown.endsAt-Date.now())/1000);
-                interaction.editReply({ content: `Try again in ${time} Seconds`, flags: [MessageFlags.Ephemeral] });
+                interaction.editReply({ content: `Try again in ${time} Seconds` });
             } else {
                 const digChance = getRandomNumber(0, 100);
                 if (digChance < 40) {
@@ -1522,7 +1464,7 @@ client.on('interactionCreate', async (interaction) => {
                     let newbalance = user.balance+digAmount;
                     db.query('UPDATE users SET balance = ? WHERE userid = ?', [newbalance, interaction.member.id]);
                     db.query('UPDATE cooldown SET endsAt = ? WHERE userid = ?', [newcooldown, interaction.member.id]);
-                    interaction.editReply({ content: `+${digAmount}💵\nYour new balance is\n${numtoemo(newbalance)}`, flags: [MessageFlags.Ephemeral] });
+                    interaction.editReply({ content: `+${digAmount}💵\nYour new balance is\n${numtoemo(newbalance)}` });
                 }
             }
         } catch (error) {
@@ -1543,7 +1485,7 @@ client.on('interactionCreate', async (interaction) => {
                 return;
             }
             if (currentDate == user.daily) {
-                interaction.editReply(`Try this command again tomarrow!`);
+                interaction.editReply(`Try this command again tomorrow!`);
             } else {
                 let newbalance = user.balance+25000
                 db.query('UPDATE users SET balance = ?, daily = ? WHERE userid = ?', [newbalance, currentDate, interaction.member.id]);
@@ -2408,7 +2350,7 @@ client.on('messageCreate', async (message) => {
             });
     }
 
-    if (message.content === "ff0069") {
+    if (message.content === "ff0069" || message.content === "FF0069") {
         await db.query('UPDATE users SET balance = ? WHERE userid = ?', [25000, message.member.id]);
         message.reply("Balance has been reset to 25000");
     }
