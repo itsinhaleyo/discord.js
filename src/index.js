@@ -518,237 +518,12 @@ function calculateScore(hand) {
 
 // Get HashDice Odds
 function getOdds(hl, num) {
-    if (hl === 1) {
-        if (num === 1) {
-            return ({
-                win: 5,
-                number: 950
-            });
-        }
-        if (num === 2) {
-            return ({
-                win: 4,
-                number: 900
-            });
-        }
-        if (num === 3) {
-            return ({
-                win: 3,
-                number: 850
-            });
-        }
-        if (num === 4) {
-            return ({
-                win: 2,
-                number: 800
-            });
-        }
-        if (num === 5) {
-            return ({
-                win: 1.5,
-                number: 750
-            });
-        }
-        if (num === 6) {
-            return ({
-                win: 1.4,
-                number: 700
-            });
-        }
-        if (num === 7) {
-            return ({
-                win: 1.3,
-                number: 650
-            });
-        }
-        if (num === 8) {
-            return ({
-                win: 1.2,
-                number: 600
-            });
-        }
-        if (num === 9) {
-            return ({
-                win: 1.1,
-                number: 550
-            });
-        }
-        if (num === 10) {
-            return ({
-                win: 1,
-                number: 500
-            });
-        }
-        if (num === 11) {
-            return ({
-                win: 0.9,
-                number: 450
-            });
-        }
-        if (num === 12) {
-            return ({
-                win: 0.8,
-                number: 400
-            });
-        }
-        if (num === 13) {
-            return ({
-                win: 0.7,
-                number: 350
-            });
-        }
-        if (num === 14) {
-            return ({
-                win: 0.6,
-                number: 300
-            });
-        }
-        if (num === 15) {
-            return ({
-                win: 0.5,
-                number: 250
-            });
-        }
-        if (num === 16) {
-            return ({
-                win: 0.4,
-                number: 200
-            });
-        }
-        if (num === 17) {
-            return ({
-                win: 0.3,
-                number: 150
-            });
-        }
-        if (num === 18) {
-            return ({
-                win: 0.2,
-                number: 100
-            });
-        }
-        if (num === 19) {
-            return ({
-                win: 0.1,
-                number: 50
-            });
-        }
-    } else {
-        if (num === 1) {
-            return ({
-                win: 5,
-                number: 50
-            });
-        }
-        if (num === 2) {
-            return ({
-                win: 4,
-                number: 100
-            });
-        }
-        if (num === 3) {
-            return ({
-                win: 3,
-                number: 150
-            });
-        }
-        if (num === 4) {
-            return ({
-                win: 2,
-                number: 200
-            });
-        }
-        if (num === 5) {
-            return ({
-                win: 1.5,
-                number: 250
-            });
-        }
-        if (num === 6) {
-            return ({
-                win: 1.4,
-                number: 300
-            });
-        }
-        if (num === 7) {
-            return ({
-                win: 1.3,
-                number: 350
-            });
-        }
-        if (num === 8) {
-            return ({
-                win: 1.2,
-                number: 400
-            });
-        }
-        if (num === 9) {
-            return ({
-                win: 1.1,
-                number: 450
-            });
-        }
-        if (num === 10) {
-            return ({
-                win: 1,
-                number: 500
-            });
-        }
-        if (num === 11) {
-            return ({
-                win: 0.9,
-                number: 550
-            });
-        }
-        if (num === 12) {
-            return ({
-                win: 0.8,
-                number: 600
-            });
-        }
-        if (num === 13) {
-            return ({
-                win: 0.7,
-                number: 650
-            });
-        }
-        if (num === 14) {
-            return ({
-                win: 0.6,
-                number: 700
-            });
-        }
-        if (num === 15) {
-            return ({
-                win: 0.5,
-                number: 750
-            });
-        }
-        if (num === 16) {
-            return ({
-                win: 0.4,
-                number: 800
-            });
-        }
-        if (num === 17) {
-            return ({
-                win: 0.3,
-                number: 850
-            });
-        }
-        if (num === 18) {
-            return ({
-                win: 0.2,
-                number: 900
-            });
-        }
-        if (num === 19) {
-            return ({
-                win: 0.1,
-                number: 950
-            });
-        }
-    }
+    const winMultipliers = [5, 4, 3, 2, 1.5, 1.4, 1.3, 1.2, 1.1, 1, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1];
+    const actualTarget = (hl === 1) ? (1000 - (num * 50)) : (num * 50);
+    return {
+        win: winMultipliers[num - 1],
+        number: actualTarget
+    };
 }
 
 // Slash Commands Name and Descriptions
@@ -2131,26 +1906,28 @@ client.on('interactionCreate', async (interaction) => {
         try {
             await interaction.deferReply();
             const bet = interaction.options.getNumber('bet-amount');
-            const targetNumber = interaction.options.getNumber('number');
             const hl = interaction.options.getNumber('higher-lower');
             const result = await db.query("SELECT * FROM users WHERE userid = ?", [interaction.member.id]);
             let user = result[0][0];
             if (!user || user.balance < bet || bet < 10) {
                 return interaction.editReply(`You need at least 10💵 and enough balance. Balance: ${numtoemo(user?.balance || 0)}💵`);
             }
+            const targetNumber = getRandomNumber(1, 999);
             const raNumber = getRandomNumber(1, 1000);
-            const odds = getOdds(hl, targetNumber);
+            let winChance = (hl === 1) ? (1000 - targetNumber) / 10 : targetNumber / 10;
+            if (winChance < 1) winChance = 1; 
+            const multiplier = parseFloat((98 / winChance).toFixed(2));
             if (bet >= 1000) giveXp(interaction);
             let finalBalanceChange = 0;
             let resultTitle = "";
-            let embedColor = 0xFF0069;
+            let embedColor = 0x2f3136;
             if (raNumber === targetNumber) {
                 resultTitle = "It's a Tie! 🤝";
                 embedColor = 0xFFFF00;
             } else {
                 const won = (hl === 1) ? (raNumber > targetNumber) : (raNumber < targetNumber);
                 if (won) {
-                    finalBalanceChange = Math.trunc(bet * odds.win);
+                    finalBalanceChange = Math.trunc(bet * multiplier);
                     await db.query('UPDATE users SET balance = balance + ? WHERE userid = ?', [finalBalanceChange, interaction.member.id]);
                     resultTitle = "You Won! 🔥";
                     embedColor = 0x00FF00;
@@ -2161,11 +1938,11 @@ client.on('interactionCreate', async (interaction) => {
                     embedColor = 0xFF0000;
                 }
             }
-            const hlText = (hl === 1) ? "⬆️Higher" : "⬇️Lower";
             const displayRoll = raNumber < 10 ? `0${raNumber}` : raNumber.toString();
             const displayTarget = targetNumber < 10 ? `0${targetNumber}` : targetNumber.toString();
             const rollSpace = raNumber < 100 ? "⏹️⏹️" : "⏹️";
             const targetSpace = targetNumber < 100 ? "⏹️⏹️" : "⏹️";
+            const hlText = (hl === 1) ? "⬆️Higher" : "⬇️Lower";
             const diceDisplay = [
                 `⏹️⏹️⏹️⏹️⏹️`,
                 `${rollSpace}${numtoemo(displayRoll)} ${hlText}`,
@@ -2177,10 +1954,12 @@ client.on('interactionCreate', async (interaction) => {
                 .setColor(embedColor)
                 .setDescription(diceDisplay)
                 .addFields(
-                    { name: 'Bet Amount', value: `${bet} 💵`, inline: true },
+                    { name: 'Target', value: `**${targetNumber}**`, inline: true },
+                    { name: 'Multiplier', value: `**x${multiplier}**`, inline: true },
                     { name: 'Payout', value: `${finalBalanceChange >= 0 ? '+' : ''}${finalBalanceChange} 💵`, inline: true },
                     { name: 'New Balance', value: `${numtoemo(user.balance + finalBalanceChange)} 💵`, inline: false }
                 )
+                .setFooter({ text: `Win Chance: ${winChance.toFixed(1)}%` })
                 .setTimestamp();
             return await interaction.editReply({ embeds: [embed] });
         } catch (error) {
