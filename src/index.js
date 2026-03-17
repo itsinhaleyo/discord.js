@@ -495,6 +495,27 @@ function threexthreespinWheel(interaction, user, bet, spin) {
     }
 }
 
+// Blackjack Score
+function calculateScore(hand) {
+    let score = 0;
+    let aces = 0;
+    for (const card of hand) {
+        if (card === 'A') {
+            aces += 1;
+            score += 11;
+        } else if (['J', 'Q', 'K'].includes(card)) {
+            score += 10;
+        } else {
+            score += parseInt(card);
+        }
+    }
+    while (score > 21 && aces > 0) {
+        score -= 10;
+        aces -= 1;
+    }
+    return score;
+}
+
 // Get HashDice Odds
 function getOdds(hl, num) {
     if (hl === 1) {
@@ -767,6 +788,18 @@ const commands = [
                 type: ApplicationCommandOptionType.String,
                 required: true
             },
+        ]
+    },
+    {
+        name: 'bj' || "blackjack",
+        description: 'Play a Game of Blackjack',
+        options: [
+            {
+                name: 'bet-amount',
+                description: 'Choose how much to bet (if you havent already started a Game)',
+                type: ApplicationCommandOptionType.Number,
+                required: true
+            }
         ]
     },
     {
@@ -1262,7 +1295,8 @@ const client = new Client({
         GatewayIntentBits.GuildVoiceStates,
         IntentsBitField.Flags.GuildMembers,
         IntentsBitField.Flags.GuildMessages,
-        IntentsBitField.Flags.MessageContent  
+        IntentsBitField.Flags.MessageContent,
+        GatewayIntentBits.GuildMessageReactions
     ]
 });
 
@@ -2215,6 +2249,12 @@ client.on('interactionCreate', async (interaction) => {
     }
 
     if (interaction.commandName === "towers") {
+        if (!interaction.inGuild()) {
+            return interaction.reply({
+                content: 'You can only run this command inside a server.',
+                flags: [MessageFlags.Ephemeral],
+            })
+        };
         await interaction.deferReply();
         const result = await db.query("SELECT * FROM users WHERE userid = ?", [interaction.member.id]);
         const result2 = await db.query("SELECT * FROM towers WHERE userid = ?", [interaction.member.id]);
@@ -2233,7 +2273,7 @@ client.on('interactionCreate', async (interaction) => {
         const getRow = (level, bombPos) => {
             const mult = multipliers[level] ? `[${multipliers[level]}x]` : "";
             const row = ["⭕", "⭕", "⭕"].map((circle, i) => (i + 1) === Number(bombPos) ? "❌" : circle).join("");
-            return `| ${row} | \`L${level} ${mult}\``;
+            return `| ${row} | \`${mult}\``;
         };
         const tower = interaction.options.getNumber('tower-choice');
         const bet = interaction.options.getNumber('bet-amount');
@@ -2294,9 +2334,109 @@ client.on('interactionCreate', async (interaction) => {
             embed.setTitle(title)
                 .setColor(color)
                 .setDescription(desc)
-                .setFooter({ text: `Current Bet: ${game.bet}` });
+                .setFooter({ text: `Current Bet: ${numtoemo(game.bet)}` });
         }
         return interaction.editReply({ embeds: [embed] });
+    }
+
+    if (interaction.commandName === "bj" || interaction.commandName === "blackjack") {
+        if (!interaction.inGuild()) {
+            return interaction.reply({
+                content: 'You can only run this command inside a server.',
+                flags: [64],
+            });
+        }
+        await interaction.deferReply();
+        const result = await db.query("SELECT * FROM users WHERE userid = ?", [interaction.member.id]);
+        const user = result[0][0];
+        if (!user) {
+            await db.query('INSERT INTO users VALUES(?, ?, ?, ?, ?)', [userId, 25000, new Date().toDateString(), 0, 1]);
+            user = { userid: interaction.member.id, balance: 25000 };
+        }
+        const bet = interaction.options.getNumber('bet-amount');
+        if (!bet || bet < 1) return interaction.editReply("Enter a valid bet.");
+        if (Number(user.balance) < bet) return interaction.editReply(`Low balance: ${user.balance}💵`);
+        await db.query("UPDATE users SET balance = balance - ? WHERE userid = ?", [bet, interaction.user.id]);
+        let deck = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
+        let playerHand = [deck[Math.floor(Math.random() * deck.length)], deck[Math.floor(Math.random() * deck.length)]];
+        let dealerHand = [deck[Math.floor(Math.random() * deck.length)]];
+        const generateEmbed = (title, showDealerCard = false) => {
+            const pScore = calculateScore(playerHand);
+            const dScore = calculateScore(dealerHand);
+            return new EmbedBuilder()
+                .setTitle(title)
+                .setColor(0xFF0069)
+                .addFields(
+                    { name: 'Your Hand', value: `${playerHand.join(', ')} (**${pScore}**)`, inline: true },
+                    { name: 'Dealer Hand', value: showDealerCard ? `${dealerHand.join(', ')} (**${dScore}**)` : `${dealerHand[0]}, ?`, inline: true }
+                )
+                .setFooter({ text: pScore > 21 ? 'Busted!' : 'React with 👊 to Hit or ✋ to Stand' });
+        };
+        const gameMessage = await interaction.editReply({ 
+            embeds: [generateEmbed(`${interaction.user.username}'s Blackjack`)], 
+            fetchReply: true 
+        });
+        await gameMessage.react('👊');
+        await gameMessage.react('✋');
+        const filter = (reaction, user) => ['👊', '✋'].includes(reaction.emoji.name) && user.id === interaction.user.id;
+        const collector = gameMessage.createReactionCollector({ filter, time: 60000 });
+        collector.on('collect', async (reaction, user) => {
+            await reaction.users.remove(user.id).catch(() => null);
+            if (reaction.emoji.name === '👊') {
+                playerHand.push(deck[Math.floor(Math.random() * deck.length)]);
+                if (calculateScore(playerHand) > 21) {
+                    return collector.stop('bust');
+                }
+                await interaction.editReply({ embeds: [generateEmbed(`${interaction.user.username}'s Blackjack`)] });
+            } else {
+                collector.stop('stand');
+            }
+        });
+        collector.on('end', async (collected, reason) => {
+            let finalTitle = "";
+            let payout = 0;
+            let winLossMessage = "";
+            if (reason === 'bust') {
+                embedColor = 0xFF0000;
+                finalTitle = "You Busted! 💥 Dealer Wins.";
+            } else if (reason === 'stand') {
+                while (calculateScore(dealerHand) < 17) {
+                    dealerHand.push(deck[Math.floor(Math.random() * deck.length)]);
+                }
+                const pScore = calculateScore(playerHand);
+                const dScore = calculateScore(dealerHand);
+                if (dScore > 21) {
+                    embedColor = 0x00FF00;
+                    payout = bet * 2;
+                    finalTitle = "Dealer Busted! You Win! 🎉";
+                    winLossMessage = `+${numtoemo(bet)}`;
+                } else if (pScore > dScore) {
+                    embedColor = 0x00FF00;
+                    payout = bet * 2;
+                    finalTitle = "You Win! 🎉";
+                    winLossMessage = `+${numtoemo(bet)}`;
+                } else if (dScore > pScore) {
+                    embedColor = 0xFF0000;
+                    finalTitle = "Dealer Wins! 🏠";
+                    winLossMessage = `-${numtoemo(bet)}`;
+                } else {
+                    embedColor = 0xFFFF00;
+                    finalTitle = "It's a Tie! 🤝";
+                    winLossMessage = `Your ${numtoemo(bet)} was returned.`;
+                }; 
+            } else {
+                embedColor = 0x2f3136;
+                finalTitle = "Game Timed Out! ⏰";
+            }
+            if (payout > 0) {
+                await db.query("UPDATE users SET balance = balance + ? WHERE userid = ?", [payout, interaction.user.id]);
+            }
+            const finalEmbed = generateEmbed(finalTitle, true)
+                .setColor(embedColor)
+                .setDescription(`${winLossMessage}\nYour new balance: ${numtoemo(Number(user.balance) - bet + payout)}`);
+            await interaction.editReply({ embeds: [finalEmbed] });
+            await gameMessage.reactions.removeAll().catch(() => null);
+        });
     }
 
     if (interaction.commandName === "ai") {
@@ -2519,22 +2659,22 @@ client.on('messageCreate', async (message) => {
         message.reply("Balance has been reset to 25000");
     }
 
-if (message.content.startsWith("https://x.com/")) {
-    try {
-        if (message.author.id === process.env.CLIENT_ID) return;
-        let replacement = "https://fixupx.com/" + message.content.slice(14);
-        await message.channel.send({
-            content: replacement,
-        });
-        await message.delete().catch(error => {
-            if (error.code !== 10008) {
-                console.error('Failed to delete:', error);
-            }
-        });
-    } catch (error) {
-        console.error("Critical error in X-fixer:", error);
+    if (message.content.startsWith("https://x.com/")) {
+        try {
+            if (message.author.id === process.env.CLIENT_ID) return;
+            let replacement = "https://fixupx.com/" + message.content.slice(14);
+            await message.channel.send({
+                content: replacement,
+            });
+            await message.delete().catch(error => {
+                if (error.code !== 10008) {
+                    console.error('Failed to delete:', error);
+                }
+            });
+        } catch (error) {
+            console.error("Critical error in X-fixer:", error);
+        }
     }
-}
 
     if (message.content.slice(0, 26) === "https://www.instagram.com/") {
         try{
