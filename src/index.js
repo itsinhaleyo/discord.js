@@ -848,6 +848,25 @@ const commands = [
             }
         ]
     },
+    {
+        name: 'give',
+        description: "Give 💵 to another User",
+        options: [
+            {
+                name: 'user',
+                description: 'The user whose balance you want to get',
+                type: ApplicationCommandOptionType.User,
+                required: true
+            },
+            {
+                name: 'amount',
+                description: 'The Amount you want to Give',
+                type: ApplicationCommandOptionType.Number,
+                required: true,
+                min_value: 1
+            }
+        ]
+    },
 ];
 
 // Defining REST Client
@@ -959,6 +978,7 @@ client.on('interactionCreate', async (interaction) => {
                 '**/queue** - View Current Music Queue\n\n'+
                 '### 💰 Economy\n' +
                 '**/balance** - View your wallet\n' +
+                '**/give** - Give another User 💵'+
                 '**/daily** - Claim your 25,000💵\n' +
                 '**/dig** - Mine for rewards (every minute)\n\n' +
                 '### 🎲 Games\n' +
@@ -985,8 +1005,10 @@ client.on('interactionCreate', async (interaction) => {
                 if (targetUser.id !== interaction.user.id) {
                     return interaction.editReply(`${targetUser.username} hasn't used this bot yet!`);
                 }
-                const currentDate = new Date().toDateString();
-                await db.query('INSERT INTO users VALUES(?, ?, ?, ?, ?)', [targetUser.id, 25000, currentDate, 0, 1]);
+                const yesterday1 = new Date();
+                yesterday.setDate(yesterday1.getDate() - 1);
+                const yesterday = yesterday1.toDateString(); 
+                await db.query('INSERT INTO users VALUES(?, ?, ?, ?, ?)', [targetUser.id, 25000, yesterday, 0, 1]);
                 user = { balance: 25000 };
             }
             const balanceEmbed = new EmbedBuilder()
@@ -1010,6 +1032,62 @@ client.on('interactionCreate', async (interaction) => {
         }
     }
 
+    if (interaction.commandName === "give") {
+        if (!interaction.inGuild()) {
+            return interaction.reply({
+                content: 'You can only run this command inside a server.',
+                flags: [MessageFlags.Ephemeral],
+            });
+        }
+        try {
+            await interaction.deferReply();
+            const amount = interaction.options.getNumber('amount');
+            const targetUser = interaction.options.getUser('user');
+            if (targetUser.id === interaction.user.id) return interaction.editReply("You can't give money to yourself!");
+            const [[sender]] = await db.query("SELECT * FROM users WHERE userid = ?", [interaction.member.id]);
+            const [[receiver]] = await db.query("SELECT * FROM users WHERE userid = ?", [targetUser.id]);
+            if (!sender || sender.balance < amount) {
+                return interaction.editReply(`You don't have enough! Balance: **${numtoemo(sender?.balance || 0)}** 💵`);
+            }
+            const newSenderBalance = Number(sender.balance) - amount;
+            let newReceiverBalance;
+            if (!receiver) {
+                newReceiverBalance = amount;
+                const yesterday = new Date();
+                yesterday.setDate(yesterday.getDate() - 1);
+                const yesterdayString = yesterday.toDateString(); 
+                await db.query('INSERT INTO users VALUES(?, ?, ?, ?, ?)', [targetUser.id, amount, yesterdayString, 0, 1]);
+            } else {
+                newReceiverBalance = Number(receiver.balance) + amount;
+                await db.query('UPDATE users SET balance = ? WHERE userid = ?', [newReceiverBalance, targetUser.id]);
+            }
+            await db.query('UPDATE users SET balance = ? WHERE userid = ?', [newSenderBalance, interaction.member.id]);
+            const successEmbed = new EmbedBuilder()
+                .setTitle('💸 Transfer Successful')
+                .setColor('Green')
+                .setThumbnail(targetUser.displayAvatarURL())
+                .setDescription(`**${interaction.user.username}** sent **${amount}** 💵 to **${targetUser.username}**!`)
+                .addFields(
+                    { 
+                        name: `${interaction.user.username}'s Wallet`, 
+                        value: `${numtoemo(newSenderBalance)} 💵`, 
+                        inline: true 
+                    },
+                    { 
+                        name: `${targetUser.username}'s Wallet`, 
+                        value: `${numtoemo(newReceiverBalance)} 💵`, 
+                        inline: true 
+                    }
+                )
+                .setFooter({ text: `Transaction ID: ${Date.now().toString().slice(-6)}` })
+                .setTimestamp();
+            await interaction.editReply({ embeds: [successEmbed] });
+        } catch (error) {
+            console.error(`Error with /give: ${error}`);
+            interaction.editReply(`An error occurred.`);
+        }
+    }
+
     if (interaction.commandName === 'heads') {
         if (!interaction.inGuild()) {
             interaction.reply({
@@ -1019,11 +1097,13 @@ client.on('interactionCreate', async (interaction) => {
             return;
         } try {
             await interaction.deferReply();
-            const currentDate = new Date().toDateString();
             let result = await db.query("SELECT * FROM users WHERE userid = ?", [interaction.member.id]);
             let user = result[0][0];
             if (!user) {
-                await db.query('INSERT INTO users VALUES(?, ?, ?, ?, ?)', [interaction.member.id, 25000, currentDate, 0, 1]);
+                const yesterday1 = new Date();
+                yesterday.setDate(yesterday1.getDate() - 1);
+                const yesterday = yesterday1.toDateString(); 
+                await db.query('INSERT INTO users VALUES(?, ?, ?, ?, ?)', [interaction.member.id, 25000, yesterday, 0, 1]);
                 user = { userid: interaction.member.id, balance: 25000 };
             }
             const bet = interaction.options.get('bet-amount').value;
@@ -1059,11 +1139,13 @@ client.on('interactionCreate', async (interaction) => {
             return;
         } try {
             await interaction.deferReply();
-            const currentDate = new Date().toDateString();
             let result = await db.query("SELECT * FROM users WHERE userid = ?", [interaction.member.id]);
             let user = result[0][0];
             if (!user) {
-                await db.query('INSERT INTO users VALUES(?, ?, ?, ?, ?)', [interaction.member.id, 25000, currentDate, 0, 1]);
+                const yesterday1 = new Date();
+                yesterday.setDate(yesterday1.getDate() - 1);
+                const yesterday = yesterday1.toDateString(); 
+                await db.query('INSERT INTO users VALUES(?, ?, ?, ?, ?)', [interaction.member.id, 25000, yesterday, 0, 1]);
                 user = { userid: interaction.member.id, balance: 25000 };
             }
             const bet = interaction.options.get('bet-amount').value;
@@ -1099,11 +1181,13 @@ client.on('interactionCreate', async (interaction) => {
             return;
         } try {
             await interaction.deferReply();
-            const currentDate = new Date().toDateString();
             let result = await db.query("SELECT * FROM users WHERE userid = ?", [interaction.member.id]);
             let user = result[0][0];
             if (!user) {
-                await db.query('INSERT INTO users VALUES(?, ?, ?, ?, ?)', [interaction.member.id, 25000, currentDate, 0, 1]);
+                const yesterday1 = new Date();
+                yesterday.setDate(yesterday1.getDate() - 1);
+                const yesterday = yesterday1.toDateString(); 
+                await db.query('INSERT INTO users VALUES(?, ?, ?, ?, ?)', [interaction.member.id, 25000, yesterday, 0, 1]);
                 user = { userid: interaction.member.id, balance: 25000 };
             }
             const bet = interaction.options.get('bet-amount').value;
@@ -1143,11 +1227,13 @@ client.on('interactionCreate', async (interaction) => {
             return;
         } try {
             await interaction.deferReply();
-            const currentDate = new Date().toDateString();
             let result = await db.query("SELECT * FROM users WHERE userid = ?", [interaction.member.id]);
             let user = result[0][0];
             if (!user) {
-                await db.query('INSERT INTO users VALUES(?, ?, ?, ?, ?)', [interaction.member.id, 25000, currentDate, 0, 1]);
+                const yesterday1 = new Date();
+                yesterday.setDate(yesterday1.getDate() - 1);
+                const yesterday = yesterday1.toDateString(); 
+                await db.query('INSERT INTO users VALUES(?, ?, ?, ?, ?)', [interaction.member.id, 25000, yesterday, 0, 1]);
                 user = { userid: interaction.member.id, balance: 25000 };
             }
             const bet = interaction.options.get('bet-amount').value;
@@ -1187,11 +1273,13 @@ client.on('interactionCreate', async (interaction) => {
             return;
         } try {
             await interaction.deferReply();
-            const currentDate = new Date().toDateString();
             let result = await db.query("SELECT * FROM users WHERE userid = ?", [interaction.member.id]);
             let user = result[0][0];
             if (!user) {
-                await db.query('INSERT INTO users VALUES(?, ?, ?, ?, ?)', [interaction.member.id, 25000, currentDate, 0, 1]);
+                const yesterday1 = new Date();
+                yesterday.setDate(yesterday1.getDate() - 1);
+                const yesterday = yesterday1.toDateString(); 
+                await db.query('INSERT INTO users VALUES(?, ?, ?, ?, ?)', [interaction.member.id, 25000, yesterday, 0, 1]);
                 user = { userid: interaction.member.id, balance: 25000 };
             }
             const bet = interaction.options.get('bet-amount').value;
@@ -1235,8 +1323,10 @@ client.on('interactionCreate', async (interaction) => {
             const [[cooldown]] = await db.query("SELECT * FROM cooldown WHERE userid = ? AND command = 'dig'", [interaction.member.id]);
             let currentUser = user;
             if (!user) {
-                const currentDate = new Date().toDateString();
-                await db.query('INSERT INTO users VALUES(?, ?, ?, ?, ?)', [interaction.member.id, 25000, currentDate, 0, 1]);
+                const yesterday1 = new Date();
+                yesterday.setDate(yesterday1.getDate() - 1);
+                const yesterday = yesterday1.toDateString(); 
+                await db.query('INSERT INTO users VALUES(?, ?, ?, ?, ?)', [interaction.member.id, 25000, yesterday, 0, 1]);
                 currentUser = { balance: 25000 };
             }
             const now = Date.now();
@@ -1286,11 +1376,13 @@ client.on('interactionCreate', async (interaction) => {
     if (interaction.commandName === 'daily') {
         try {
             await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
-            const currentDate = new Date().toDateString();
             const dailyAmount = 25000;
             const [[user]] = await db.query("SELECT * FROM users WHERE userid = ?", [interaction.member.id]);
             if (!user) {
-                await db.query('INSERT INTO users VALUES(?, ?, ?, ?, ?)', [interaction.member.id, dailyAmount, currentDate, 0, 1]);
+                const yesterday1 = new Date();
+                yesterday.setDate(yesterday1.getDate() - 1);
+                const yesterday = yesterday1.toDateString(); 
+                await db.query('INSERT INTO users VALUES(?, ?, ?, ?, ?)', [interaction.member.id, dailyAmount, yesterday, 0, 1]);
                 const welcomeEmbed = new EmbedBuilder()
                     .setTitle('🎁 First Daily Reward!')
                     .setDescription(`Welcome! You've claimed your first **${dailyAmount}** 💵!\n\n**New Balance:** ${numtoemo(dailyAmount)}`)
@@ -1306,6 +1398,7 @@ client.on('interactionCreate', async (interaction) => {
                 return interaction.editReply({ embeds: [waitEmbed] });
             }
             const newBalance = Number(user.balance) + dailyAmount;
+            const currentDate = new Date().toDateString();
             await db.query('UPDATE users SET balance = ?, daily = ? WHERE userid = ?', [newBalance, currentDate, interaction.member.id]);
             await giveXp(interaction);
             const successEmbed = new EmbedBuilder()
@@ -1329,8 +1422,10 @@ client.on('interactionCreate', async (interaction) => {
             const [[user]] = await db.query("SELECT * FROM users WHERE userid = ?", [targetUser.id]);
             if (!user) {
                 if (!isSelf) return interaction.editReply("That user hasn't interacted yet!");
-                const currentDate = new Date().toDateString();
-                await db.query('INSERT INTO users VALUES(?, ?, ?, ?, ?)', [targetUser.id, 25000, currentDate, 0, 1]);
+                const yesterday1 = new Date();
+                yesterday.setDate(yesterday1.getDate() - 1);
+                const yesterday = yesterday1.toDateString(); 
+                await db.query('INSERT INTO users VALUES(?, ?, ?, ?, ?)', [targetUser.id, 25000, yesterday, 0, 1]);
                 user = { level: 1, xp: 0 }; 
             }
             const [[rankData]] = await db.query(
@@ -1365,13 +1460,15 @@ client.on('interactionCreate', async (interaction) => {
             return;
         } try {
             await interaction.deferReply();
-            const currentDate = new Date().toDateString();
             let result = await db.query("SELECT * FROM users WHERE userid = ?", [interaction.member.id]);
             let result1 = await db.query("SELECT * FROM hilow WHERE userid = ?", [interaction.member.id]);
             let user = result[0][0];
             let game = result1[0][0];
             if (!user) {
-                await db.query('INSERT INTO users VALUES(?, ?, ?, ?, ?)', [interaction.member.id, 25000, currentDate, 0, 1]);
+                const yesterday1 = new Date();
+                yesterday.setDate(yesterday1.getDate() - 1);
+                const yesterday = yesterday1.toDateString(); 
+                await db.query('INSERT INTO users VALUES(?, ?, ?, ?, ?)', [interaction.member.id, 25000, yesterday, 0, 1]);
                 user = { userid: interaction.member.id, balance: 25000 };
             }
             if (!game) {
@@ -1418,13 +1515,15 @@ client.on('interactionCreate', async (interaction) => {
             return;
         } try {
             await interaction.deferReply();
-            const currentDate = new Date().toDateString();
             let result = await db.query("SELECT * FROM users WHERE userid = ?", [interaction.member.id]);
             let result1 = await db.query("SELECT * FROM hilow WHERE userid = ?", [interaction.member.id]);
             let user = result[0][0];
             let game = result1[0][0];
             if (!user) {
-                await db.query('INSERT INTO users VALUES(?, ?, ?, ?, ?)', [interaction.member.id, 25000, currentDate, 0, 1]);
+                const yesterday1 = new Date();
+                yesterday.setDate(yesterday1.getDate() - 1);
+                const yesterday = yesterday1.toDateString(); 
+                await db.query('INSERT INTO users VALUES(?, ?, ?, ?, ?)', [interaction.member.id, 25000, yesterday, 0, 1]);
                 user = { userid: interaction.member.id, balance: 25000 };
             }
             if (!game) {
@@ -1474,8 +1573,10 @@ client.on('interactionCreate', async (interaction) => {
             let result = await db.query("SELECT * FROM users WHERE userid = ?", [interaction.member.id]);
             let user = result[0][0];
             if (!user) {
-                const currentDate = new Date().toDateString();
-                await db.query('INSERT INTO users VALUES(?, ?, ?, ?, ?)', [interaction.member.id, 25000, currentDate, 0, 1]);
+                const yesterday1 = new Date();
+                yesterday.setDate(yesterday1.getDate() - 1);
+                const yesterday = yesterday1.toDateString(); 
+                await db.query('INSERT INTO users VALUES(?, ?, ?, ?, ?)', [interaction.member.id, 25000, yesterday, 0, 1]);
                 user = { userid: interaction.member.id, balance: 25000 };
             }
             const bet = interaction.options.getInteger('bet');
@@ -1531,11 +1632,13 @@ client.on('interactionCreate', async (interaction) => {
             return;
         } try {
             await interaction.deferReply();
-            const currentDate = new Date().toDateString();
             let result = await db.query("SELECT * FROM users WHERE userid = ?", [interaction.member.id]);
             let user = result[0][0];
             if (!user) {
-                await db.query('INSERT INTO users VALUES(?, ?, ?, ?, ?)', [interaction.member.id, 25000, currentDate, 0, 1]);
+                const yesterday1 = new Date();
+                yesterday.setDate(yesterday1.getDate() - 1);
+                const yesterday = yesterday1.toDateString(); 
+                await db.query('INSERT INTO users VALUES(?, ?, ?, ?, ?)', [interaction.member.id, 25000, yesterday, 0, 1]);
                 user = { userid: interaction.member.id, balance: 25000 };
             }
             const bet = interaction.options.get('bet-amount')?.value;
@@ -1682,7 +1785,10 @@ client.on('interactionCreate', async (interaction) => {
         const user = result[0][0];
         const game = result2[0][0];
         if (!user) {
-            await db.query('INSERT INTO users VALUES(?, ?, ?, ?, ?)', [userId, 25000, new Date().toDateString(), 0, 1]);
+            const yesterday1 = new Date();
+            yesterday.setDate(yesterday1.getDate() - 1);
+            const yesterday = yesterday1.toDateString(); 
+            await db.query('INSERT INTO users VALUES(?, ?, ?, ?, ?)', [userId, 25000, yesterday, 0, 1]);
             user = { userid: interaction.member.id, balance: 25000 };
         }
         if (!game) {
@@ -1771,7 +1877,10 @@ client.on('interactionCreate', async (interaction) => {
         const result = await db.query("SELECT * FROM users WHERE userid = ?", [interaction.member.id]);
         const user = result[0][0];
         if (!user) {
-            await db.query('INSERT INTO users VALUES(?, ?, ?, ?, ?)', [userId, 25000, new Date().toDateString(), 0, 1]);
+            const yesterday1 = new Date();
+            yesterday.setDate(yesterday1.getDate() - 1);
+            const yesterday = yesterday1.toDateString(); 
+            await db.query('INSERT INTO users VALUES(?, ?, ?, ?, ?)', [userId, 25000, yesterday, 0, 1]);
             user = { userid: interaction.member.id, balance: 25000 };
         }
         const bet = interaction.options.getNumber('bet-amount');
@@ -2114,97 +2223,69 @@ client.on('messageCreate', async (message) => {
         message.reply("Balance has been reset to 25000");
     }
 
-    if (message.content.startsWith("https://x.com/")) {
+    if (message.content.includes("x.com") || message.content.includes("twitter.com")) {
+        if (message.author.bot) return;
         try {
-            if (message.author.id === process.env.CLIENT_ID) return;
-            let replacement = "https://fixupx.com/" + message.content.slice(14);
-            await message.channel.send({
-                content: replacement,
+            let replacement = message.content
+                .replace("x.com", "fixupx.com")
+                .replace("twitter.com", "fxtwitter.com");
+            await message.reply({
+                content: `${replacement}`,
+                allowedMentions: { repliedUser: false }
             });
-            await message.delete().catch(error => {
-                if (error.code !== 10008) {
-                    console.error('Failed to delete:', error);
-                }
+            await message.delete().catch(err => {
+                if (err.code !== 10008) console.error('Delete failed:', err);
             });
         } catch (error) {
-            console.error("Critical error in X-fixer:", error);
+            console.error("X-fixer Error:", error);
         }
     }
 
-    if (message.content.slice(0, 26) === "https://www.instagram.com/") {
-        try{
-            if (message.author.id === process.env.CLIENT_ID) {
-                return;
-            }
-            let replacement = "https://eeinstagram.com/"+message.content.slice(26, 150);
-            message.reply({
-                content: replacement
-            })
-            await message.delete().catch(error => {
-                if (error.code !== 10008) {
-                    console.error('Failed to delete:', error);
-                }
+    if (message.content.includes("instagram.com")) {
+        if (message.author.id === client.user.id) return;
+        try {
+            const replacement = message.content.replace("instagram.com", "eeinstagram.com");
+            await message.reply({
+                content: `${replacement}`,
+                allowedMentions: { repliedUser: false }
             });
-        } catch(error) {
-            console.log("######"+error)
+            await message.delete().catch(err => {
+                if (err.code !== 10008) console.error('Delete failed:', err);
+            });
+        } catch (error) {
+            console.error("Link Conversion Error:", error);
         }
     }
 
-    if (message.content.slice(0, 23) === "https://www.reddit.com/") {
-        try{
-            if (message.author.id === process.env.CLIENT_ID) {
-                return;
-            }
-            let replacement = "https://redditez.com/"+message.content.slice(23, 150);
-            message.reply({
-                content: replacement
-            })
-            await message.delete().catch(error => {
-                if (error.code !== 10008) {
-                    console.error('Failed to delete:', error);
-                }
+    if (message.content.includes("reddit.com")) {
+        if (message.author.bot) return;
+        try {
+            const replacement = message.content.replace("reddit.com", "rxddit.com");
+            await message.reply({
+                content: `${replacement}`,
+                allowedMentions: { repliedUser: false } 
             });
-        } catch(error) {
-            console.log("######"+error)
+            await message.delete().catch(err => {
+                if (err.code !== 10008) console.error('Delete failed:', err);
+            });
+        } catch (error) {
+            console.error("Reddit-fixer Error:", error);
         }
     }
 
-    if (message.content.slice(0, 23) === "https://www.tiktok.com/") {
-        try{
-            if (message.author.id === process.env.CLIENT_ID) {
-                return;
-            }
-            let replacement = "https://tiktokez.com/"+message.content.slice(23, 150);
-            message.reply({
-                content: replacement
-            })
-            await message.delete().catch(error => {
-                if (error.code !== 10008) {
-                    console.error('Failed to delete:', error);
-                }
+    if (message.content.includes("facebook.com")) {
+        if (message.author.bot) return;
+        try {
+            const replacement = message.content.replace("facebook.com", "facebed.com");
+            await message.reply({
+                content: `${replacement}`,
+                allowedMentions: { repliedUser: false } 
             });
-        } catch(error) {
-            console.log("######"+error)
-        }
-    }
-
-    if (message.content.slice(0, 25) === "https://www.facebook.com/") {
-        try{
-            if (message.author.id === process.env.CLIENT_ID) {
-                return;
-            }
-            let replacement = "https://facebed.com/"+message.content.slice(25, 150);
-            message.reply({
-                content: replacement
-            })
-            await
-            await message.delete().catch(error => {
-                if (error.code !== 10008) {
-                    console.error('Failed to delete:', error);
-                }
+            await message.delete().catch(err => {
+                if (err.code !== 10008) console.error('Delete failed:', err);
             });
-        } catch(error) {
-            console.log("######"+error)
+        } catch (error) {
+            console.error("Facebook-fixer Error:", error);
         }
     }
 
