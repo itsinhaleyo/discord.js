@@ -10,7 +10,7 @@ CREATE TABLE users (
 
 CREATE TABLE cooldown (
     userid VARCHAR(100) NOT NULL PRIMARY KEY,
-    commandName VARCHAR(10) NOT NULL,
+    command VARCHAR(255) NOT NULL,
     endsAt VARCHAR(100) NOT NULL
 );
 

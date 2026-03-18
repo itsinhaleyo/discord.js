@@ -244,29 +244,54 @@ function getRandomNumber(x, y) {
 }
 
 // Turn  Numbers to Emojis
-function numtoemo(numbers) {
-    return numbers.toString().replace(/1/g, ':one:').replace(/2/g, ':two:').replace(/3/g, ':three:').replace(/4/g, ':four:').replace(/5/g, ':five:').replace(/6/g, ':six:').replace(/7/g, ':seven:').replace(/8/g, ':eight:').replace(/9/g, ':nine:').replace(/0/g, ':zero:');
+function numtoemo(number) {
+    const emojiMap = {'0': '0️⃣', '1': '1️⃣', '2': '2️⃣', '3': '3️⃣', '4': '4️⃣', '5': '5️⃣', '6': '6️⃣', '7': '7️⃣', '8': '8️⃣', '9': '9️⃣'};
+    return number.toString().replace(/\d/g, digit => emojiMap[digit]);
 }
 
 // Function to Calculate Xp
 async function giveXp(interaction) {
     const xpToGive = getRandomNumber(1, 5);
     try {
-        let result = await db.query("SELECT * FROM users WHERE userid = ?", [interaction.member.id]);
-        const user = result[0][0];
-        let newxp = Number(user.xp) + xpToGive;
-        let calculatedlevel = 100 * Number(user.level);
-        if (user.xp > calculatedlevel) {
-            let xpleft = newxp - calculatedlevel;
-            let newlevel = Number(user.level) + 1;
-            let newbalance = user.balance + calculatedlevel;
-            db.query('UPDATE users SET level = ?, xp = ?, balance = ? WHERE userid = ?', [newlevel, xpleft, newbalance, interaction.member.id]);
-            interaction.channel.send(`${interaction.member} you have leveled up to **level ${newlevel}**`);
+        const [[user]] = await db.query("SELECT * FROM users WHERE userid = ?", [interaction.member.id]);
+        if (!user) return;
+        let newXp = Number(user.xp) + xpToGive;
+        let neededXp = 100 * Number(user.level);
+        if (newXp >= neededXp) {
+            const newLevel = Number(user.level) + 1;
+            const xpLeft = newXp - neededXp;
+            const bonusBalance = Number(user.balance) + neededXp;
+            await db.query(
+                'UPDATE users SET level = ?, xp = ?, balance = ? WHERE userid = ?', 
+                [newLevel, xpLeft, bonusBalance, interaction.member.id]
+            );
+            const [[rankData]] = await db.query(
+                `SELECT COUNT(*) + 1 AS \`rank\` FROM users 
+                 WHERE (level > ?) OR (level = ? AND xp > ?)`, 
+                [newLevel, newLevel, xpLeft]
+            );
+            const rankCard = new canvacord.Rank()
+                .setAvatar(interaction.user.displayAvatarURL({ size: 256, extension: 'png' }))
+                .setRank(rankData.rank)
+                .setLevel(newLevel)
+                .setCurrentXP(xpLeft)
+                .setRequiredXP(100 * newLevel)
+                .setProgressBar('#00FF00', 'COLOR')
+                .setUsername(interaction.user.username)
+                .setBackground("COLOR", "#23272A");
+            const data = await rankCard.build();
+            const attachment = new AttachmentBuilder(data, { name: 'levelup.png' });
+            if (interaction.channel) {
+                await interaction.channel.send({
+                    content: `🎉 ${interaction.member} just leveled up while playing! **Level ${newLevel}** reached! +${neededXp}💵`,
+                    files: [attachment]
+                });
+            }
         } else {
-            db.query('UPDATE users SET xp = ? WHERE userid = ?', [newxp, interaction.member.id]);
+            await db.query('UPDATE users SET xp = ? WHERE userid = ?', [newXp, interaction.member.id]);
         }
     } catch (error) {
-        console.log(`=-=GIVE=XP=ERROR=-= ${error}`);
+        console.error(`=-=GIVE=XP=ERROR=-= ${error}`);
     }
 }
 
@@ -517,14 +542,6 @@ function calculateScore(hand) {
 }
 
 // Hishdice Functions
-function getOdds(hl, num) {
-    const winMultipliers = [5, 4, 3, 2, 1.5, 1.4, 1.3, 1.2, 1.1, 1, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1];
-    const actualTarget = (hl === 1) ? (1000 - (num * 50)) : (num * 50);
-    return {
-        win: winMultipliers[num - 1],
-        number: actualTarget
-    };
-}
 const diceChances = Array.from({ length: 19 }, (_, i) => ({
     name: `${(i + 1) * 5}% Chance`,
     value: i + 1
@@ -959,29 +976,37 @@ client.on('interactionCreate', async (interaction) => {
     }
 
     if (interaction.commandName === 'balance') {
-        try{
+        try {
             await interaction.deferReply();
-            const userx = interaction.options.get('user')?.value;
-            if (userx) {
-                let result = await db.query("SELECT * FROM users WHERE userid = ?", [userx]);
-                let user = result[0][0];
-                if (!user) {
-                    interaction.editReply('That user doesnt hasnt used this bot yet!')
-                    return;
+            const targetUser = interaction.options.getUser('user') || interaction.user;
+            let result = await db.query("SELECT * FROM users WHERE userid = ?", [targetUser.id]);
+            let user = result[0][0];
+            if (!user) {
+                if (targetUser.id !== interaction.user.id) {
+                    return interaction.editReply(`${targetUser.username} hasn't used this bot yet!`);
                 }
-                interaction.editReply(`Your balance is **${user.balance}💵**`);
-            } else {
-                let result = await db.query("SELECT * FROM users WHERE userid = ?", [interaction.member.id]);
-                let user = result[0][0];
-                if (!user) {
-                    const currentDate = new Date().toDateString();
-                    db.query('INSERT INTO users VALUES(?, ?, ?, ?, ?)', [interaction.member.id, 25000, currentDate, 0, 1]);
-                    user.balance = 25000;
-                }
-                interaction.editReply(`Your balance is **${user.balance}💵**`);
+                const currentDate = new Date().toDateString();
+                await db.query('INSERT INTO users VALUES(?, ?, ?, ?, ?)', [targetUser.id, 25000, currentDate, 0, 1]);
+                user = { balance: 25000 };
             }
-        } catch(error) {
-            console.log("######"+error)
+            const balanceEmbed = new EmbedBuilder()
+                .setAuthor({ 
+                    name: `${targetUser.username}'s Wallet`, 
+                    iconURL: targetUser.displayAvatarURL({ dynamic: true }) 
+                })
+                .setColor('Gold')
+                .addFields(
+                    { 
+                        name: 'Balance', 
+                        value: `💵**${numtoemo(user.balance)}**`, 
+                        inline: false 
+                    }
+                )
+                .setTimestamp()
+            await interaction.editReply({ embeds: [balanceEmbed] });
+        } catch (error) {
+            console.error("Balance Error: " + error);
+            interaction.editReply("Could not retrieve balance. Please try again.");
         }
     }
 
@@ -1199,141 +1224,135 @@ client.on('interactionCreate', async (interaction) => {
 
     if (interaction.commandName === 'dig') {
         if (!interaction.inGuild()) {
-            interaction.reply({
-              content: 'You can only run this command inside a server.',
-              flags: [MessageFlags.Ephemeral],
+            return interaction.reply({
+                content: 'You can only run this command inside a server.',
+                flags: [MessageFlags.Ephemeral],
             });
-            return;
-        } try {
+        }
+        try {
             await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
-            const currentDate = new Date().toDateString();
-            let result = await db.query("SELECT * FROM users WHERE userid = ?", [interaction.member.id]);
-            let result1 = await db.query("SELECT * FROM cooldown WHERE userid = ?", [interaction.member.id]);
-            let user = result[0][0];
-            let cooldown = result1[0][0];
+            const [[user]] = await db.query("SELECT * FROM users WHERE userid = ?", [interaction.member.id]);
+            const [[cooldown]] = await db.query("SELECT * FROM cooldown WHERE userid = ? AND command = 'dig'", [interaction.member.id]);
+            let currentUser = user;
             if (!user) {
-                db.query('INSERT INTO users VALUES(?, ?, ?, ?, ?)', [interaction.member.id, 25000, currentDate, 0, 1]);
-                user = { userid: interaction.member.id, balance: 25000 };
+                const currentDate = new Date().toDateString();
+                await db.query('INSERT INTO users VALUES(?, ?, ?, ?, ?)', [interaction.member.id, 25000, currentDate, 0, 1]);
+                currentUser = { balance: 25000 };
             }
+            const now = Date.now();
+            if (cooldown && now < cooldown.endsAt) {
+                const timeLeft = Math.round((cooldown.endsAt - now) / 1000);
+                const cooldownEmbed = new EmbedBuilder()
+                    .setTitle('⏳ Cooling Down...')
+                    .setDescription(`You're exhausted! Take a break for **${timeLeft}** more seconds.`)
+                    .setColor('Yellow');
+                return interaction.editReply({ embeds: [cooldownEmbed] });
+            }
+            const digChance = getRandomNumber(0, 100);
+            const newCooldownTime = now + 60000;
             if (!cooldown) {
-                db.query('INSERT INTO cooldown VALUES(?, ?, ?)', [interaction.member.id, 'dig', Date.now()]);
-                cooldown = { userid: interaction.member.id, command: 'dig', endsAt: Date.now() - 60000 };
-            }
-            if (Date.now() < cooldown.endsAt) {
-                time = Math.round((cooldown.endsAt-Date.now())/1000);
-                interaction.editReply({ content: `Try again in ${time} Seconds` });
+                await db.query('INSERT INTO cooldown VALUES(?, ?, ?)', [interaction.member.id, 'dig', newCooldownTime]);
             } else {
-                const digChance = getRandomNumber(0, 100);
-                if (digChance < 40) {
-                    interaction.editReply(`Nothing this time, Try again`);
-                    let newcooldown = Date.now() + 60000;
-                    db.query('UPDATE cooldown SET endsAt = ? WHERE userid = ?', [newcooldown, interaction.member.id]);
-                } else {
-                    const digAmount = getRandomNumber(1,1000);
-                    let newcooldown = Date.now() + 60000;
-                    let newbalance = user.balance+digAmount;
-                    db.query('UPDATE users SET balance = ? WHERE userid = ?', [newbalance, interaction.member.id]);
-                    db.query('UPDATE cooldown SET endsAt = ? WHERE userid = ?', [newcooldown, interaction.member.id]);
-                    interaction.editReply({ content: `+${digAmount}💵\nYour new balance is\n${numtoemo(newbalance)}` });
-                }
+                await db.query('UPDATE cooldown SET endsAt = ? WHERE userid = ? AND command = "dig"', [newCooldownTime, interaction.member.id]);
+            }
+            const embed = new EmbedBuilder().setTimestamp();
+            if (digChance < 40) {
+                embed
+                    .setTitle('⛏️ Better luck next time...')
+                    .setDescription('You dug for a while but only found dirt.')
+                    .setColor('Red');
+                await interaction.editReply({ embeds: [embed] });
+            } else {
+                const digAmount = getRandomNumber(1, 1000);
+                const newBalance = currentUser.balance + digAmount;
+                await db.query('UPDATE users SET balance = ? WHERE userid = ?', [newBalance, interaction.member.id]);
+                await giveXp(interaction);
+                embed
+                    .setTitle('⛏️ You found something!')
+                    .setDescription(`You struck a small vein of gold!\n\n**Profit:** +${digAmount} 💵\n**New Balance:** ${numtoemo(newBalance)}`)
+                    .setColor('Green')
+                await interaction.editReply({ embeds: [embed] });
             }
         } catch (error) {
-            interaction.editReply(`Error with /dig ${error}`);
-            console.log(`Error with /dig: ${error}`);
+            console.error(`Error with /dig: ${error}`);
+            const errorEmbed = new EmbedBuilder()
+                .setTitle('❌ Error')
+                .setDescription('Something went wrong with the shovel. Try again!')
+                .setColor('DarkRed');
+            interaction.editReply({ embeds: [errorEmbed] });
         }
     }
 
     if (interaction.commandName === 'daily') {
         try {
-            await interaction.deferReply();
+            await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
             const currentDate = new Date().toDateString();
-            let result = await db.query("SELECT * FROM users WHERE userid = ?", [interaction.member.id]);
-            let user = result[0][0];
+            const dailyAmount = 25000;
+            const [[user]] = await db.query("SELECT * FROM users WHERE userid = ?", [interaction.member.id]);
             if (!user) {
-                db.query('INSERT INTO users VALUES(?, ?, ?, ?, ?)', [interaction.member.id, 25000, currentDate, 0, 1]);
-                interaction.editReply(`+$25000💵\nYour new balance is\n${numtoemo(25000)}`);
-                return;
+                await db.query('INSERT INTO users VALUES(?, ?, ?, ?, ?)', [interaction.member.id, dailyAmount, currentDate, 0, 1]);
+                const welcomeEmbed = new EmbedBuilder()
+                    .setTitle('🎁 First Daily Reward!')
+                    .setDescription(`Welcome! You've claimed your first **${dailyAmount}** 💵!\n\n**New Balance:** ${numtoemo(dailyAmount)}`)
+                    .setColor('Green')
+                    .setTimestamp();
+                return interaction.editReply({ embeds: [welcomeEmbed] });
             }
-            if (currentDate == user.daily) {
-                interaction.editReply(`Try this command again tomorrow!`);
-            } else {
-                let newbalance = user.balance+25000
-                db.query('UPDATE users SET balance = ?, daily = ? WHERE userid = ?', [newbalance, currentDate, interaction.member.id]);
-                interaction.editReply(`+$25000💵\nYour new balance is\n${numtoemo(newbalance)}`);
+            if (user.daily === currentDate) {
+                const waitEmbed = new EmbedBuilder()
+                    .setTitle('⏳ Already Claimed')
+                    .setDescription("You've already collected your daily reward today. Come back tomorrow!")
+                    .setColor('Yellow');
+                return interaction.editReply({ embeds: [waitEmbed] });
             }
+            const newBalance = Number(user.balance) + dailyAmount;
+            await db.query('UPDATE users SET balance = ?, daily = ? WHERE userid = ?', [newBalance, currentDate, interaction.member.id]);
+            await giveXp(interaction);
+            const successEmbed = new EmbedBuilder()
+                .setTitle('💰 Daily Reward Claimed!')
+                .setDescription(`You received your daily **${dailyAmount}** 💵!\n\n**New Balance:** ${numtoemo(newBalance)}`)
+                .setColor('Gold')
+                .setThumbnail(interaction.user.displayAvatarURL())
+                .setTimestamp();
+            await interaction.editReply({ embeds: [successEmbed] });
         } catch (error) {
-            interaction.editReply(`Please try the Command Again`);
-            console.log(`Error with /daily: ${error}`);
+            console.error(`Error with /daily: ${error}`);
+            interaction.editReply(`An error occurred while claiming your daily reward.`);
         }
     }
 
     if (interaction.commandName === "level") {
         try {
             await interaction.deferReply();
-            const userx = interaction.options.get('user')?.value;
-            if (userx) {
-                let result = await db.query("SELECT * FROM users WHERE userid = ?", [userx]);
-                let user = result[0][0];
-                if (!user) {
-                    interaction.editReply('That user doesnt hasnt interacted in the server yet!');
-                    return;
-                }
-                let [alllevels] = await db.query("select * from users");
-                alllevels.sort((a, b) => {
-                    if (a.level === b.level) {
-                    return b.xp - a.xp;
-                    } else {
-                    return b.level - a.level;
-                    }
-                });
-                let currentRank = alllevels.findIndex((lvl) => String(lvl.userid) === String(userx)) + 1;
-                const targetUserObj = await interaction.guild.members.fetch(userx);
-                const rank = new canvacord.Rank()
-                    .setAvatar(targetUserObj.user.displayAvatarURL({ size: 256 }))
-                    .setRank(currentRank)
-                    .setLevel(Number(user.level))
-                    .setCurrentXP(Number(user.xp))
-                    .setRequiredXP(100 * Number(user.level))
-                    .setProgressBar('#FF0069', 'COLOR')
-                    .setUsername(targetUserObj.user.username)
-                    .setBackground("COLOR", "PINK");
-                const data = await rank.build();
-                const attachment = new AttachmentBuilder(data);
-                interaction.editReply({ files: [attachment] });
-            } else {
-                let result = await db.query("SELECT * FROM users WHERE userid = ?", [interaction.member.id]);
-                let user = result[0][0];
-                if (!user) {
-                    const currentDate = new Date().toDateString();
-                    db.query('INSERT INTO users VALUES(?, ?, ?, ?, ?)', [interaction.member.id, 25000, currentDate, 0, 1]);
-                    user = {};
-                }
-                let [alllevels] = await db.query("select * from users");
-                alllevels.sort((a, b) => {
-                    if (a.level === b.level) {
-                    return b.xp - a.xp;
-                    } else {
-                    return b.level - a.level;
-                    }
-                });
-                let currentRank = alllevels.findIndex((lvl) => String(lvl.userid) === String(interaction.member.id)) + 1;
-                const targetUserObj = await interaction.guild.members.fetch(interaction.member.id);
-                const rank = new canvacord.Rank()
-                    .setAvatar(targetUserObj.user.displayAvatarURL({ size: 256 }))
-                    .setRank(currentRank)
-                    .setLevel(Number(user.level))
-                    .setCurrentXP(Number(user.xp))
-                    .setRequiredXP(100 * Number(user.level))
-                    .setProgressBar('#FF0069', 'COLOR')
-                    .setUsername(targetUserObj.user.username)
-                    .setBackground("COLOR", "PINK");
-                const data = await rank.build();
-                const attachment = new AttachmentBuilder(data);
-                interaction.editReply({ files: [attachment] });
+            const targetUser = interaction.options.getUser('user') || interaction.user;
+            const isSelf = targetUser.id === interaction.user.id;
+            const [[user]] = await db.query("SELECT * FROM users WHERE userid = ?", [targetUser.id]);
+            if (!user) {
+                if (!isSelf) return interaction.editReply("That user hasn't interacted yet!");
+                const currentDate = new Date().toDateString();
+                await db.query('INSERT INTO users VALUES(?, ?, ?, ?, ?)', [targetUser.id, 25000, currentDate, 0, 1]);
+                user = { level: 1, xp: 0 }; 
             }
+            const [[rankData]] = await db.query(
+                `SELECT COUNT(*) + 1 AS \`rank\` FROM users 
+                WHERE (level > ?) OR (level = ? AND xp > ?)`, 
+                [user.level, user.level, user.xp]
+            );
+            const rank = new canvacord.Rank()
+                .setAvatar(targetUser.displayAvatarURL({ size: 256, extension: 'png' }))
+                .setRank(rankData.rank)
+                .setLevel(Number(user.level))
+                .setCurrentXP(Number(user.xp))
+                .setRequiredXP(100 * Number(user.level))
+                .setProgressBar('#FF0069', 'COLOR')
+                .setUsername(targetUser.username)
+                .setBackground("COLOR", "#23272A");
+            const data = await rank.build();
+            const attachment = new AttachmentBuilder(data, { name: 'rank.png' });
+            await interaction.editReply({ files: [attachment] });
         } catch (error) {
-            interaction.editReply(`Please try the Command Again`);
-            console.log(`=-=ERROR=-= ${error}`);
+            console.error(`Rank Error: ${error}`);
+            interaction.editReply(`Failed to load rank card. Please try again.`);
         }
     }
 
