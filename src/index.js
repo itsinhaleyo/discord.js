@@ -1318,43 +1318,75 @@ client.on('interactionCreate', async (interaction) => {
         try {
             await interaction.deferReply();
             const subcommand = interaction.options.getSubcommand();
-            let query;
-            let title;
-            let emoji;
-            if (subcommand === 'money') {
-                query = "SELECT userid, balance FROM users ORDER BY balance DESC LIMIT 10";
-                title = "💰 Money Leaderboard";
-                emoji = "💵";
-            } else {
-                query = "SELECT userid, level, xp FROM users ORDER BY level DESC, xp DESC LIMIT 10";
-                title = "⭐ Rank Leaderboard";
-                emoji = "✨";
-            }
-            const [topUsers] = await db.query(query);
-            if (topUsers.length === 0) {
-                return interaction.editReply("The leaderboard is currently empty!");
-            }
-            const leaderboardData = [];
-            for (let i = 0; i < topUsers.length; i++) {
-                const user = topUsers[i];
-                let memberName = "Unknown User";
-                try {
-                    const fetchedUser = await interaction.client.users.fetch(user.userid);
-                    memberName = fetchedUser.username;
-                } catch (err) { /* Keep as Unknown User */ }
-                const rank = i + 1;
-                const value = subcommand === 'money' 
-                    ? `${numtoemo(user.balance)} ${emoji}` 
-                    : `Lvl ${user.level} (${user.xp} XP)`;
-                leaderboardData.push(`**${rank}.** ${memberName} • ${value}`);
-            }
-            const lbEmbed = new EmbedBuilder()
-                .setTitle(title)
-                .setColor('Gold')
-                .setDescription(leaderboardData.join('\n'))
-                .setFooter({ text: `Requested by ${interaction.user.username}` })
-                .setTimestamp();
-            await interaction.editReply({ embeds: [lbEmbed] });
+            const query = subcommand === 'money' 
+                ? "SELECT userid, balance FROM users ORDER BY balance DESC"
+                : "SELECT userid, level, xp FROM users ORDER BY level DESC, xp DESC";
+            const [allUsers] = await db.query(query);
+            if (allUsers.length === 0) return interaction.editReply("No data found.");
+            let currentPage = 0;
+            const itemsPerPage = 10;
+            const totalPages = Math.ceil(allUsers.length / itemsPerPage);
+            const buildEmbed = async (page) => {
+                const start = page * itemsPerPage;
+                const end = start + itemsPerPage;
+                const pageUsers = allUsers.slice(start, end);
+                const lines = [];
+                for (let i = 0; i < pageUsers.length; i++) {
+                    const u = pageUsers[i];
+                    const rank = start + i + 1;
+                    let name = "Unknown";
+                    try {
+                        const fetched = await interaction.client.users.fetch(u.userid);
+                        name = fetched.username;
+                    } catch {}
+
+                    const val = subcommand === 'money' ? `${numtoemo(u.balance)} 💵` : `Lvl ${u.level} (${u.xp} XP)`;
+                    lines.push(`**${rank}.** ${name} • ${val}`);
+                }
+                return new EmbedBuilder()
+                    .setTitle(subcommand === 'money' ? "💰 Money Leaderboard" : "⭐ Rank Leaderboard")
+                    .setColor('Gold')
+                    .setDescription(lines.join('\n'))
+                    .setFooter({ text: `Page ${page + 1} of ${totalPages}` })
+                    .setTimestamp();
+            };
+            const getButtons = (page) => new ActionRowBuilder().addComponents(
+                new ButtonBuilder()
+                    .setCustomId('prev')
+                    .setLabel('Previous')
+                    .setStyle(ButtonStyle.Secondary)
+                    .setDisabled(page === 0),
+                new ButtonBuilder()
+                    .setCustomId('next')
+                    .setLabel('Next')
+                    .setStyle(ButtonStyle.Primary)
+                    .setDisabled(page === totalPages - 1)
+            );
+            const initialEmbed = await buildEmbed(currentPage);
+            const message = await interaction.editReply({ 
+                embeds: [initialEmbed], 
+                components: [getButtons(currentPage)] 
+            });
+            const collector = message.createMessageComponentCollector({ 
+                componentType: ComponentType.Button, 
+                time: 60000
+            });
+            collector.on('collect', async i => {
+                if (i.user.id !== interaction.user.id) {
+                    return i.reply({ content: "Run the command yourself to flip pages!", flags: [MessageFlags.Ephemeral] });
+                }
+                if (i.customId === 'prev') currentPage--;
+                if (i.customId === 'next') currentPage++;
+                await i.update({ 
+                    embeds: [await buildEmbed(currentPage)], 
+                    components: [getButtons(currentPage)] 
+                });
+            });
+            collector.on('end', () => {
+                const disabledRow = getButtons(currentPage);
+                disabledRow.components.forEach(btn => btn.setDisabled(true));
+                interaction.editReply({ components: [disabledRow] }).catch(() => {});
+            });
         } catch (error) {
             console.error(`Leaderboard Error: ${error}`);
             interaction.editReply("Failed to load the leaderboard.");
@@ -1863,13 +1895,19 @@ client.on('interactionCreate', async (interaction) => {
                 model: "gemini-3.1-flash-lite-preview",
                 contents: prompt
             });
-            await interaction.editReply(result.text.substring(0, 2000));
+            const aiEmbed = new EmbedBuilder()
+                .setAuthor({ name: 'Gemini AI', iconURL: 'https://mir-s3-cdn-cf.behance.net/projects/404/994157188450701.Y3JvcCwxNjE2LDEyNjQsMCww.png' })
+                .setColor('#4285F4')
+                .setDescription(result.text.substring(0, 2000))
+                .setFooter({ text: `Prompt: ${prompt}...` })
+                .setTimestamp();
+            await interaction.editReply({ embeds: [aiEmbed] });
         } catch (error) {
-            await interaction.editReply(`Please try the Command Again\n`+error);
-            console.log(error);
+            console.error("AI Error:", error);
+            await interaction.editReply(`❌ **Error:** ${error.message || "An unexpected error occurred."}`);
         }
     }
-    
+
     if (interaction.commandName === "play") {
         await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
         const query = interaction.options.getString('search');
