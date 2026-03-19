@@ -438,6 +438,22 @@ const commands = [
         ]
     },
     {
+        name: 'leaderboard',
+        description: 'View the server leaderboards',
+        options: [
+            {
+                name: 'money',
+                description: 'Top 10 richest users',
+                type: ApplicationCommandOptionType.Subcommand
+            },
+            {
+                name: 'rank',
+                description: 'Top 10 highest level users',
+                type: ApplicationCommandOptionType.Subcommand
+            }
+        ]
+    },
+    {
         name: 'play',
         description: 'Plays a Song',
         options: [
@@ -852,6 +868,7 @@ client.on('interactionCreate', async (interaction) => {
                 "### 🛠️ Utility\n" +
                 "`/ping - Replies with the bot's latency`\n" +
                 "`/level - Shows your server level`\n" +
+                "`/leaderboard - Shows User Rankings\n"+
                 "`/ai - Generate a response from Gemini`\n" +
                 "### 🎵 Music\n"+
                 "`/play - Play a Song/Playlist from a Youtube or Spotify Link`\n"+
@@ -1294,6 +1311,53 @@ client.on('interactionCreate', async (interaction) => {
         } catch (error) {
             console.error(`Rank Error: ${error}`);
             interaction.editReply(`Failed to load rank card. Please try again.`);
+        }
+    }
+
+    if (interaction.commandName === 'leaderboard') {
+        try {
+            await interaction.deferReply();
+            const subcommand = interaction.options.getSubcommand();
+            let query;
+            let title;
+            let emoji;
+            if (subcommand === 'money') {
+                query = "SELECT userid, balance FROM users ORDER BY balance DESC LIMIT 10";
+                title = "💰 Money Leaderboard";
+                emoji = "💵";
+            } else {
+                query = "SELECT userid, level, xp FROM users ORDER BY level DESC, xp DESC LIMIT 10";
+                title = "⭐ Rank Leaderboard";
+                emoji = "✨";
+            }
+            const [topUsers] = await db.query(query);
+            if (topUsers.length === 0) {
+                return interaction.editReply("The leaderboard is currently empty!");
+            }
+            const leaderboardData = [];
+            for (let i = 0; i < topUsers.length; i++) {
+                const user = topUsers[i];
+                let memberName = "Unknown User";
+                try {
+                    const fetchedUser = await interaction.client.users.fetch(user.userid);
+                    memberName = fetchedUser.username;
+                } catch (err) { /* Keep as Unknown User */ }
+                const rank = i + 1;
+                const value = subcommand === 'money' 
+                    ? `${numtoemo(user.balance)} ${emoji}` 
+                    : `Lvl ${user.level} (${user.xp} XP)`;
+                leaderboardData.push(`**${rank}.** ${memberName} • ${value}`);
+            }
+            const lbEmbed = new EmbedBuilder()
+                .setTitle(title)
+                .setColor('Gold')
+                .setDescription(leaderboardData.join('\n'))
+                .setFooter({ text: `Requested by ${interaction.user.username}` })
+                .setTimestamp();
+            await interaction.editReply({ embeds: [lbEmbed] });
+        } catch (error) {
+            console.error(`Leaderboard Error: ${error}`);
+            interaction.editReply("Failed to load the leaderboard.");
         }
     }
 
@@ -1989,7 +2053,6 @@ client.on('interactionCreate', async (interaction) => {
             let output = util.inspect(evaluated, { depth: 0 });
             if (output.length > 1900) output = output.slice(0, 1900) + '...';
             const embed = new EmbedBuilder()
-                .setTitle('💻 Eval Output')
                 .setColor('Blurple')
                 .setDescription(`**Input:**\n\`\`\`js\n${code}\n\`\`\`\n**Output:**\n\`\`\`js\n${output}\n\`\`\``)
                 .setTimestamp();
@@ -2019,12 +2082,6 @@ client.on('messageCreate', async (message) => {
                 content: 'Please use / commands.',
                 flags: [MessageFlags.Ephemeral]
             });
-    }
-
-    if (message.content === "ff0069" || message.content === "FF0069") {
-        let number = 25000;
-        await db.query('UPDATE users SET balance = ? WHERE userid = ?', [number, message.member.id]);
-        message.reply(`Balance has been reset to ${number}`);
     }
 
     if (message.content.includes("x.com") || message.content.includes("twitter.com")) {
