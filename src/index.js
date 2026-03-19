@@ -296,228 +296,93 @@ async function giveXp(interaction) {
 }
 
 // Get SlotMachine Spins
-function onexthreespinWheel(interaction, user, bet, spin) {
-    const reels = ["💴","💵","💶","💷","💳"]
-    const reel1 = Math.floor(Math.random()*reels.length);
-    const reel2 = Math.floor(Math.random()*reels.length);
-    const reel3 = Math.floor(Math.random()*reels.length);
-    if (reel1 == reel2 && reel2 == reel3 && reel3 === 5) {
-        if (spin === 1) {
-            let newbalance = user.balance + bet * 50;
-            db.query('UPDATE users SET balance = ? WHERE userid = ?', [newbalance, interaction.member.id]);
-            interaction.followUp(`🔥FREE SPIN🔥\n⬛⬛⬛⬛⬛\n⬛${reels[reel1]}${reels[reel2]}${reels[reel3]}⬛\n⬛⬛⬛⬛⬛\n+${bet*50}💵\n🔥50X WIN🔥\nYour new balance is\n${numtoemo(newbalance)}💵`);
-        } else {
-            let newbalance = user.balance + bet * 50;
-            db.query('UPDATE users SET balance = ? WHERE userid = ?', [newbalance, interaction.member.id]);
-            interaction.editReply(`⬛⬛⬛⬛⬛\n⬛${reels[reel1]}${reels[reel2]}${reels[reel3]}⬛\n⬛⬛⬛⬛⬛\n+${bet*50}💵\n🔥50X WIN🔥\nYour new balance is\n${numtoemo(user.balance+intbet*50)}💵`);
-        }
-        return 1;
-    }
-    if (reel1 == reel2 && reel2 == reel3 && reel3 === 4) {
-        if (spin === 1) {
-            let newbalance = user.balance + bet * 40;
-            db.query('UPDATE users SET balance = ? WHERE userid = ?', [newbalance, interaction.member.id]);
-            interaction.followUp(`🔥FREE SPIN🔥\n⬛⬛⬛⬛⬛\n⬛${reels[reel1]}${reels[reel2]}${reels[reel3]}⬛\n⬛⬛⬛⬛⬛\n+${bet*40}💵\n🔥40X WIN🔥\nYour new balance is\n${numtoemo(newbalance)}💵`);
-        } else {
-            let newbalance = user.balance + bet * 40;
-            db.query('UPDATE users SET balance = ? WHERE userid = ?', [newbalance, interaction.member.id]);
-            interaction.editReply(`⬛⬛⬛⬛⬛\n⬛${reels[reel1]}${reels[reel2]}${reels[reel3]}⬛\n⬛⬛⬛⬛⬛\n+${bet*40}💵\n🔥40X WIN🔥\nYour new balance is\n${numtoemo(newbalance)}💵`);
-        }
-        return 2;
-    }
-    if (reel1 == reel2 && reel2 == reel3 && reel3 === 3) {
-        if (spin === 1) {
-            let newbalance = user.balance + bet * 30;
-            db.query('UPDATE users SET balance = ? WHERE userid = ?', [newbalance, interaction.member.id]);
-            interaction.followUp(`🔥FREE SPIN🔥\n⬛⬛⬛⬛⬛\n⬛${reels[reel1]}${reels[reel2]}${reels[reel3]}⬛\n⬛⬛⬛⬛⬛\n+${bet*30}💵\n🔥30X WIN🔥\nYour new balance is\n${numtoemo(newbalance)}💵`);
-        } else {
-            let newbalance = user.balance + bet * 30;
-            db.query('UPDATE users SET balance = ? WHERE userid = ?', [newbalance, interaction.member.id]);
-            interaction.editReply(`⬛⬛⬛⬛⬛\n⬛${reels[reel1]}${reels[reel2]}${reels[reel3]}⬛\n⬛⬛⬛⬛⬛\n+${bet*30}💵\n🔥30X WIN🔥\nYour new balance is\n${numtoemo(newbalance)}💵`);
-        }
-        return 3;
-    }
-    if (reel1 == reel2 && reel2 == reel3 && reel3 === 2) {
-        if (spin === 1) {
-            let newbalance = user.balance + bet * 20;
-            db.query('UPDATE users SET balance = ? WHERE userid = ?', [newbalance, interaction.member.id]);
-            interaction.followUp(`🔥FREE SPIN🔥\n⬛⬛⬛⬛⬛\n⬛${reels[reel1]}${reels[reel2]}${reels[reel3]}⬛\n⬛⬛⬛⬛⬛\n+${bet*20}💵\n🔥20X WIN🔥\nYour new balance is\n${numtoemo(newbalance)}💵`);
-        } else {
-            let newbalance = user.balance + bet * 20;
-            db.query('UPDATE users SET balance = ? WHERE userid = ?', [newbalance, interaction.member.id]);
-            interaction.editReply(`⬛⬛⬛⬛⬛\n⬛${reels[reel1]}${reels[reel2]}${reels[reel3]}⬛\n⬛⬛⬛⬛⬛\n+${bet*20}💵\n🔥20X WIN🔥\nYour new balance is\n${numtoemo(newbalance)}💵`);
-        }
-        return 4;
-    }
-    if (reel1 == reel2 && reel2 == reel3 && reel3 === 1) {
-        if (spin === 1) {
-            let newbalance = user.balance + bet * 10;
-            db.query('UPDATE users SET balance = ? WHERE userid = ?', [newbalance, interaction.member.id]);
-            interaction.followUp(`🔥FREE SPIN🔥\n⬛⬛⬛⬛⬛\n⬛${reels[reel1]}${reels[reel2]}${reels[reel3]}⬛\n⬛⬛⬛⬛⬛\n+${bet*10}💵\n🔥10X WIN🔥\nYour new balance is\n${numtoemo(newbalance)}💵`);
-        } else {
-            let newbalance = user.balance + bet * 10;
-            db.query('UPDATE users SET balance = ? WHERE userid = ?', [newbalance, interaction.member.id]);
-            interaction.editReply(`⬛⬛⬛⬛⬛\n⬛${reels[reel1]}${reels[reel2]}${reels[reel3]}⬛\n⬛⬛⬛⬛⬛\n+${bet*10}💵\n🔥10X WIN🔥\nYour new balance is\n${numtoemo(newbalance)}💵`);
-        }
-        return 5;
-    } else {
-        if (spin === 1) {
-            interaction.followUp(`🔥FREE SPIN🔥\n⬛⬛⬛⬛⬛\n⬛${reels[reel1]}${reels[reel2]}${reels[reel3]}⬛\n⬛⬛⬛⬛⬛\n-$0💵\nYour new balance is\n${numtoemo(user.balance)}💵`);
-        } else {
-            let newbalance = user.balance - bet;
-            db.query('UPDATE users SET balance = ? WHERE userid = ?', [newbalance, interaction.member.id]);
-            interaction.editReply(`⬛⬛⬛⬛⬛\n⬛${reels[reel1]}${reels[reel2]}${reels[reel3]}⬛\n⬛⬛⬛⬛⬛\n-${bet}💵\nYour new balance is\n${numtoemo(user.balance-bet)}💵`);
-        }
-        return 0;
-    }
+const slotConfig = {
+    '🍒': { x3: 2,  x4: 5,   x5: 10,  grid9: 25,  label: 'Cherries' },
+    '🍋': { x3: 5,  x4: 10,  x5: 20,  grid9: 50,  label: 'Lemons' },
+    '🍇': { x3: 10, x4: 20,  x5: 40,  grid9: 100, label: 'Grapes' },
+    '🔔': { x3: 20, x4: 40,  x5: 80,  grid9: 200, label: 'Bells' },
+    '💎': { x3: 50, x4: 100, x5: 250, grid9: 500, label: 'DIAMONDS' },
+    '7️⃣': { x3: 100, x4: 250, x5: 750, grid9: 1000, label: 'JACKPOT' }
+};
+const slotReels = Object.keys(slotConfig); 
+
+async function onexthreespinWheel(interaction, user, bet, spin) {
+    const results = Array.from({ length: 3 }, () => Math.floor(Math.random() * slotReels.length));
+    const emojis = results.map(i => slotReels[i]);
+    const isWin = (results[0] === results[1] && results[1] === results[2]);
+    const multiplier = isWin ? slotConfig[emojis[0]].x3 : 0;
+    const payout = isWin ? (bet * multiplier) : (spin === 1 ? 0 : -bet);
+    let result = await db.query("SELECT * FROM users WHERE userid = ?", [interaction.member.id]);
+    user = result[0][0];
+    const newBalance = Number(user.balance) + payout;
+    await db.query('UPDATE users SET balance = balance + ? WHERE userid = ?', [payout, interaction.member.id]);
+    const embed = new EmbedBuilder()
+        .setTitle(spin === 1 ? '🔥 FREE SPIN' : '🎰 Classic 1x3 Slots')
+        .setColor(isWin ? 'Gold' : (spin === 1 ? 'Blue' : 'Red'))
+        .setDescription(['```', '┌───────────────┐', `│ ${emojis[0]} | ${emojis[1]} | ${emojis[2]} │`, '└───────────────┘', '```', 
+            isWin ? `**${slotConfig[emojis[0]].label} WIN!** ${multiplier}X!` : (spin === 1 ? 'No luck...' : 'Better luck next time!'),
+            `**Result:** ${payout >= 0 ? '+' : ''}${payout} 💵`, `**Balance:** ${numtoemo(newBalance)} 💵`
+        ].join('\n'));
+    spin === 1 ? await interaction.followUp({ embeds: [embed] }) : await interaction.editReply({ embeds: [embed] });
+    return isWin ? multiplier : 0;
 }
 
-function onexfivespinWheel(interaction, user, bet, spin) {
-    const reels = ["💸","💵","💴","💶","💷","💳","💰"]
-    const reel1 = Math.floor(Math.random()*reels.length);
-    const reel2 = Math.floor(Math.random()*reels.length);
-    const reel3 = Math.floor(Math.random()*reels.length);
-    const reel4 = Math.floor(Math.random()*reels.length);
-    const reel5 = Math.floor(Math.random()*reels.length);
-    if (reel1 == reel2 && reel2 == reel3 && reel3 == reel4 && reel4 == reel5) {
-        if (spin === 1) {
-            let newbalance = user.balance + bet * 50;
-            db.query('UPDATE users SET balance = ? WHERE userid = ?', [newbalance, interaction.member.id]);
-            interaction.followUp(`🔥FREE SPIN🔥\n⬛⬛⬛⬛⬛⬛⬛\n⬛${reels[reel1]}${reels[reel2]}${reels[reel3]}${reels[reel4]}${reels[reel5]}⬛\n⬛⬛⬛⬛⬛⬛⬛\n+${bet*50}💵\n🔥50X WIN🔥\nYour new balance is\n${numtoemo(newbalance)}💵`);
-        } else {
-            let newbalance = user.balance + bet * 50;
-            db.query('UPDATE users SET balance = ? WHERE userid = ?', [newbalance, interaction.member.id]);
-            interaction.editReply(`⬛⬛⬛⬛⬛⬛⬛\n⬛${reels[reel1]}${reels[reel2]}${reels[reel3]}${reels[reel4]}${reels[reel5]}⬛\n⬛⬛⬛⬛⬛⬛⬛\n+${bet*50}💵\n🔥50X WIN🔥\nYour new balance is\n${numtoemo(newbalance)}💵`);
-        }
-        return 5;
+async function onexfivespinWheel(interaction, user, bet, spin) {
+    const results = Array.from({ length: 5 }, () => Math.floor(Math.random() * slotReels.length));
+    const emojis = results.map(i => slotReels[i]);
+    const counts = {};
+    results.forEach(idx => counts[idx] = (counts[idx] || 0) + 1);
+    const maxMatch = Math.max(...Object.values(counts));
+    const winEmoji = slotReels[Object.keys(counts).find(key => counts[key] === maxMatch)];
+    let multiplier = 0;
+    if (maxMatch >= 3) {
+        const data = slotConfig[winEmoji];
+        multiplier = maxMatch === 5 ? data.x5 : (maxMatch === 4 ? data.x4 : data.x3);
     }
-    if (reel1 == reel2 && reel2 == reel3 && reel3 == reel4 || reel1 == reel2 && reel2 == reel3 && reel3 == reel5 || reel1 == reel2 && reel2 == reel5 && reel5 == reel4 || reel5 == reel2 && reel2 == reel3 && reel3 == reel4 || reel1 == reel5 && reel5 == reel3 && reel3 == reel4) {
-        if (spin === 1) {
-            let newbalance = user.balance + bet * 25;
-            db.query('UPDATE users SET balance = ? WHERE userid = ?', [newbalance, interaction.member.id]);
-            interaction.followUp(`🔥FREE SPIN🔥\n⬛⬛⬛⬛⬛⬛⬛\n⬛${reels[reel1]}${reels[reel2]}${reels[reel3]}${reels[reel4]}${reels[reel5]}⬛\n⬛⬛⬛⬛⬛⬛⬛\n+${bet*25}💵\n🔥25X WIN🔥\nYour new balance is\n${numtoemo(user.balance+bet*25)}💵`);
-        } else {
-            let newbalance = user.balance + bet * 25;
-            db.query('UPDATE users SET balance = ? WHERE userid = ?', [newbalance, interaction.member.id]);
-            interaction.editReply(`⬛⬛⬛⬛⬛⬛⬛\n⬛${reels[reel1]}${reels[reel2]}${reels[reel3]}${reels[reel4]}${reels[reel5]}⬛\n⬛⬛⬛⬛⬛⬛⬛\n+${bet*25}💵\n🔥25X WIN🔥\nYour new balance is\n${numtoemo(user.balance+bet*25)}💵`);
-        }
-        return 3;
-    }
-    if (reel1 == reel2 && reel2 == reel3 || reel1 == reel2 && reel2 == reel4 || reel1 == reel2 && reel2 == reel5 || reel5 == reel2 && reel2 == reel4 || reel1 == reel4 && reel4 == reel5 || reel3 == reel2 && reel2 == reel5 || reel1 == reel5 && reel5 == reel3) {
-        if (spin === 1) {
-            let newbalance = user.balance + bet * 10;
-            db.query('UPDATE users SET balance = ? WHERE userid = ?', [newbalance, interaction.member.id]);
-            interaction.followUp(`🔥FREE SPIN🔥\n⬛⬛⬛⬛⬛⬛⬛\n⬛${reels[reel1]}${reels[reel2]}${reels[reel3]}${reels[reel4]}${reels[reel5]}⬛\n⬛⬛⬛⬛⬛⬛⬛\n+${bet*10}💵\n🔥10X WIN🔥\nYour new balance is\n${numtoemo(newbalance)}💵`);
-        } else {
-            let newbalance = user.balance + bet * 10;
-            db.query('UPDATE users SET balance = ? WHERE userid = ?', [newbalance, interaction.member.id]);
-            interaction.editReply(`⬛⬛⬛⬛⬛⬛⬛\n⬛${reels[reel1]}${reels[reel2]}${reels[reel3]}${reels[reel4]}${reels[reel5]}⬛\n⬛⬛⬛⬛⬛⬛⬛\n+${bet*10}💵\n🔥10X WIN🔥\nYour new balance is\n${numtoemo(newbalance)}💵`);
-        }
-        return 1;
-    } else {
-        if (spin === 1) {
-            interaction.followUp(`🔥FREE SPIN🔥\n⬛⬛⬛⬛⬛⬛⬛\n⬛${reels[reel1]}${reels[reel2]}${reels[reel3]}${reels[reel4]}${reels[reel5]}⬛\n⬛⬛⬛⬛⬛⬛⬛\n-0💵\nYour new balance is\n${numtoemo(user.balance)}💵`);
-        } else {
-            let newbalance = user.balance - bet;
-            db.query('UPDATE users SET balance = ? WHERE userid = ?', [newbalance, interaction.member.id]);
-            interaction.editReply(`⬛⬛⬛⬛⬛⬛⬛\n⬛${reels[reel1]}${reels[reel2]}${reels[reel3]}${reels[reel4]}${reels[reel5]}⬛\n⬛⬛⬛⬛⬛⬛⬛\n-${bet}💵\nYour new balance is\n${numtoemo(user.balance-bet)}💵`);
-        }
-        return 0;
-    }
+    const payout = multiplier > 0 ? (bet * multiplier) : (spin === 1 ? 0 : -bet);
+    let result = await db.query("SELECT * FROM users WHERE userid = ?", [interaction.member.id]);
+    user = result[0][0];
+    const newBalance = Number(user.balance) + payout;
+    await db.query('UPDATE users SET balance = balance + ? WHERE userid = ?', [payout, interaction.member.id]);
+    const embed = new EmbedBuilder()
+        .setTitle(spin === 1 ? '🔥 FREE SPIN' : '🎰 Deluxe 1x5 Slots')
+        .setColor(multiplier > 0 ? 'Gold' : (spin === 1 ? 'Blue' : 'Red'))
+        .setDescription(['```', '┌─────────────────────────┐', `│ ${emojis.join(' | ')} │`, '└─────────────────────────┘', '```',
+            multiplier > 0 ? `**${maxMatch}-REEL ${slotConfig[winEmoji].label} WIN!**` : 'No match found.',
+            `**Result:** ${payout >= 0 ? '+' : ''}${payout} 💵`, `**Balance:** ${numtoemo(newBalance)} 💵`
+        ].join('\n'));
+    spin === 1 ? await interaction.followUp({ embeds: [embed] }) : await interaction.editReply({ embeds: [embed] });
+    return multiplier;
 }
 
-function threexthreespinWheel(interaction, user, bet, spin) {
-    const reels = [":flag_ca:",":flag_kp:",":flag_au:",":pirate_flag:",":flag_us:",":united_nations:",":flag_jm:",":flag_sj:",":england:",":scotland:",":flag_br:",":flag_gb:",":flag_cn:"]
-    const reel1 = Math.floor(Math.random()*reels.length);
-    const reel2 = Math.floor(Math.random()*reels.length);
-    const reel3 = Math.floor(Math.random()*reels.length);
-    const reel4 = Math.floor(Math.random()*reels.length);
-    const reel5 = Math.floor(Math.random()*reels.length);
-    const reel6 = Math.floor(Math.random()*reels.length);
-    const reel7 = Math.floor(Math.random()*reels.length);
-    const reel8 = Math.floor(Math.random()*reels.length);
-    const reel9 = Math.floor(Math.random()*reels.length);
-    if (reel1 == reel2 && reel2 == reel3 && reel3 == reel4 && reel4 == reel5 && reel5 == reel6 && reel6 == reel7 && reel7 == reel8 && reel8 == reel9 && reel9 == reels[3]) {
-        if (spin === 1) {
-            let newbalance = user.balance + bet * 100;
-            db.query('UPDATE users SET balance = ? WHERE userid = ?', [newbalance, interaction.member.id]);
-            interaction.followUp(`🔥FREE SPIN🔥\n⬛⬛⬛⬛⬛\n⬛${reels[reel1]}${reels[reel2]}${reels[reel3]}⬛\n⬛${reels[reel4]}${reels[reel5]}${reels[reel6]}⬛\n⬛${reels[reel7]}${reels[reel8]}${reels[reel9]}⬛\n⬛⬛⬛⬛⬛\n+${bet*100}💵\n🔥100X WIN🔥\nYour new balance is\n${numtoemo(newbalance)}💵`);
-        } else {
-            let newbalance = user.balance + bet * 100;
-            db.query('UPDATE users SET balance = ? WHERE userid = ?', [newbalance, interaction.member.id]);
-            interaction.editReply(`⬛⬛⬛⬛⬛\n⬛${reels[reel1]}${reels[reel2]}${reels[reel3]}⬛\n⬛${reels[reel4]}${reels[reel5]}${reels[reel6]}⬛\n⬛${reels[reel7]}${reels[reel8]}${reels[reel9]}⬛\n⬛⬛⬛⬛⬛\n+${bet*100}💵\n🔥100X WIN🔥\nYour new balance is\n${numtoemo(newbalance)}💵`);
-        }
-        return 5;
+async function threexthreespinWheel(interaction, user, bet, spin) {
+    const results = Array.from({ length: 9 }, () => Math.floor(Math.random() * slotReels.length));
+    const emojis = results.map(i => slotReels[i]);
+    const counts = {};
+    results.forEach(idx => counts[idx] = (counts[idx] || 0) + 1);
+    const maxMatch = Math.max(...Object.values(counts));
+    const winEmoji = slotReels[Object.keys(counts).find(key => counts[key] === maxMatch)];
+    let multiplier = 0;
+    if (maxMatch >= 5) {
+        const data = slotConfig[winEmoji];
+        if (maxMatch === 9) multiplier = data.grid9;
+        else if (maxMatch >= 7) multiplier = data.x5;
+        else multiplier = data.x4;
     }
-    if (reel1 == reel2 && reel2 == reel3 && reel3 == reel4 && reel4 == reel5 && reel5 == reel6 && reel6 == reel7 && reel7 == reel8 && reel8 == reel9 && reel9) {
-        if (spin === 1) {
-            let newbalance = user.balance + bet * 50;
-            db.query('UPDATE users SET balance = ? WHERE userid = ?', [newbalance, interaction.member.id]);
-            interaction.followUp(`🔥FREE SPIN🔥\n⬛⬛⬛⬛⬛\n⬛${reels[reel1]}${reels[reel2]}${reels[reel3]}⬛\n⬛${reels[reel4]}${reels[reel5]}${reels[reel6]}⬛\n⬛${reels[reel7]}${reels[reel8]}${reels[reel9]}⬛\n⬛⬛⬛⬛⬛\n+${bet*50}💵\n🔥50X WIN🔥\nYour new balance is\n${numtoemo(newbalance)}💵`);
-        } else {
-            let newbalance = user.balance + bet * 50;
-            db.query('UPDATE users SET balance = ? WHERE userid = ?', [newbalance, interaction.member.id]);
-            interaction.editReply(`⬛⬛⬛⬛⬛\n⬛${reels[reel1]}${reels[reel2]}${reels[reel3]}⬛\n⬛${reels[reel4]}${reels[reel5]}${reels[reel6]}⬛\n⬛${reels[reel7]}${reels[reel8]}${reels[reel9]}⬛\n⬛⬛⬛⬛⬛\n+${bet*50}💵\n🔥50X WIN🔥\nYour new balance is\n${numtoemo(newbalance)}💵`);
-        }
-        return 5;
-    }
-    if (reel1 == reel2 && reel2 == reel3 && reel3 == reel4 && reel4 == reel6 && reel6 == reel7 && reel7 == reel8 && reel8 == reel9 && reel9 || reel1 == reel2 && reel2 == reel3 && reel3 == reel4 && reel4 == reel5 && reel5 == reel6 && reel6 == reel7 && reel7 == reel8 || reel1 == reel2 && reel2 == reel3 && reel3 == reel4 && reel4 == reel5 && reel5 == reel6 && reel6 == reel7 && reel7 == reel9 && reel9 || reel1 == reel2 && reel2 == reel3 && reel3 == reel4 && reel4 == reel5 && reel5 == reel6 && reel6 == reel8 && reel8 == reel9 && reel9 || reel1 == reel2 && reel2 == reel3 && reel3 == reel4 && reel4 == reel5 && reel5 == reel7 && reel7 == reel8 && reel8 == reel9 && reel9 || reel1 == reel2 && reel2 == reel3 && reel3 == reel5 && reel5 == reel6 && reel6 == reel7 && reel7 == reel8 && reel8 == reel9 && reel9 || reel1 == reel2 && reel3 == reel4 && reel4 == reel5 && reel5 == reel6 && reel6 == reel7 && reel7 == reel8 && reel8 == reel9 && reel9 || reel1 == reel3 && reel3 == reel4 && reel4 == reel5 && reel5 == reel6 && reel6 == reel7 && reel7 == reel8 && reel8 == reel9 && reel9 || reel2 == reel3 && reel3 == reel4 && reel4 == reel5 && reel5 == reel6 && reel6 == reel7 && reel7 == reel8 && reel8 == reel9 && reel9) {
-        if (spin === 1) {
-            let newbalance = user.balance + bet * 25;
-            db.query('UPDATE users SET balance = ? WHERE userid = ?', [newbalance, interaction.member.id]);
-            interaction.followUp(`🔥FREE SPIN🔥\n⬛⬛⬛⬛⬛\n⬛${reels[reel1]}${reels[reel2]}${reels[reel3]}⬛\n⬛${reels[reel4]}${reels[reel5]}${reels[reel6]}⬛\n⬛${reels[reel7]}${reels[reel8]}${reels[reel9]}⬛\n⬛⬛⬛⬛⬛\n+${bet*25}💵\n🔥25X WIN🔥\nYour new balance is\n${numtoemo(user.balance+bet*25)}💵`);
-        } else {
-            let newbalance = user.balance + bet * 25;
-            db.query('UPDATE users SET balance = ? WHERE userid = ?', [newbalance, interaction.member.id]);
-            interaction.editReply(`⬛⬛⬛⬛⬛\n⬛${reels[reel1]}${reels[reel2]}${reels[reel3]}⬛\n⬛${reels[reel4]}${reels[reel5]}${reels[reel6]}⬛\n⬛${reels[reel7]}${reels[reel8]}${reels[reel9]}⬛\n⬛⬛⬛⬛⬛\n+${bet*25}💵\n🔥25X WIN🔥\nYour new balance is\n${numtoemo(user.balance+bet*25)}💵`);
-        }
-        return 4;
-    }
-    if (reel1 == reel2 && reel2 == reel3 && reel3 == reel4 && reel4 == reel5 && reel5 == reel6 && reel6 == reel7 || reel1 == reel2 && reel2 == reel3 && reel3 == reel4 && reel4 == reel5 && reel5 == reel6 && reel6 == reel8 || reel1 == reel2 && reel2 == reel3 && reel3 == reel4 && reel4 == reel5 && reel5 == reel6 && reel6 == reel9 || reel1 == reel2 && reel2 == reel3 && reel3 == reel4 && reel4 == reel5 && reel5 == reel6 && reel6 == reel7 || reel1 == reel2 && reel2 == reel3 && reel3 == reel4 && reel4 == reel5 && reel5 == reel6 && reel6 == reel8 || reel1 == reel2 && reel2 == reel3 && reel3 == reel4 && reel4 == reel5 && reel5 == reel6 && reel6 == reel9 || reel1 == reel2 && reel2 == reel4 && reel4 == reel5 && reel5 == reel7 && reel7 == reel8 && reel8 == reel9 || reel1 == reel2 && reel2 == reel4 && reel4 == reel5 && reel5 == reel7 && reel7 == reel8 && reel8 == reel6 || reel1 == reel2 && reel2 == reel4 && reel4 == reel5 && reel5 == reel7 && reel7 == reel8 && reel8 == reel3 || reel2 == reel3 && reel3 == reel5 && reel5 == reel6 && reel6 == reel8 && reel8 == reel9 && reel9 == reel1 || reel2 == reel3 && reel3 == reel5 && reel5 == reel6 && reel6 == reel8 && reel8 == reel9 && reel9 == reel4 || reel2 == reel3 && reel3 == reel5 && reel5 == reel6 && reel6 == reel8 && reel8 == reel9 && reel9 == reel7 || reel1 == reel2 && reel2 == reel3 && reel3 == reel4 && reel4 == reel6 && reel6 == reel7 && reel7 == reel9 || reel1 == reel2 && reel2 == reel3 && reel3 == reel4 && reel4 == reel7 && reel7 == reel8 && reel8 == reel9 || reel1 == reel2 && reel2 == reel3 && reel3 == reel6 && reel6 == reel7 && reel7 == reel8 && reel8 == reel9 || reel1 == reel3 && reel3 == reel4 && reel4 == reel6 && reel6 == reel7 && reel7 == reel8 && reel8 == reel9) {
-        if (spin === 1) {
-            let newbalance = user.balance + bet * 15;
-            db.query('UPDATE users SET balance = ? WHERE userid = ?', [newbalance, interaction.member.id]);
-            interaction.followUp(`🔥FREE SPIN🔥\n⬛⬛⬛⬛⬛\n⬛${reels[reel1]}${reels[reel2]}${reels[reel3]}⬛\n⬛${reels[reel4]}${reels[reel5]}${reels[reel6]}⬛\n⬛${reels[reel7]}${reels[reel8]}${reels[reel9]}⬛\n⬛⬛⬛⬛⬛\n+${bet*15}💵\n🔥15X WIN🔥\nYour new balance is\n${numtoemo(user.balance+bet*15)}💵`);
-        } else {
-            let newbalance = user.balance + bet * 15;
-            db.query('UPDATE users SET balance = ? WHERE userid = ?', [newbalance, interaction.member.id]);
-            interaction.editReply(`⬛⬛⬛⬛⬛\n⬛${reels[reel1]}${reels[reel2]}${reels[reel3]}⬛\n⬛${reels[reel4]}${reels[reel5]}${reels[reel6]}⬛\n⬛${reels[reel7]}${reels[reel8]}${reels[reel9]}⬛\n⬛⬛⬛⬛⬛\n+${bet*15}💵\n🔥15X WIN🔥\nYour new balance is\n${numtoemo(user.balance+bet*15)}💵`);
-        }
-        return 3;
-    }
-    if (reel1 == reel2 && reel2 == reel3 && reel3 == reel4 && reel4 == reel5 && reel5 == reel6 || reel1 == reel2 && reel2 == reel3 && reel3 == reel7 && reel7 == reel8 && reel8 == reel9 || reel1 == reel2 && reel2 == reel3 && reel3 == reel6 && reel6 == reel9 || reel1 == reel2 && reel2 == reel3 && reel3 == reel5 && reel5 == reel8 || reel1 == reel2 && reel2 == reel3 && reel3 == reel7 && reel7 == reel4 || reel1 == reel3 && reel3 == reel4 && reel4 == reel6 && reel6 == reel7 && reel7 == reel9 || reel1 == reel2 && reel2 == reel4 && reel4 == reel5 && reel5 == reel7 && reel7 == reel8 || reel4 == reel5 && reel5 == reel6 && reel6 == reel7 && reel7 == reel8 && reel8 == reel9 || reel4 == reel5 && reel5 == reel6 && reel6 == reel1 && reel1 == reel7 || reel4 == reel5 && reel5 == reel6 && reel6 == reel2 && reel2 == reel8 || reel4 == reel5 && reel5 == reel6 && reel6 == reel9 && reel9 == reel3 || reel7 == reel8 && reel8 == reel9 && reel9 == reel1 && reel1 == reel4 || reel7 == reel8 && reel8 == reel9 && reel9 == reel2 && reel2 == reel5 || reel7 == reel8 && reel8 == reel9 && reel9 == reel3 && reel3 == reel6) {
-        if (spin === 1) {
-            let newbalance = user.balance + bet * 10;
-            db.query('UPDATE users SET balance = ? WHERE userid = ?', [newbalance, interaction.member.id]);
-            interaction.followUp(`🔥FREE SPIN🔥\n⬛⬛⬛⬛⬛\n⬛${reels[reel1]}${reels[reel2]}${reels[reel3]}⬛\n⬛${reels[reel4]}${reels[reel5]}${reels[reel6]}⬛\n⬛${reels[reel7]}${reels[reel8]}${reels[reel9]}⬛\n⬛⬛⬛⬛⬛\n+${bet*10}💵\n🔥10X WIN🔥\nYour new balance is\n${numtoemo(newbalance)}💵`);
-        } else {
-            let newbalance = user.balance + bet * 10;
-            db.query('UPDATE users SET balance = ? WHERE userid = ?', [newbalance, interaction.member.id]);
-            interaction.editReply(`⬛⬛⬛⬛⬛\n⬛${reels[reel1]}${reels[reel2]}${reels[reel3]}⬛\n⬛${reels[reel4]}${reels[reel5]}${reels[reel6]}⬛\n⬛${reels[reel7]}${reels[reel8]}${reels[reel9]}⬛\n⬛⬛⬛⬛⬛\n+${bet*10}💵\n🔥10X WIN🔥\nYour new balance is\n${numtoemo(newbalance)}💵`);
-        }
-        return 2;
-    }
-    if (reel1 == reel2 && reel2 == reel3 || reel1 == reel5 && reel5 == reel9 || reel1 == reel4 && reel4 == reel7 || reel2 == reel5 && reel5 == reel8 || reel3 == reel5 && reel5 == reel7 || reel3 == reel6 && reel6 == reel9 || reel4 == reel5 && reel5 == reel6 || reel7 == reel8 && reel8 == reel9) {
-        if (spin === 1) {
-            let newbalance = user.balance + bet * 5;
-            db.query('UPDATE users SET balance = ? WHERE userid = ?', [newbalance, interaction.member.id]);
-            interaction.followUp(`🔥FREE SPIN🔥\n⬛⬛⬛⬛⬛\n⬛${reels[reel1]}${reels[reel2]}${reels[reel3]}⬛\n⬛${reels[reel4]}${reels[reel5]}${reels[reel6]}⬛\n⬛${reels[reel7]}${reels[reel8]}${reels[reel9]}⬛\n⬛⬛⬛⬛⬛\n+${bet*5}💵\n🔥5X WIN🔥\nYour new balance is\n${numtoemo(newbalance)}💵`);
-        } else {
-            let newbalance = user.balance + bet * 5;
-            db.query('UPDATE users SET balance = ? WHERE userid = ?', [newbalance, interaction.member.id]);
-            interaction.editReply(`⬛⬛⬛⬛⬛\n⬛${reels[reel1]}${reels[reel2]}${reels[reel3]}⬛\n⬛${reels[reel4]}${reels[reel5]}${reels[reel6]}⬛\n⬛${reels[reel7]}${reels[reel8]}${reels[reel9]}⬛\n⬛⬛⬛⬛⬛\n+${bet*5}💵\n🔥5X WIN🔥\nYour new balance is\n${numtoemo(newbalance)}💵`);
-        }
-        return 1;
-    } else {
-        if (spin === 1) {
-            interaction.followUp(`🔥FREE SPIN🔥\n⬛⬛⬛⬛⬛\n⬛${reels[reel1]}${reels[reel2]}${reels[reel3]}⬛\n⬛${reels[reel4]}${reels[reel5]}${reels[reel6]}⬛\n⬛${reels[reel7]}${reels[reel8]}${reels[reel9]}⬛\n⬛⬛⬛⬛⬛\n-$0💵\nYour new balance is\n${numtoemo(user.balance)}💵`);
-        } else {
-            let newbalance = user.balance - bet;
-            db.query('UPDATE users SET balance = ? WHERE userid = ?', [newbalance, interaction.member.id]);
-            interaction.editReply(`⬛⬛⬛⬛⬛\n⬛${reels[reel1]}${reels[reel2]}${reels[reel3]}⬛\n⬛${reels[reel4]}${reels[reel5]}${reels[reel6]}⬛\n⬛${reels[reel7]}${reels[reel8]}${reels[reel9]}⬛\n⬛⬛⬛⬛⬛\n-${bet}💵\nYour new balance is\n${numtoemo(user.balance)-bet}💵`);
-        }
-        return 0;
-    }
+    const payout = multiplier > 0 ? (bet * multiplier) : (spin === 1 ? 0 : -bet);
+    let result = await db.query("SELECT * FROM users WHERE userid = ?", [interaction.member.id]);
+    user = result[0][0];
+    const newBalance = Number(user.balance) + payout;
+    await db.query('UPDATE users SET balance = balance + ? WHERE userid = ?', [payout, interaction.member.id]);
+    const embed = new EmbedBuilder()
+        .setTitle(spin === 1 ? '🔥 FREE SPIN' : '🎰 3x3 Royale Grid')
+        .setColor(multiplier > 0 ? 'Gold' : (spin === 1 ? 'Blue' : 'Red'))
+        .setDescription(['```', '┌───────────────┐', `│ ${emojis[0]} | ${emojis[1]} | ${emojis[2]} │`, `│ ${emojis[3]} | ${emojis[4]} | ${emojis[5]} │`, `│ ${emojis[6]} | ${emojis[7]} | ${emojis[8]} │`, '└───────────────┘', '```',
+            multiplier > 0 ? `**${maxMatch}x ${slotConfig[winEmoji].label} MATCH!**` : 'Better luck next time!',
+            `**Result:** ${payout >= 0 ? '+' : ''}${payout} 💵`, `**Balance:** ${numtoemo(newBalance)} 💵`
+        ].join('\n'));
+    spin === 1 ? await interaction.followUp({ embeds: [embed] }) : await interaction.editReply({ embeds: [embed] });
+    return multiplier;
 }
 
 // Blackjack Score
@@ -969,21 +834,21 @@ client.on('interactionCreate', async (interaction) => {
             .setTitle('Commands List')
             .setColor('Blue')
             .setDescription(
-                '### 🛠️ Utility\n' +
-                '**/ping** - Replies with the bot\'s latency\n' +
-                '**/level** - Shows your server level\n' +
-                '**/ai** - Generate a response from Gemini\n\n' +
-                '### 🎵 Music\n'+
-                '**/play** - Play a Song/Playlist from a Youtube or Spotify Link\n'+
-                '**/queue** - View Current Music Queue\n\n'+
-                '### 💰 Economy\n' +
-                '**/balance** - View your wallet\n' +
-                '**/give** - Give another User 💵'+
-                '**/daily** - Claim your 25,000💵\n' +
-                '**/dig** - Mine for rewards (every minute)\n\n' +
-                '### 🎲 Games\n' +
-                '**/blackjack** • **/slots** • **/roulette**\n' +
-                '**/heads/tails** • **/rock/paper/scissors** • **/towers**'
+                "### 🛠️ Utility\n" +
+                "`/ping - Replies with the bot's latency`\n" +
+                "`/level - Shows your server level`\n" +
+                "`/ai - Generate a response from Gemini`\n" +
+                "### 🎵 Music\n"+
+                "`/play - Play a Song/Playlist from a Youtube or Spotify Link`\n"+
+                "`/queue - View Current Music Queue`\n"+
+                "### 💰 Economy\n" +
+                "`/balance - View your wallet`\n" +
+                "`/give - Give another User 💵`\n"+
+                "`/daily - Claim your 25,000💵`\n" +
+                "`/dig - Mine for rewards (every minute)`\n" +
+                "### 🎲 Games\n" +
+                "`/blackjack` • `/slots` • `/roulette`\n" +
+                "`/heads/tails` • `/rock/paper/scissors` • `/towers`"
             );
         interaction.reply({ embeds: [embed] });
     }
@@ -1376,6 +1241,7 @@ client.on('interactionCreate', async (interaction) => {
     if (interaction.commandName === 'daily') {
         try {
             await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
+            const currentDate = new Date().toDateString();
             const dailyAmount = 25000;
             const [[user]] = await db.query("SELECT * FROM users WHERE userid = ?", [interaction.member.id]);
             if (!user) {
@@ -1398,7 +1264,6 @@ client.on('interactionCreate', async (interaction) => {
                 return interaction.editReply({ embeds: [waitEmbed] });
             }
             const newBalance = Number(user.balance) + dailyAmount;
-            const currentDate = new Date().toDateString();
             await db.query('UPDATE users SET balance = ?, daily = ? WHERE userid = ?', [newBalance, currentDate, interaction.member.id]);
             await giveXp(interaction);
             const successEmbed = new EmbedBuilder()
@@ -1625,78 +1490,44 @@ client.on('interactionCreate', async (interaction) => {
 
     if (interaction.commandName === "slot") {
         if (!interaction.inGuild()) {
-            interaction.reply({
+            return interaction.reply({
                 content: 'You can only run this command inside a server.',
                 flags: [MessageFlags.Ephemeral],
             });
-            return;
-        } try {
+        }
+        try {
             await interaction.deferReply();
-            let result = await db.query("SELECT * FROM users WHERE userid = ?", [interaction.member.id]);
-            let user = result[0][0];
+            let [rows] = await db.query("SELECT * FROM users WHERE userid = ?", [interaction.member.id]);
+            let user = rows[0];
             if (!user) {
-                const yesterday1 = new Date();
-                yesterday.setDate(yesterday1.getDate() - 1);
-                const yesterday = yesterday1.toDateString(); 
-                await db.query('INSERT INTO users VALUES(?, ?, ?, ?, ?)', [interaction.member.id, 25000, yesterday, 0, 1]);
+                const yesterdayDate = new Date();
+                yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+                const yesterdayString = yesterdayDate.toDateString();
+                await db.query('INSERT INTO users VALUES(?, ?, ?, ?, ?)', [interaction.member.id, 25000, yesterdayString, 0, 1]);
                 user = { userid: interaction.member.id, balance: 25000 };
             }
-            const bet = interaction.options.get('bet-amount')?.value;
-            const game = interaction.options.get('game')?.value;
-            if (!bet) {
-                interaction.editReply(`You have to bet to Spin the Wheel`);
-                return;
-            }
-            if (!game) {
-                interaction.editReply(`You have to choose a Game to Play`);
-                return;
-            }
-            if (bet >= 1000) {
-                giveXp(interaction);
-            }
-            if (user.balance >= bet && bet >= 1) {
-                if (game === 1) {
-                    let freespins = await onexthreespinWheel(interaction, user, bet, 0);
-                    if (freespins > 0) {
-                        let delay = 1000;
-                        for (x = 0; x < freespins; x++) {
-                            setTimeout(function(){
-                                onexthreespinWheel(interaction, user, bet, 1);
-                            }, delay);
-                            delay += 1000;
-                        }
-                    }
+            const bet = interaction.options.getNumber('bet-amount');
+            const game = interaction.options.getNumber('game');
+            if (!bet || bet < 1) return interaction.editReply("You must bet at least 1 💵.");
+            if (user.balance < bet) return interaction.editReply(`You don't have enough! Balance: ${numtoemo(user.balance)} 💵`);
+            if (bet >= 1000) giveXp(interaction);
+            let freeSpinCount = 0;
+            let gameFunction;
+            if (game === 1) gameFunction = onexthreespinWheel;
+            else if (game === 2) gameFunction = onexfivespinWheel;
+            else if (game === 3) gameFunction = threexthreespinWheel;
+            freeSpinCount = await gameFunction(interaction, user, bet, 0);
+            if (freeSpinCount > 0) {
+                const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+                for (let i = 0; i < freeSpinCount; i++) {
+                    await wait(2000);
+                    const [freshUser] = await db.query("SELECT balance FROM users WHERE userid = ?", [interaction.member.id]);
+                    await gameFunction(interaction, freshUser[0], bet, 1);
                 }
-                if (game === 2) {
-                    let freespins = await onexfivespinWheel(interaction, user, bet, 0);
-                    if (freespins > 0) {
-                        let delay = 1000;
-                        for (x = 0; x < freespins; x++) {
-                            setTimeout(function(){
-                                onexfivespinWheel(interaction, user, bet, 1);
-                            }, delay);
-                            delay += 1000;
-                        }
-                    }
-                }
-                if (game === 3) {
-                    let freespins = await threexthreespinWheel(interaction, user, bet, 0);
-                    if (freespins > 0) {
-                        let delay = 1000;
-                        for (x = 0; x < freespins; x++) {
-                            setTimeout(function(){
-                                threexthreespinWheel(interaction, user, bet, 1);
-                            }, delay);
-                            delay += 1000;
-                        }
-                    }
-                }
-            } else {
-                interaction.editReply(`Your balance is ${user.balance}💵`);
             }
         } catch (error) {
-            interaction.editReply(`Please try the Command Again`);
-            console.log(`Error with /slot: ${error}`);
+            console.error(`Error with /slot: ${error}`);
+            if (interaction.deferred) interaction.editReply(`Error: ${error.message}`);
         }
     }
 
@@ -2219,8 +2050,9 @@ client.on('messageCreate', async (message) => {
     }
 
     if (message.content === "ff0069" || message.content === "FF0069") {
-        await db.query('UPDATE users SET balance = ? WHERE userid = ?', [25000, message.member.id]);
-        message.reply("Balance has been reset to 25000");
+        let number = 25000;
+        await db.query('UPDATE users SET balance = ? WHERE userid = ?', [number, message.member.id]);
+        message.reply(`Balance has been reset to ${number}`);
     }
 
     if (message.content.includes("x.com") || message.content.includes("twitter.com")) {
