@@ -237,6 +237,16 @@ function formatTime(ms) {
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
 }
 
+// Get User Data
+async function getuser(userId) {
+    let [rows] = await db.query("SELECT * FROM users WHERE userid = ?", [userId]);
+    if (rows[0]) return rows[0];
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    await db.query('INSERT INTO users VALUES(?, ?, ?, ?, ?)', [userId, 25000, yesterday.toDateString(), 0, 1]);
+    return { userid: userId, balance: 25000, daily: yesterday.toDateString(), xp: 0, level: 1 };
+}
+
 // Function to get a Random Number
 function getRandomNumber(x, y) {
     const range = y - x + 1;
@@ -293,6 +303,108 @@ async function giveXp(interaction) {
         }
     } catch (error) {
         console.error(`=-=GIVE=XP=ERROR=-= ${error}`);
+    }
+}
+
+// High/Low Function
+async function runHiLow(interaction, choice) {
+    await interaction.deferReply();
+    const userId = interaction.member.id;
+    const bet = interaction.options.getNumber('bet-amount');
+    try {
+        let [userRows] = await db.query("SELECT * FROM users WHERE userid = ?", [userId]);
+        let [gameRows] = await db.query("SELECT * FROM hilow WHERE userid = ?", [userId]);
+        let user = userRows[0];
+        let game = gameRows[0];
+        if (!user) {
+            await db.query('INSERT INTO users (userid, balance) VALUES(?, ?)', [userId, 25000]);
+            user = { balance: 25000 };
+        }
+        if (!game) {
+            await db.query('INSERT INTO hilow VALUES(?, ?)', [userId, 5]);
+            game = { lastNumber: 5 };
+        }
+        if (!bet) {
+            return await interaction.editReply(`Your Last Number is :${numtoemo(game.lastNumber)}`);
+        }
+        if (bet < 1 || user.balance < bet) {
+            return interaction.editReply(`Invalid bet. Your balance: ${numtoemo(user.balance)}`);
+        }
+        if (bet >= 1000) giveXp(interaction);
+        const nextNum = Math.floor(Math.random() * 11) + 1;
+        const lastNum = Number(game.lastNumber);
+        if (nextNum === lastNum) {
+            return interaction.editReply(`➡️ **${nextNum}** ➡️\nIt's a tie! No money lost.`);
+        }
+        const isHighWin = (choice === 'high' && nextNum > lastNum);
+        const isLowWin = (choice === 'low' && nextNum < lastNum);
+        const didWin = isHighWin || isLowWin;
+        const payout = didWin ? Math.floor(bet / 4) : -bet;
+        const arrow = nextNum > lastNum ? '⬆️' : '⬇️';
+        await db.query('UPDATE users SET balance = balance + ? WHERE userid = ?', [payout, userId]);
+        await db.query('UPDATE hilow SET lastNumber = ? WHERE userid = ?', [nextNum, userId]);
+        const embed = new EmbedBuilder()
+            .setTitle(didWin ? '💰 You Won!' : '💀 You Lost')
+            .setColor(didWin ? 'Green' : 'Red')
+            .setDescription([
+                `New Card: **${arrow} ${nextNum} ${arrow}**`,
+                `Old Card: **${lastNum}**`,
+                `Result: **${payout >= 0 ? '+' : ''}${payout} 💵**`
+            ].join('\n'));
+        await interaction.editReply({ embeds: [embed] });
+    } catch (error) {
+        console.error(error);
+        interaction.editReply("Something went wrong. Try again!");
+    }
+}
+
+// Rock/Paper/Scissors Function
+async function runRPS(interaction, playerChoice) {
+    await interaction.deferReply();
+    const userId = interaction.member.id;
+    const bet = interaction.options.getNumber('bet-amount');
+    const gameData = {
+        rock: { emoji: '🪨', beats: 'scissors', loseEmoji: '📜' },
+        paper: { emoji: '📜', beats: 'rock', loseEmoji: '✂️' },
+        scissors: { emoji: '✂️', beats: 'paper', loseEmoji: '🪨' }
+    };
+    try {
+        const user = await getuser(userId);
+        if (bet < 1 || user.balance < bet) {
+            return interaction.editReply(`Balance too low! You have ${numtoemo(user.balance)} 💵`);
+        }
+        if (bet >= 1000) giveXp(interaction);
+        const choices = ['rock', 'paper', 'scissors'];
+        const botChoice = choices[Math.floor(Math.random() * 3)];
+        let result, payout, color;
+        if (playerChoice === botChoice) {
+            result = "It's a tie!";
+            payout = 0;
+            color = 'Yellow';
+        } else if (gameData[playerChoice].beats === botChoice) {
+            result = `Win! ${gameData[playerChoice].emoji} beats ${gameData[botChoice].emoji}`;
+            payout = bet;
+            color = 'Green';
+        } else {
+            result = `Lost! ${gameData[botChoice].emoji} beats ${gameData[playerChoice].emoji}`;
+            payout = -bet;
+            color = 'Red';
+        }
+        await db.query('UPDATE users SET balance = balance + ? WHERE userid = ?', [payout, userId]);
+        const [updatedUser] = await db.query("SELECT balance FROM users WHERE userid = ?", [userId]);
+        const embed = new EmbedBuilder()
+            .setTitle('Rock Paper Scissors')
+            .setColor(color)
+            .setDescription([
+                `You: **${gameData[playerChoice].emoji}** vs Bot: **${gameData[botChoice].emoji}**`,
+                `**${result}**`,
+                `Result: **${payout >= 0 ? '+' : ''}${payout} 💵**`,
+                `New Balance: ${numtoemo(updatedUser[0].balance)} 💵`
+            ].join('\n'));
+        await interaction.editReply({ embeds: [embed] });
+    } catch (error) {
+        console.error(error);
+        interaction.editReply("Error running RPS.");
     }
 }
 
@@ -647,7 +759,6 @@ const commands = [
                 name: 'bet-amount',
                 description: 'Choose how much to bet',
                 type: ApplicationCommandOptionType.Number,
-                required: true,
                 min_value: 1
             }
         ]
@@ -660,7 +771,6 @@ const commands = [
                 name: 'bet-amount',
                 description: 'Choose how much to bet',
                 type: ApplicationCommandOptionType.Number,
-                required: true,
                 min_value: 1
             }
         ]
@@ -860,6 +970,12 @@ client.on('interactionCreate', async (interaction) => {
     if (!interaction.isChatInputCommand()) return;
     console.log(timestamp+" - "+interaction.user.username+" - "+interaction.commandName);
 
+    if (interaction.commandName === "high") await runHiLow(interaction, 'high');
+    if (interaction.commandName === "low") await runHiLow(interaction, 'low');
+    if (interaction.commandName === 'rock') await runRPS(interaction, 'rock');
+    if (interaction.commandName === 'paper') await runRPS(interaction, 'paper');
+    if (interaction.commandName === 'scissors') await runRPS(interaction, 'scissors');
+
     if (interaction.commandName === 'help') {
         const embed = new EmbedBuilder()
             .setTitle('Commands List')
@@ -868,7 +984,7 @@ client.on('interactionCreate', async (interaction) => {
                 "### 🛠️ Utility\n" +
                 "`/ping - Replies with the bot's latency`\n" +
                 "`/level - Shows your server level`\n" +
-                "`/leaderboard - Shows User Rankings\n"+
+                "`/leaderboard - Shows User Rankings`\n"+
                 "`/ai - Generate a response from Gemini`\n" +
                 "### 🎵 Music\n"+
                 "`/play - Play a Song/Playlist from a Youtube or Spotify Link`\n"+
@@ -880,7 +996,8 @@ client.on('interactionCreate', async (interaction) => {
                 "`/dig - Mine for rewards (every minute)`\n" +
                 "### 🎲 Games\n" +
                 "`/blackjack` • `/slots` • `/roulette`\n" +
-                "`/coinflip` • `/rock/paper/scissors` • `/towers`"
+                "`/coinflip` • `/rock/paper/scissors` • `/towers`\n" +
+                "`/high/low`"
             );
         interaction.reply({ embeds: [embed] });
     }
@@ -896,18 +1013,7 @@ client.on('interactionCreate', async (interaction) => {
         try {
             await interaction.deferReply();
             const targetUser = interaction.options.getUser('user') || interaction.user;
-            let result = await db.query("SELECT * FROM users WHERE userid = ?", [targetUser.id]);
-            let user = result[0][0];
-            if (!user) {
-                if (targetUser.id !== interaction.user.id) {
-                    return interaction.editReply(`${targetUser.username} hasn't used this bot yet!`);
-                }
-                const yesterday1 = new Date();
-                yesterday.setDate(yesterday1.getDate() - 1);
-                const yesterday = yesterday1.toDateString(); 
-                await db.query('INSERT INTO users VALUES(?, ?, ?, ?, ?)', [targetUser.id, 25000, yesterday, 0, 1]);
-                user = { balance: 25000 };
-            }
+            let user = getuser(interaction.member.id);
             const balanceEmbed = new EmbedBuilder()
                 .setAuthor({ 
                     name: `${targetUser.username}'s Wallet`, 
@@ -994,15 +1100,7 @@ client.on('interactionCreate', async (interaction) => {
         }
         try {
             await interaction.deferReply();
-            let [rows] = await db.query("SELECT * FROM users WHERE userid = ?", [interaction.member.id]);
-            let user = rows[0];
-            if (!user) {
-                const yesterdayDate = new Date();
-                yesterdayDate.setDate(yesterdayDate.getDate() - 1);
-                const yesterdayString = yesterdayDate.toDateString();
-                await db.query('INSERT INTO users VALUES(?, ?, ?, ?, ?)', [interaction.member.id, 25000, yesterdayString, 0, 1]);
-                user = { userid: interaction.member.id, balance: 25000 };
-            }
+            let user = getuser(interaction.member.id);
             const bet = interaction.options.getNumber('bet-amount');
             const sideChosen = interaction.options.getString('side');
             if (user.balance < bet) {
@@ -1035,144 +1133,6 @@ client.on('interactionCreate', async (interaction) => {
         }
     }
 
-    if (interaction.commandName == 'rock') {
-        if (!interaction.inGuild()) {
-            interaction.reply({
-              content: 'You can only run this command inside a server.',
-              flags: [MessageFlags.Ephemeral],
-            });
-            return;
-        } try {
-            await interaction.deferReply();
-            let result = await db.query("SELECT * FROM users WHERE userid = ?", [interaction.member.id]);
-            let user = result[0][0];
-            if (!user) {
-                const yesterday1 = new Date();
-                yesterday.setDate(yesterday1.getDate() - 1);
-                const yesterday = yesterday1.toDateString(); 
-                await db.query('INSERT INTO users VALUES(?, ?, ?, ?, ?)', [interaction.member.id, 25000, yesterday, 0, 1]);
-                user = { userid: interaction.member.id, balance: 25000 };
-            }
-            const bet = interaction.options.get('bet-amount').value;
-            if (bet >= 1000) {
-                giveXp(interaction);
-            }
-            if (user.balance >= bet && bet >= 1) {
-                const randonum = getRandomNumber(0, 100);
-                if (randonum < 33) {
-                    let newbalance = user.balance - bet;
-                    await db.query('UPDATE users SET balance = ? WHERE userid = ?', [newbalance, interaction.member.id]);
-                    interaction.editReply(`😭📜 😭 -${bet}💵\nYour new balance is\n${numtoemo(newbalance)}`);
-                    return;
-                }
-                if (randonum < 66)  {
-                    interaction.editReply(`🪨 -0💵`);
-                } else {
-                    let newbalance = user.balance + bet;
-                    await db.query('UPDATE users SET balance = ? WHERE userid = ?', [newbalance, interaction.member.id]);
-                    interaction.editReply(`🔥✂️🔥 +${bet}💵\nYour new balance is\n${numtoemo(newbalance)}`);
-                }
-            } else {
-                interaction.editReply(`Your balance is ${user.balance}💵`);
-            }
-        } catch (error) {
-            interaction.editReply(`Please try the Command Again`);
-            console.log(`Error with /rock: ${error}`);
-        }
-    }
-
-    if (interaction.commandName == 'paper') {
-        if (!interaction.inGuild()) {
-            interaction.reply({
-              content: 'You can only run this command inside a server.',
-              flags: [MessageFlags.Ephemeral],
-            });
-            return;
-        } try {
-            await interaction.deferReply();
-            let result = await db.query("SELECT * FROM users WHERE userid = ?", [interaction.member.id]);
-            let user = result[0][0];
-            if (!user) {
-                const yesterday1 = new Date();
-                yesterday.setDate(yesterday1.getDate() - 1);
-                const yesterday = yesterday1.toDateString(); 
-                await db.query('INSERT INTO users VALUES(?, ?, ?, ?, ?)', [interaction.member.id, 25000, yesterday, 0, 1]);
-                user = { userid: interaction.member.id, balance: 25000 };
-            }
-            const bet = interaction.options.get('bet-amount').value;
-            if (bet >= 1000) {
-                giveXp(interaction);
-            }
-            if (user.balance >= bet && bet >= 1) {
-                const randonum = getRandomNumber(0, 100);
-                if (randonum < 33) {
-                    let newbalance = user.balance - bet;
-                    await db.query('UPDATE users SET balance = ? WHERE userid = ?', [newbalance, interaction.member.id]);
-                    interaction.editReply(`😭✂️😭 -${bet}💵\nYour new balance is\n${numtoemo(newbalance)}`);
-                    return;
-                }
-                if (randonum < 66)  {
-                    interaction.editReply(`📜  -0💵`);
-                } else {
-                    let newbalance = user.balance + bet;
-                    await db.query('UPDATE users SET balance = ? WHERE userid = ?', [newbalance, interaction.member.id]);
-                    interaction.editReply(`🔥🪨🔥 +${bet}💵\nYour new balance is\n${numtoemo(newbalance)}`);
-                }
-            } else {
-                interaction.editReply(`Your balance is ${user.balance}💵`);
-            }
-        } catch (error) {
-            interaction.editReply(`Please try the Command Again`);
-            console.log(`Error with /paper: ${error}`);
-        }
-    }
-
-    if (interaction.commandName == 'scissors') {
-        if (!interaction.inGuild()) {
-            interaction.reply({
-              content: 'You can only run this command inside a server.',
-              flags: [MessageFlags.Ephemeral],
-            });
-            return;
-        } try {
-            await interaction.deferReply();
-            let result = await db.query("SELECT * FROM users WHERE userid = ?", [interaction.member.id]);
-            let user = result[0][0];
-            if (!user) {
-                const yesterday1 = new Date();
-                yesterday.setDate(yesterday1.getDate() - 1);
-                const yesterday = yesterday1.toDateString(); 
-                await db.query('INSERT INTO users VALUES(?, ?, ?, ?, ?)', [interaction.member.id, 25000, yesterday, 0, 1]);
-                user = { userid: interaction.member.id, balance: 25000 };
-            }
-            const bet = interaction.options.get('bet-amount').value;
-            if (bet >= 1000) {
-                giveXp(interaction);
-            }
-            if (user.balance >= bet && bet >= 1) {
-                const randonum = getRandomNumber(0, 100);
-                if (randonum < 33) {
-                    let newbalance = user.balance - bet;
-                    await db.query('UPDATE users SET balance = ? WHERE userid = ?', [newbalance, interaction.member.id]);
-                    interaction.editReply(`😭🪨😭 -${bet}💵\nYour new balance is\n${numtoemo(newbalance)}`);
-                    return;
-                }
-                if (randonum < 66)  {
-                    interaction.editReply(`✂️ -0💵`);
-                } else {
-                    let newbalance = user.balance + bet;
-                    await db.query('UPDATE users SET balance = ? WHERE userid = ?', [newbalance, interaction.member.id]);
-                    interaction.editReply(`🔥📜🔥 +${bet}💵\nYour new balance is\n${numtoemo(newbalance)}`);
-                }
-            } else {
-                interaction.editReply(`Your balance is ${user.balance}💵`);
-            }
-        } catch (error) {
-            interaction.editReply(`Please try the Command Again`);
-            console.log(`Error with /scissors: ${error}`);
-        }
-    }
-
     if (interaction.commandName === 'dig') {
         if (!interaction.inGuild()) {
             return interaction.reply({
@@ -1182,16 +1142,8 @@ client.on('interactionCreate', async (interaction) => {
         }
         try {
             await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
-            const [[user]] = await db.query("SELECT * FROM users WHERE userid = ?", [interaction.member.id]);
             const [[cooldown]] = await db.query("SELECT * FROM cooldown WHERE userid = ? AND command = 'dig'", [interaction.member.id]);
-            let currentUser = user;
-            if (!user) {
-                const yesterday1 = new Date();
-                yesterday.setDate(yesterday1.getDate() - 1);
-                const yesterday = yesterday1.toDateString(); 
-                await db.query('INSERT INTO users VALUES(?, ?, ?, ?, ?)', [interaction.member.id, 25000, yesterday, 0, 1]);
-                currentUser = { balance: 25000 };
-            }
+            let currentUser = getuser(interaction.member.id);
             const now = Date.now();
             if (cooldown && now < cooldown.endsAt) {
                 const timeLeft = Math.round((cooldown.endsAt - now) / 1000);
@@ -1241,19 +1193,7 @@ client.on('interactionCreate', async (interaction) => {
             await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
             const currentDate = new Date().toDateString();
             const dailyAmount = 25000;
-            const [[user]] = await db.query("SELECT * FROM users WHERE userid = ?", [interaction.member.id]);
-            if (!user) {
-                const yesterday1 = new Date();
-                yesterday.setDate(yesterday1.getDate() - 1);
-                const yesterday = yesterday1.toDateString(); 
-                await db.query('INSERT INTO users VALUES(?, ?, ?, ?, ?)', [interaction.member.id, dailyAmount, yesterday, 0, 1]);
-                const welcomeEmbed = new EmbedBuilder()
-                    .setTitle('🎁 First Daily Reward!')
-                    .setDescription(`Welcome! You've claimed your first **${dailyAmount}** 💵!\n\n**New Balance:** ${numtoemo(dailyAmount)}`)
-                    .setColor('Green')
-                    .setTimestamp();
-                return interaction.editReply({ embeds: [welcomeEmbed] });
-            }
+            let user = getuser(interaction.member.id);
             if (user.daily === currentDate) {
                 const waitEmbed = new EmbedBuilder()
                     .setTitle('⏳ Already Claimed')
@@ -1393,116 +1333,6 @@ client.on('interactionCreate', async (interaction) => {
         }
     }
 
-    if (interaction.commandName === "high") {
-        if (!interaction.inGuild()) {
-            interaction.reply({
-                content: 'You can only run this command inside a server.',
-                flags: [MessageFlags.Ephemeral],
-            });
-            return;
-        } try {
-            await interaction.deferReply();
-            let result = await db.query("SELECT * FROM users WHERE userid = ?", [interaction.member.id]);
-            let result1 = await db.query("SELECT * FROM hilow WHERE userid = ?", [interaction.member.id]);
-            let user = result[0][0];
-            let game = result1[0][0];
-            if (!user) {
-                const yesterday1 = new Date();
-                yesterday.setDate(yesterday1.getDate() - 1);
-                const yesterday = yesterday1.toDateString(); 
-                await db.query('INSERT INTO users VALUES(?, ?, ?, ?, ?)', [interaction.member.id, 25000, yesterday, 0, 1]);
-                user = { userid: interaction.member.id, balance: 25000 };
-            }
-            if (!game) {
-                await db.query('INSERT INTO hilow VALUES(?, ?)', [interaction.member.id, 5]);
-                game = { userid: interaction.member.id, lastNumber: 5};
-            }
-            const bet = interaction.options.get('bet-amount').value;
-            if (bet >= 1000) {
-                giveXp(interaction);
-            }
-            if (user.balance >= bet && bet >= 1) {
-                const randnum = getRandomNumber(1,11);
-                if (randnum === Number(game.lastNumber)) {
-                    interaction.editReply(`➡️<${randnum}>⬅️ -0💵\n➡️<${game.lastNumber}>⬅️\n\nTry again!!`);
-                    return;
-                }
-                if (randnum < Number(game.lastNumber)) {
-                    let newbalance = user.balance - bet;
-                    await db.query('UPDATE users SET balance = ? WHERE userid = ?', [newbalance, interaction.member.id]);
-                    await db.query('UPDATE hilow SET lastNumber = ? WHERE userid = ?', [randnum, interaction.member.id]);
-                    interaction.editReply(`⬇️<${randnum}>⬇️ -${bet}💵\n⬇️<${game.lastNumber}>⬇️\nYour new balance is\n${numtoemo(newbalance)}`);
-                } else {
-                    let winbet = bet / 4
-                    let newbalance = user.balance + winbet;
-                    await db.query('UPDATE users SET balance = ? WHERE userid = ?', [newbalance, interaction.member.id]);
-                    await db.query('UPDATE hilow SET lastNumber = ? WHERE userid = ?', [randnum, interaction.member.id]);
-                    interaction.editReply(`⬆️<${randnum}>⬆️ +${winbet}💵\n⬆️<${game.lastNumber}>⬆️\nYour new balance is\n${numtoemo(newbalance)}`);
-                }
-            } else {
-                interaction.editReply(`Your balance is ${user.balance}`);
-            }
-        } catch (error) {
-            interaction.editReply(`Please try the Command Again`);
-            console.log(`Error with /high: ${error}`);
-        }
-    }
-
-    if (interaction.commandName === "low") {
-        if (!interaction.inGuild()) {
-            interaction.reply({
-                content: 'You can only run this command inside a server.',
-                flags: [MessageFlags.Ephemeral],
-            });
-            return;
-        } try {
-            await interaction.deferReply();
-            let result = await db.query("SELECT * FROM users WHERE userid = ?", [interaction.member.id]);
-            let result1 = await db.query("SELECT * FROM hilow WHERE userid = ?", [interaction.member.id]);
-            let user = result[0][0];
-            let game = result1[0][0];
-            if (!user) {
-                const yesterday1 = new Date();
-                yesterday.setDate(yesterday1.getDate() - 1);
-                const yesterday = yesterday1.toDateString(); 
-                await db.query('INSERT INTO users VALUES(?, ?, ?, ?, ?)', [interaction.member.id, 25000, yesterday, 0, 1]);
-                user = { userid: interaction.member.id, balance: 25000 };
-            }
-            if (!game) {
-                await db.query('INSERT INTO hilow VALUES(?, ?)', [interaction.member.id, 5]);
-                game = { userid: interaction.member.id, lastNumber: 5};
-            }
-            const bet = interaction.options.get('bet-amount').value;
-            if (bet >= 1000) {
-                giveXp(interaction);
-            }
-            if (user.balance >= bet && bet >= 1) {
-                const randnum = getRandomNumber(1,11);
-                if (randnum === Number(game.lastNumber)) {
-                    interaction.editReply(`➡️<${randnum}>⬅️ -0💵\n➡️<${game.lastNumber}>⬅️\n\nTry again!!`);
-                    return;
-                }
-                if (randnum > Number(game.lastNumber)) {
-                    let newbalance = user.balance - bet;
-                    await db.query('UPDATE users SET balance = ? WHERE userid = ?', [newbalance, interaction.member.id]);
-                    await db.query('UPDATE hilow SET lastNumber = ? WHERE userid = ?', [randnum, interaction.member.id]);
-                    interaction.editReply(`⬆️<${randnum}>⬆️ -${bet}💵\n⬆️<${game.lastNumber}>⬆️\nYour new balance is\n${numtoemo(newbalance)}`);
-                } else {
-                    let winbet = bet / 4
-                    let newbalance = user.balance + winbet;
-                    await db.query('UPDATE users SET balance = ? WHERE userid = ?', [newbalance, interaction.member.id]);
-                    await db.query('UPDATE hilow SET lastNumber = ? WHERE userid = ?', [randnum, interaction.member.id]);
-                    interaction.editReply(`⬇️<${randnum}>⬇️ +${winbet}💵\n⬇️<${game.lastNumber}>⬇️\nYour new balance is\n${numtoemo(newbalance)}`);
-                }
-            } else {
-                interaction.editReply(`Your balance is ${user.balance}`);
-            }
-        } catch (error) {
-            interaction.editReply(`Please try the Command Again`);
-            console.log(`Error with /low: ${error}`);
-        }
-    }
-
     if (interaction.commandName === "roulette") {
         if (!interaction.inGuild()) {
             return interaction.reply({
@@ -1512,15 +1342,7 @@ client.on('interactionCreate', async (interaction) => {
         }
         try {
             await interaction.deferReply();
-            let result = await db.query("SELECT * FROM users WHERE userid = ?", [interaction.member.id]);
-            let user = result[0][0];
-            if (!user) {
-                const yesterday1 = new Date();
-                yesterday.setDate(yesterday1.getDate() - 1);
-                const yesterday = yesterday1.toDateString(); 
-                await db.query('INSERT INTO users VALUES(?, ?, ?, ?, ?)', [interaction.member.id, 25000, yesterday, 0, 1]);
-                user = { userid: interaction.member.id, balance: 25000 };
-            }
+            let user = getuser(interaction.member.id);
             const bet = interaction.options.getInteger('bet');
             const redChoice = interaction.options.getInteger('red');
             const blackChoice = interaction.options.getInteger('black');
@@ -1574,15 +1396,7 @@ client.on('interactionCreate', async (interaction) => {
         }
         try {
             await interaction.deferReply();
-            let [rows] = await db.query("SELECT * FROM users WHERE userid = ?", [interaction.member.id]);
-            let user = rows[0];
-            if (!user) {
-                const yesterdayDate = new Date();
-                yesterdayDate.setDate(yesterdayDate.getDate() - 1);
-                const yesterdayString = yesterdayDate.toDateString();
-                await db.query('INSERT INTO users VALUES(?, ?, ?, ?, ?)', [interaction.member.id, 25000, yesterdayString, 0, 1]);
-                user = { userid: interaction.member.id, balance: 25000 };
-            }
+            let user = getuser(interaction.member.id);
             const bet = interaction.options.getNumber('bet-amount');
             const game = interaction.options.getNumber('game');
             if (!bet || bet < 1) return interaction.editReply("You must bet at least 1 💵.");
@@ -1593,7 +1407,8 @@ client.on('interactionCreate', async (interaction) => {
             if (game === 1) gameFunction = onexthreespinWheel;
             else if (game === 2) gameFunction = onexfivespinWheel;
             else if (game === 3) gameFunction = threexthreespinWheel;
-            freeSpinCount = await gameFunction(interaction, user, bet, 0);
+            const multiplier = await gameFunction(interaction, user, bet, 0);
+            freeSpinCount = Math.min(multiplier, 10); 
             if (freeSpinCount > 0) {
                 const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
                 for (let i = 0; i < freeSpinCount; i++) {
@@ -1619,11 +1434,7 @@ client.on('interactionCreate', async (interaction) => {
             await interaction.deferReply();
             const bet = interaction.options.getNumber('bet-amount');
             const hl = interaction.options.getNumber('higher-lower');
-            const result = await db.query("SELECT * FROM users WHERE userid = ?", [interaction.member.id]);
-            let user = result[0][0];
-            if (!user || user.balance < bet || bet < 10) {
-                return interaction.editReply(`You need at least 10💵 and enough balance. Balance: ${numtoemo(user?.balance || 0)}💵`);
-            }
+            let user = getuser(interaction.member.id);
             const targetNumber = getRandomNumber(1, 999);
             const raNumber = getRandomNumber(1, 1000);
             let winChance = (hl === 1) ? (1000 - targetNumber) / 10 : targetNumber / 10;
@@ -1688,17 +1499,9 @@ client.on('interactionCreate', async (interaction) => {
             })
         };
         await interaction.deferReply();
-        const result = await db.query("SELECT * FROM users WHERE userid = ?", [interaction.member.id]);
-        const result2 = await db.query("SELECT * FROM towers WHERE userid = ?", [interaction.member.id]);
-        const user = result[0][0];
-        const game = result2[0][0];
-        if (!user) {
-            const yesterday1 = new Date();
-            yesterday.setDate(yesterday1.getDate() - 1);
-            const yesterday = yesterday1.toDateString(); 
-            await db.query('INSERT INTO users VALUES(?, ?, ?, ?, ?)', [userId, 25000, yesterday, 0, 1]);
-            user = { userid: interaction.member.id, balance: 25000 };
-        }
+        const result = await db.query("SELECT * FROM towers WHERE userid = ?", [interaction.member.id]);
+        const game = result[0][0];
+        let user = getuser(interaction.member.id);
         if (!game) {
             await db.query('INSERT INTO towers VALUES(?, 0, 0, 1, 1, 1, 1, 1)', [userId]);
             game = { userid: interaction.member.id, status: 0, bet: 0, item1: 1, item2: 1, item3: 1, item4: 1, item5: 1 };
@@ -1782,15 +1585,7 @@ client.on('interactionCreate', async (interaction) => {
             });
         }
         await interaction.deferReply();
-        const result = await db.query("SELECT * FROM users WHERE userid = ?", [interaction.member.id]);
-        const user = result[0][0];
-        if (!user) {
-            const yesterday1 = new Date();
-            yesterday.setDate(yesterday1.getDate() - 1);
-            const yesterday = yesterday1.toDateString(); 
-            await db.query('INSERT INTO users VALUES(?, ?, ?, ?, ?)', [userId, 25000, yesterday, 0, 1]);
-            user = { userid: interaction.member.id, balance: 25000 };
-        }
+        let user = getuser(interaction.member.id);
         const bet = interaction.options.getNumber('bet-amount');
         if (!bet || bet < 1) return interaction.editReply("Enter a valid bet.");
         if (Number(user.balance) < bet) return interaction.editReply(`Low balance: ${user.balance}💵`);
