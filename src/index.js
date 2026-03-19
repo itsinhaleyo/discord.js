@@ -10,6 +10,7 @@ const fetch = require('isomorphic-unfetch');
 const { getData, getTracks } = require('spotify-url-info')(fetch);
 const fs = require('fs');
 const path = require('path');
+const util = require('util');
 const songsDir = path.join(__dirname, 'songs');
 
 //Audio Player
@@ -420,11 +421,22 @@ const mapToChoice = (num) => ({ name: `${num}`, value: num });
 // Slash Commands Name and Descriptions
 const commands = [
     { name: 'help', description: 'Help Command' },
-    { name: 'test', description: 'test' },
     { name: 'dig', description: '60% chance to Collect 1-1000 every Minute' },
     { name: 'daily', description: 'Collect 25000 Daily' },
     { name: 'ping', description: 'Replies With the Bots Ping' },
     { name: 'queue', description: 'Displays the current music queue' },
+    { 
+        name: 'eval', 
+        description: 'run a line of code',
+        options: [
+            {
+                name: 'code',
+                description: 'A line of code',
+                type: ApplicationCommandOptionType.String,
+                required: true
+            }
+        ]
+    },
     {
         name: 'play',
         description: 'Plays a Song',
@@ -1965,33 +1977,30 @@ client.on('interactionCreate', async (interaction) => {
         });
     }
 
-    if (interaction.commandName === "test") {
-        if (interaction.member.id === process.env.DEV_ID) {
-            if (!interaction.inGuild()) {
-                interaction.reply({
-                    content: 'You can only run this command inside a server.',
-                    flags: [MessageFlags.Ephemeral],
-                });
-                return;
-            } try {
-                await interaction.deferReply();
-                try {
-                    const output = await ytdl("https://www.youtube.com/watch?v=nvKu0cRQNto", {
-                        listFormats: true,
-                        noWarnings: true
-                    });
-                    const result = output.length > 1900 ? output.substring(0, 1900) + "..." : output;
-                    await interaction.editReply("```\n" + result + "\n```");
-                } catch(error) {
-                    console.error(error);
-                    await interaction.editReply(`Error running test:\n\`\`\`${error.message}\`\`\``);
-                }
-            } catch(error) {
-                interaction.reply(`Please try the Command Again\n`+error);
-                console.log(error);
-            }
-        } else {
-            interaction.reply('Only my bot DEV can use this command');
+    if (interaction.commandName === "eval") {
+        if (interaction.user.id !== process.env.DEV_ID) {
+            return interaction.reply({ content: 'Only my developer can use this.', flags: [MessageFlags.Ephemeral] });
+        }
+        try {
+            await interaction.deferReply();
+            const code = interaction.options.getString('code');
+            let evaluated = eval(code);
+            if (evaluated instanceof Promise) evaluated = await evaluated;
+            let output = util.inspect(evaluated, { depth: 0 });
+            if (output.length > 1900) output = output.slice(0, 1900) + '...';
+            const embed = new EmbedBuilder()
+                .setTitle('💻 Eval Output')
+                .setColor('Blurple')
+                .setDescription(`**Input:**\n\`\`\`js\n${code}\n\`\`\`\n**Output:**\n\`\`\`js\n${output}\n\`\`\``)
+                .setTimestamp();
+            await interaction.editReply({ embeds: [embed] });
+        } catch (error) {
+            console.error(`Eval Error: ${error}`);
+            const errorEmbed = new EmbedBuilder()
+                .setTitle('❌ Eval Error')
+                .setColor('Red')
+                .setDescription(`\`\`\`js\n${error.message}\n\`\`\``);
+            await interaction.editReply({ embeds: [errorEmbed] });
         }
     }
 });
