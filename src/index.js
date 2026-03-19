@@ -612,19 +612,6 @@ const commands = [
         ]
     },
     {
-        name: 'heads',
-        description: 'Play a Game of Heads or Tails',
-        options: [
-            {
-                name: 'bet-amount',
-                description: 'Choose how much to bet',
-                type: ApplicationCommandOptionType.Number,
-                required: true,
-                min_value: 1
-            }
-        ]
-    },
-    {
         name: 'high',
         description: 'Play a Game of High/Low',
         options: [
@@ -651,7 +638,7 @@ const commands = [
         ]
     },
     {
-        name: 'tails',
+        name: 'coinflip',
         description: 'Play a Game of Heads or Tails',
         options: [
             {
@@ -660,6 +647,22 @@ const commands = [
                 type: ApplicationCommandOptionType.Number,
                 required: true,
                 min_value: 1
+            },
+            {
+                name: 'side',
+                description: 'Pick heads or tails',
+                type: ApplicationCommandOptionType.String,
+                required: true,
+                choices: [
+                    { 
+                        name: 'Heads', 
+                        value: 'heads'
+                    },
+                    { 
+                        name: 'Tails', 
+                        value: 'tails' 
+                    }
+                ]
             }
         ]
     },
@@ -848,7 +851,7 @@ client.on('interactionCreate', async (interaction) => {
                 "`/dig - Mine for rewards (every minute)`\n" +
                 "### 🎲 Games\n" +
                 "`/blackjack` • `/slots` • `/roulette`\n" +
-                "`/heads/tails` • `/rock/paper/scissors` • `/towers`"
+                "`/coinflip` • `/rock/paper/scissors` • `/towers`"
             );
         interaction.reply({ embeds: [embed] });
     }
@@ -953,87 +956,53 @@ client.on('interactionCreate', async (interaction) => {
         }
     }
 
-    if (interaction.commandName === 'heads') {
+    if (interaction.commandName === 'coinflip') {
         if (!interaction.inGuild()) {
-            interaction.reply({
-              content: 'You can only run this command inside a server.',
-              flags: [MessageFlags.Ephemeral],
+            return interaction.reply({
+                content: 'You can only run this command inside a server.',
+                flags: [MessageFlags.Ephemeral],
             });
-            return;
-        } try {
-            await interaction.deferReply();
-            let result = await db.query("SELECT * FROM users WHERE userid = ?", [interaction.member.id]);
-            let user = result[0][0];
-            if (!user) {
-                const yesterday1 = new Date();
-                yesterday.setDate(yesterday1.getDate() - 1);
-                const yesterday = yesterday1.toDateString(); 
-                await db.query('INSERT INTO users VALUES(?, ?, ?, ?, ?)', [interaction.member.id, 25000, yesterday, 0, 1]);
-                user = { userid: interaction.member.id, balance: 25000 };
-            }
-            const bet = interaction.options.get('bet-amount').value;
-            if (bet >= 1000) {
-                giveXp(interaction);
-            }
-            if (user.balance >= bet && bet >= 1) {
-                const headsValue = getRandomNumber(1, 20);
-                if (headsValue >= 10){
-                    let newbalance = user.balance + bet;
-                    await db.query('UPDATE users SET balance = ? WHERE userid = ?', [newbalance, interaction.member.id]);
-                    interaction.editReply(`🔥HEADS🔥 +${bet}💵\nYour new balance is\n${numtoemo(newbalance)}`);
-                } else {
-                    let newbalance = user.balance - bet;
-                    await db.query('UPDATE users SET balance = ? WHERE userid = ?', [newbalance, interaction.member.id]);
-                    interaction.editReply(`😭tails😭 -${bet}💵\nYour new balance is\n${numtoemo(newbalance)}`);
-                }
-            } else {
-                interaction.editReply(`Your balance is ${user.balance}`);
-            }
-        } catch (error) {
-            interaction.editReply(`Please try the Command Again`);
-            console.log(`Error with /dig: ${error}`);
         }
-    }
-
-    if (interaction.commandName === 'tails') {
-        if (!interaction.inGuild()) {
-            interaction.reply({
-              content: 'You can only run this command inside a server.',
-              flags: [MessageFlags.Ephemeral],
-            });
-            return;
-        } try {
+        try {
             await interaction.deferReply();
-            let result = await db.query("SELECT * FROM users WHERE userid = ?", [interaction.member.id]);
-            let user = result[0][0];
+            let [rows] = await db.query("SELECT * FROM users WHERE userid = ?", [interaction.member.id]);
+            let user = rows[0];
             if (!user) {
-                const yesterday1 = new Date();
-                yesterday.setDate(yesterday1.getDate() - 1);
-                const yesterday = yesterday1.toDateString(); 
-                await db.query('INSERT INTO users VALUES(?, ?, ?, ?, ?)', [interaction.member.id, 25000, yesterday, 0, 1]);
+                const yesterdayDate = new Date();
+                yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+                const yesterdayString = yesterdayDate.toDateString();
+                await db.query('INSERT INTO users VALUES(?, ?, ?, ?, ?)', [interaction.member.id, 25000, yesterdayString, 0, 1]);
                 user = { userid: interaction.member.id, balance: 25000 };
             }
-            const bet = interaction.options.get('bet-amount').value;
-            if (bet >= 1000) {
-                giveXp(interaction);
+            const bet = interaction.options.getNumber('bet-amount');
+            const sideChosen = interaction.options.getString('side');
+            if (user.balance < bet) {
+                return interaction.editReply(`Insufficient funds! Balance: ${numtoemo(user.balance)} 💵`);
             }
-            if (user.balance >= bet && bet >= 1) {
-                const tailsValue = getRandomNumber(1, 20);
-                if (tailsValue >= 10){
-                    let newbalance = user.balance + bet;
-                    await db.query('UPDATE users SET balance = ? WHERE userid = ?', [newbalance, interaction.member.id]);
-                    interaction.editReply(`🔥TAILS🔥 +${bet}💵\nYour new balance is\n${numtoemo(newbalance)}`);
-                } else {
-                    let newbalance = user.balance - bet;
-                    await db.query('UPDATE users SET balance = ? WHERE userid = ?', [newbalance, interaction.member.id]);
-                    interaction.editReply(`😭Heads😭 -${bet}💵\nYour new balance is\n${numtoemo(newbalance)}`);
-                }
-            } else {
-                interaction.editReply(`Your balance is ${user.balance}`);
-            }
+            if (bet >= 1000) giveXp(interaction);
+            const flipResult = Math.random() < 0.5 ? 'heads' : 'tails';
+            const imagePath = path.join(__dirname, 'images', `${flipResult}.png`); 
+            const file = new AttachmentBuilder(imagePath);
+            const win = sideChosen === flipResult;
+            const payout = win ? bet : -bet;
+            const newBalance = Number(user.balance) + payout;
+            await db.query('UPDATE users SET balance = ? WHERE userid = ?', [newBalance, interaction.member.id]);
+            const embed = new EmbedBuilder()
+                .setTitle(win ? '🪙 You Won!' : '🪙 You Lost!')
+                .setColor(win ? 'Green' : 'Red')
+                .setThumbnail(`attachment://${flipResult}.png`) 
+                .setDescription([
+                    `The coin landed on: **${flipResult.toUpperCase()}**`,
+                    `You chose: **${sideChosen.toUpperCase()}**`,
+                    '',
+                    win ? `**Profit:** +${bet} 💵` : `**Loss:** -${bet} 💵`,
+                    `**New Balance:** ${numtoemo(newBalance)} 💵`
+                ].join('\n'))
+                .setTimestamp();
+            await interaction.editReply({ embeds: [embed], files: [file] });
         } catch (error) {
-            interaction.editReply(`Please try the Command Again`);
-            console.log(`Error with /dig: ${error}`);
+            console.error(`Error with /coinflip: ${error}`);
+            interaction.editReply("Something went wrong with the coin toss!");
         }
     }
 
@@ -2006,18 +1975,12 @@ client.on('interactionCreate', async (interaction) => {
                 return;
             } try {
                 await interaction.deferReply();
-
                 try {
-                    // Using the object syntax is much safer and easier to read
                     const output = await ytdl("https://www.youtube.com/watch?v=nvKu0cRQNto", {
                         listFormats: true,
                         noWarnings: true
                     });
-
-                    // yt-dlp-exec returns a string for list-formats
-                    // Discord has a 2000 character limit, so we slice it just in case
                     const result = output.length > 1900 ? output.substring(0, 1900) + "..." : output;
-                    
                     await interaction.editReply("```\n" + result + "\n```");
                 } catch(error) {
                     console.error(error);
