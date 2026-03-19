@@ -359,7 +359,7 @@ async function runHiLow(interaction, choice) {
 }
 
 // Rock/Paper/Scissors Function
-async function runRPS(interaction, playerChoice) {
+async function runRPS(interaction, choice) {
     await interaction.deferReply();
     const userId = interaction.member.id;
     const bet = interaction.options.getNumber('bet-amount');
@@ -377,16 +377,16 @@ async function runRPS(interaction, playerChoice) {
         const choices = ['rock', 'paper', 'scissors'];
         const botChoice = choices[Math.floor(Math.random() * 3)];
         let result, payout, color;
-        if (playerChoice === botChoice) {
+        if (choice === botChoice) {
             result = "It's a tie!";
             payout = 0;
             color = 'Yellow';
-        } else if (gameData[playerChoice].beats === botChoice) {
-            result = `Win! ${gameData[playerChoice].emoji} beats ${gameData[botChoice].emoji}`;
+        } else if (gameData[choice].beats === botChoice) {
+            result = `Win! ${gameData[choice].emoji} beats ${gameData[botChoice].emoji}`;
             payout = bet;
             color = 'Green';
         } else {
-            result = `Lost! ${gameData[botChoice].emoji} beats ${gameData[playerChoice].emoji}`;
+            result = `Lost! ${gameData[botChoice].emoji} beats ${gameData[choice].emoji}`;
             payout = -bet;
             color = 'Red';
         }
@@ -396,7 +396,7 @@ async function runRPS(interaction, playerChoice) {
             .setTitle('Rock Paper Scissors')
             .setColor(color)
             .setDescription([
-                `You: **${gameData[playerChoice].emoji}** vs Bot: **${gameData[botChoice].emoji}**`,
+                `You: **${gameData[choice].emoji}** vs Bot: **${gameData[botChoice].emoji}**`,
                 `**${result}**`,
                 `Result: **${payout >= 0 ? '+' : ''}${payout} 💵**`,
                 `New Balance: ${numtoemo(updatedUser[0].balance)} 💵`
@@ -752,6 +752,19 @@ const commands = [
         ]
     },
     {
+        name: 'crash',
+        description: 'Play a Game of crash',
+        options: [
+            {
+                name: 'bet-amount',
+                description: 'Choose how much to bet',
+                type: ApplicationCommandOptionType.Number,
+                min_value: 1,
+                required: true
+            }
+        ]
+    },
+    {
         name: 'high',
         description: 'Play a Game of High/Low',
         options: [
@@ -997,7 +1010,7 @@ client.on('interactionCreate', async (interaction) => {
                 "### 🎲 Games\n" +
                 "`/blackjack` • `/slots` • `/roulette`\n" +
                 "`/coinflip` • `/rock/paper/scissors` • `/towers`\n" +
-                "`/high/low`"
+                "`/high/low` • `/crash`"
             );
         interaction.reply({ embeds: [embed] });
     }
@@ -1221,16 +1234,7 @@ client.on('interactionCreate', async (interaction) => {
         try {
             await interaction.deferReply();
             const targetUser = interaction.options.getUser('user') || interaction.user;
-            const isSelf = targetUser.id === interaction.user.id;
-            const [[user]] = await db.query("SELECT * FROM users WHERE userid = ?", [targetUser.id]);
-            if (!user) {
-                if (!isSelf) return interaction.editReply("That user hasn't interacted yet!");
-                const yesterday1 = new Date();
-                yesterday.setDate(yesterday1.getDate() - 1);
-                const yesterday = yesterday1.toDateString(); 
-                await db.query('INSERT INTO users VALUES(?, ?, ?, ?, ?)', [targetUser.id, 25000, yesterday, 0, 1]);
-                user = { level: 1, xp: 0 }; 
-            }
+            let user = getuser(targetUser);
             const [[rankData]] = await db.query(
                 `SELECT COUNT(*) + 1 AS \`rank\` FROM users 
                 WHERE (level > ?) OR (level = ? AND xp > ?)`, 
@@ -1680,6 +1684,71 @@ client.on('interactionCreate', async (interaction) => {
             await interaction.editReply({ embeds: [finalEmbed] });
             await gameMessage.reactions.removeAll().catch(() => null);
         });
+    }
+
+    if (interaction.commandName === "crash") {
+        await interaction.deferReply();
+        const userId = interaction.member.id;
+        const bet = interaction.options.getNumber('bet-amount');
+        const [userRows] = await db.query("SELECT balance FROM users WHERE userid = ?", [userId]);
+        if (!userRows || userRows.balance < bet) {
+            return interaction.editReply(`You don't have enough! Balance: ${numtoemo(userRows?.balance || 0)} 💵`);
+        }
+        let currentMultiplier = 1.00;
+        const crashPoint = (0.99 / (1 - Math.random())).toFixed(2);
+        let gameEnded = false;
+        let cashedOut = false;
+        const cashOutBtn = new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId('cashout').setLabel('🚀 CASH OUT').setStyle(ButtonStyle.Success)
+        );
+        const generateEmbed = (status, color) => {
+            const progress = Math.min(Math.floor((currentMultiplier / 5) * 20), 20);
+            const bar = '🟩'.repeat(progress) + '⬜'.repeat(20 - progress);
+            return new EmbedBuilder()
+                .setTitle('💫 CRASH GAME')
+                .setColor(color)
+                .addFields(
+                    { name: 'Bet Amount', value: `\`${bet.toLocaleString()}\``, inline: true },
+                    { name: 'Multiplier', value: `\`${currentMultiplier.toFixed(2)}x\``, inline: true },
+                    { name: 'Profit', value: `\`+${Math.floor(bet * currentMultiplier - bet).toLocaleString()}\``, inline: true },
+                    { name: 'Final Progress', value: `\`${bar}\`` }
+                )
+                .setDescription(status);
+        };
+        const msg = await interaction.editReply({ 
+            embeds: [generateEmbed('🚀 Rocket is flying...', 'Yellow')], 
+            components: [cashOutBtn] 
+        });
+        const collector = msg.createMessageComponentCollector({ time: 60000 });
+        collector.on('collect', async i => {
+            if (i.user.id !== userId) return i.reply({ content: "This isn't your game!", flags: [MessageFlags.Ephemeral] });
+            if (i.customId === 'cashout' && !gameEnded) {
+                cashedOut = true;
+                gameEnded = true;
+                const profit = Math.floor(bet * currentMultiplier - bet);
+                await db.query('UPDATE users SET balance = balance + ? WHERE userid = ?', [profit, userId]);
+                await i.update({ 
+                    embeds: [generateEmbed(`💰 **CASHED OUT!**\nYou won **${profit.toLocaleString()}** 💵`, 'Green')], 
+                    components: [] 
+                });
+                collector.stop();
+            }
+        });
+        const gameLoop = setInterval(async () => {
+            if (cashedOut) return clearInterval(gameLoop);
+            currentMultiplier += 0.10 + (currentMultiplier * 0.05);
+            if (currentMultiplier >= crashPoint) {
+                gameEnded = true;
+                clearInterval(gameLoop);
+                collector.stop();
+                await db.query('UPDATE users SET balance = balance - ? WHERE userid = ?', [bet, userId]);
+                return interaction.editReply({ 
+                    embeds: [generateEmbed(`💥 **ROCKET CRASHED!**\nYou lost **${bet.toLocaleString()}** 💵\nCrash Point: **${crashPoint}x**`, 'Red')], 
+                    components: [] 
+                });
+            }
+            await interaction.editReply({ embeds: [generateEmbed('🚀 Rocket is flying...', 'Yellow')] }).catch(() => clearInterval(gameLoop));
+        }, 1500);
     }
 
     if (interaction.commandName === "ai") {
