@@ -256,6 +256,7 @@ function getRandomNumber(x, y) {
 
 // Turn  Numbers to Emojis
 function numtoemo(number) {
+    if (number === undefined || number === null) return "0️⃣"; 
     const emojiMap = {'0': '0️⃣', '1': '1️⃣', '2': '2️⃣', '3': '3️⃣', '4': '4️⃣', '5': '5️⃣', '6': '6️⃣', '7': '7️⃣', '8': '8️⃣', '9': '9️⃣'};
     return number.toString().replace(/\d/g, digit => emojiMap[digit]);
 }
@@ -604,6 +605,19 @@ const commands = [
         ]
     },
     {
+        name: "baccarat",
+        description: 'Play a Game of Baccarat',
+        options: [
+            {
+                name: 'bet-amount',
+                description: 'Choose how much to bet (if you havent already started a Game)',
+                type: ApplicationCommandOptionType.Number,
+                required: true,
+                min_value: 1
+            }
+        ]
+    },
+    {
         name: "blackjack",
         description: 'Play a Game of Blackjack',
         options: [
@@ -761,6 +775,51 @@ const commands = [
                 type: ApplicationCommandOptionType.Number,
                 min_value: 1,
                 required: true
+            }
+        ]
+    },
+    {
+        name: 'dice',
+        description: 'Play a Game of crash',
+        options: [
+            {
+                name: 'bet-amount',
+                description: 'Choose how much to bet',
+                type: ApplicationCommandOptionType.Number,
+                min_value: 1,
+                required: true
+            },
+            {
+                name: 'guess',
+                description: 'Choose how much to bet',
+                type: ApplicationCommandOptionType.Number,
+                required: true,
+                choices: [
+                    { 
+                        name: '1', 
+                        value: '1'
+                    },
+                    { 
+                        name: '2', 
+                        value: '2' 
+                    },
+                    { 
+                        name: '3', 
+                        value: '3' 
+                    },
+                    { 
+                        name: '4', 
+                        value: '4' 
+                    },
+                    { 
+                        name: '5', 
+                        value: '5' 
+                    },
+                    { 
+                        name: '6', 
+                        value: '6' 
+                    }
+                ]
             }
         ]
     },
@@ -1010,7 +1069,8 @@ client.on('interactionCreate', async (interaction) => {
                 "### 🎲 Games\n" +
                 "`/blackjack` • `/slots` • `/roulette`\n" +
                 "`/coinflip` • `/rock/paper/scissors` • `/towers`\n" +
-                "`/high/low` • `/crash`"
+                "`/high/low` • `/crash` • `/dice`\n" +
+                "`/baccarat"
             );
         interaction.reply({ embeds: [embed] });
     }
@@ -1026,7 +1086,7 @@ client.on('interactionCreate', async (interaction) => {
         try {
             await interaction.deferReply();
             const targetUser = interaction.options.getUser('user') || interaction.user;
-            let user = getuser(interaction.member.id);
+            let user = await getuser(interaction.member.id);
             const balanceEmbed = new EmbedBuilder()
                 .setAuthor({ 
                     name: `${targetUser.username}'s Wallet`, 
@@ -1060,23 +1120,14 @@ client.on('interactionCreate', async (interaction) => {
             const amount = interaction.options.getNumber('amount');
             const targetUser = interaction.options.getUser('user');
             if (targetUser.id === interaction.user.id) return interaction.editReply("You can't give money to yourself!");
-            const [[sender]] = await db.query("SELECT * FROM users WHERE userid = ?", [interaction.member.id]);
-            const [[receiver]] = await db.query("SELECT * FROM users WHERE userid = ?", [targetUser.id]);
-            if (!sender || sender.balance < amount) {
+            let sender = await getuser(interaction.member.id);
+            let receiver = await getuser(targetUser.id);
+            if (sender.balance < amount) {
                 return interaction.editReply(`You don't have enough! Balance: **${numtoemo(sender?.balance || 0)}** 💵`);
             }
             const newSenderBalance = Number(sender.balance) - amount;
-            let newReceiverBalance;
-            if (!receiver) {
-                newReceiverBalance = amount;
-                const yesterday = new Date();
-                yesterday.setDate(yesterday.getDate() - 1);
-                const yesterdayString = yesterday.toDateString(); 
-                await db.query('INSERT INTO users VALUES(?, ?, ?, ?, ?)', [targetUser.id, amount, yesterdayString, 0, 1]);
-            } else {
-                newReceiverBalance = Number(receiver.balance) + amount;
-                await db.query('UPDATE users SET balance = ? WHERE userid = ?', [newReceiverBalance, targetUser.id]);
-            }
+            let newReceiverBalance = Number(receiver.balance) + amount;
+            await db.query('UPDATE users SET balance = ? WHERE userid = ?', [newReceiverBalance, targetUser.id]);
             await db.query('UPDATE users SET balance = ? WHERE userid = ?', [newSenderBalance, interaction.member.id]);
             const successEmbed = new EmbedBuilder()
                 .setTitle('💸 Transfer Successful')
@@ -1113,7 +1164,7 @@ client.on('interactionCreate', async (interaction) => {
         }
         try {
             await interaction.deferReply();
-            let user = getuser(interaction.member.id);
+            let user = await getuser(interaction.member.id);
             const bet = interaction.options.getNumber('bet-amount');
             const sideChosen = interaction.options.getString('side');
             if (user.balance < bet) {
@@ -1156,7 +1207,7 @@ client.on('interactionCreate', async (interaction) => {
         try {
             await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
             const [[cooldown]] = await db.query("SELECT * FROM cooldown WHERE userid = ? AND command = 'dig'", [interaction.member.id]);
-            let currentUser = getuser(interaction.member.id);
+            let currentUser = await getuser(interaction.member.id);
             const now = Date.now();
             if (cooldown && now < cooldown.endsAt) {
                 const timeLeft = Math.round((cooldown.endsAt - now) / 1000);
@@ -1206,7 +1257,7 @@ client.on('interactionCreate', async (interaction) => {
             await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
             const currentDate = new Date().toDateString();
             const dailyAmount = 25000;
-            let user = getuser(interaction.member.id);
+            let user = await getuser(interaction.member.id);
             if (user.daily === currentDate) {
                 const waitEmbed = new EmbedBuilder()
                     .setTitle('⏳ Already Claimed')
@@ -1234,7 +1285,7 @@ client.on('interactionCreate', async (interaction) => {
         try {
             await interaction.deferReply();
             const targetUser = interaction.options.getUser('user') || interaction.user;
-            let user = getuser(targetUser);
+            let user = await getuser(targetUser);
             const [[rankData]] = await db.query(
                 `SELECT COUNT(*) + 1 AS \`rank\` FROM users 
                 WHERE (level > ?) OR (level = ? AND xp > ?)`, 
@@ -1346,7 +1397,7 @@ client.on('interactionCreate', async (interaction) => {
         }
         try {
             await interaction.deferReply();
-            let user = getuser(interaction.member.id);
+            let user = await getuser(interaction.member.id);
             const bet = interaction.options.getInteger('bet');
             const redChoice = interaction.options.getInteger('red');
             const blackChoice = interaction.options.getInteger('black');
@@ -1400,7 +1451,7 @@ client.on('interactionCreate', async (interaction) => {
         }
         try {
             await interaction.deferReply();
-            let user = getuser(interaction.member.id);
+            let user = await getuser(interaction.member.id);
             const bet = interaction.options.getNumber('bet-amount');
             const game = interaction.options.getNumber('game');
             if (!bet || bet < 1) return interaction.editReply("You must bet at least 1 💵.");
@@ -1438,7 +1489,7 @@ client.on('interactionCreate', async (interaction) => {
             await interaction.deferReply();
             const bet = interaction.options.getNumber('bet-amount');
             const hl = interaction.options.getNumber('higher-lower');
-            let user = getuser(interaction.member.id);
+            let user = await getuser(interaction.member.id);
             const targetNumber = getRandomNumber(1, 999);
             const raNumber = getRandomNumber(1, 1000);
             let winChance = (hl === 1) ? (1000 - targetNumber) / 10 : targetNumber / 10;
@@ -1505,7 +1556,7 @@ client.on('interactionCreate', async (interaction) => {
         await interaction.deferReply();
         const result = await db.query("SELECT * FROM towers WHERE userid = ?", [interaction.member.id]);
         const game = result[0][0];
-        let user = getuser(interaction.member.id);
+        let user = await getuser(interaction.member.id);
         if (!game) {
             await db.query('INSERT INTO towers VALUES(?, 0, 0, 1, 1, 1, 1, 1)', [userId]);
             game = { userid: interaction.member.id, status: 0, bet: 0, item1: 1, item2: 1, item3: 1, item4: 1, item5: 1 };
@@ -1589,7 +1640,7 @@ client.on('interactionCreate', async (interaction) => {
             });
         }
         await interaction.deferReply();
-        let user = getuser(interaction.member.id);
+        let user = await getuser(interaction.member.id);
         const bet = interaction.options.getNumber('bet-amount');
         if (!bet || bet < 1) return interaction.editReply("Enter a valid bet.");
         if (Number(user.balance) < bet) return interaction.editReply(`Low balance: ${user.balance}💵`);
@@ -1749,6 +1800,100 @@ client.on('interactionCreate', async (interaction) => {
             }
             await interaction.editReply({ embeds: [generateEmbed('🚀 Rocket is flying...', 'Yellow')] }).catch(() => clearInterval(gameLoop));
         }, 1500);
+    }
+
+    if (interaction.commandName === "dice") {
+        await interaction.deferReply();
+        const userId = interaction.member.id;
+        const bet = interaction.options.getNumber('bet-amount');
+        const guess = interaction.options.getNumber('guess');
+        try {
+            const [userRows] = await db.query("SELECT balance FROM users WHERE userid = ?", [userId]);
+            if (!userRows || userRows.balance < bet) {
+                return interaction.editReply(`You don't have enough! Balance: ${numtoemo(userRows?.balance || 0)} 💵`);
+            }
+            const roll = Math.floor(Math.random() * 5) + 1;
+            const didWin = (roll === guess);
+            const payout = didWin ? (bet * 4) : -bet; 
+            const totalWinAmount = bet * 5;
+            await db.query('UPDATE users SET balance = balance + ? WHERE userid = ?', [payout, userId]);
+            const embed = new EmbedBuilder()
+                .setTitle(didWin ? '🎲 Dice - Winner!!' : '🎲 Dice - Better Luck Next Time')
+                .setColor(didWin ? '#2ecc71' : '#e74c3c')
+                .setDescription([
+                    `<@${userId}> rolled the dice, hoping for **${guess}**...`,
+                    '',
+                    didWin 
+                        ? `*The dice landed perfectly on **${roll}**!*` 
+                        : `*The dice landed on **${roll}**. So close!*`,
+                    '',
+                    didWin 
+                        ? `Their perfect match earned them **$${totalWinAmount.toLocaleString()}** ✨`
+                        : `Better luck next time, you lost **$${bet.toLocaleString()}** 💵`,
+                ].join('\n'));
+            await interaction.editReply({ embeds: [embed] });
+        } catch (error) {
+            console.error(error);
+            interaction.editReply("Something went wrong with the dice roll.");
+        }
+    }
+
+    if (interaction.commandName === "baccarat") {
+        await interaction.deferReply();
+        const bet = interaction.options.getNumber('bet-amount');
+        const user = getuser(interaction.member.id);
+        if (user.balance < bet) {
+            return interaction.editReply(`Insufficient funds! Balance: ${numtoemo(user.balance)} 💵`);
+        }
+        const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId('player').setLabel('👤 Player (1:1)').setStyle(ButtonStyle.Primary),
+            new ButtonBuilder().setCustomId('banker').setLabel('🏦 Banker (1:0.95)').setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder().setCustomId('tie').setLabel('👔 Tie (8:1)').setStyle(ButtonStyle.Success)
+        );
+        const embed = new EmbedBuilder()
+            .setTitle('🃏 Baccarat Table')
+            .setColor('Blue')
+            .setDescription(`Place your bet of **${bet.toLocaleString()} 💵** on who will win!`)
+            .setFooter({ text: 'Tens/Faces = 0 | Closest to 9 wins' });
+        const msg = await interaction.editReply({ embeds: [embed], components: [row] });
+        const collector = msg.createMessageComponentCollector({ time: 30000 });
+        collector.on('collect', async i => {
+            if (i.user.id !== interaction.member.id) return i.reply({ content: "Start your own game!", flags: [MessageFlags.Ephemeral] });
+            await i.deferUpdate();
+            const choice = i.customId;
+            const pHand = [Math.floor(Math.random() * 10), Math.floor(Math.random() * 10)];
+            const bHand = [Math.floor(Math.random() * 10), Math.floor(Math.random() * 10)];
+            const pScore = (pHand[0] + pHand[1]) % 10;
+            const bScore = (bHand[0] + bHand[1]) % 10;
+            let result = '';
+            let payout = -bet;
+            let color = 'Red';
+            if (pScore > bScore) {
+                result = 'player';
+                if (choice === 'player') { payout = bet; color = 'Green'; }
+            } else if (bScore > pScore) {
+                result = 'banker';
+                if (choice === 'banker') { payout = Math.floor(bet * 0.95); color = 'Green'; }
+            } else {
+                result = 'tie';
+                if (choice === 'tie') { payout = bet * 8; color = 'Green'; }
+            }
+            await db.query('UPDATE users SET balance = balance + ? WHERE userid = ?', [payout, interaction.member.id]);
+            const [rows] = await db.query("SELECT balance FROM users WHERE userid = ?", [interaction.member.id]);
+            const freshBalance = rows[0].balance; 
+            const resultEmbed = new EmbedBuilder()
+                .setTitle(payout >= 0 ? '💰 Winner!' : '💀 House Wins')
+                .setColor(color)
+                .addFields(
+                    { name: 'Player Hand', value: `\`${pHand.join(' | ')}\` (Total: **${pScore}**)`, inline: true },
+                    { name: 'Banker Hand', value: `\`${bHand.join(' | ')}\` (Total: **${bScore}**)`, inline: true },
+                    { name: 'Your Bet', value: `**${bet}**`, inline: false },
+                    { name: 'Result', value: `**${payout >= 0 ? '+' : ''}${payout.toLocaleString()} 💵**` },
+                    { name: 'New Balance', value: `${numtoemo(freshBalance)} 💵` }
+                );
+            await interaction.editReply({ embeds: [resultEmbed], components: [] });
+            collector.stop();
+        });
     }
 
     if (interaction.commandName === "ai") {
