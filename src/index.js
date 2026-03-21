@@ -1,4 +1,3 @@
-// Required Imports
 require('dotenv').config();
 const { REST, Routes, ActionRowBuilder, MessageFlags, ButtonBuilder, ButtonStyle, ComponentType, ActivityType, ApplicationCommandOptionType, Client, GatewayIntentBits, IntentsBitField, EmbedBuilder, AttachmentBuilder, Events } = require('discord.js');
 const { VoiceConnectionStatus, joinVoiceChannel, createAudioPlayer, createAudioResource, getVoiceConnection, StreamType, AudioPlayerStatus, NoSubscriberBehavior } = require('@discordjs/voice');
@@ -1025,17 +1024,17 @@ let status = [
     {
         name: 'Porn',
         type: ActivityType.Streaming,
-        link: "https://www.twitch.tv/itsinhaleyo"
+        url: "https://www.twitch.tv/itsinhaleyo"
     },
     {
         name: 'Meth Cooking',
         type: ActivityType.Streaming,
-        link: "https://www.twitch.tv/itsinhaleyo"
+        url: "https://www.twitch.tv/itsinhaleyo"
     },
     {
         name: 'My Suicide',
         type: ActivityType.Streaming,
-        link: "https://www.twitch.tv/itsinhaleyo"
+        url: "https://www.twitch.tv/itsinhaleyo"
     }
 ]
 
@@ -1503,6 +1502,7 @@ client.on('interactionCreate', async (interaction) => {
             const bet = interaction.options.getNumber('bet-amount');
             const hl = interaction.options.getNumber('higher-lower');
             let user = await getuser(interaction.member.id);
+            if (user.balance < bet) return interaction.editReply(`You don't have enough! Balance: ${numtoemo(user.balance)} 💵`);
             const targetNumber = getRandomNumber(1, 999);
             const raNumber = getRandomNumber(1, 1000);
             let winChance = (hl === 1) ? (1000 - targetNumber) / 10 : targetNumber / 10;
@@ -1820,6 +1820,9 @@ client.on('interactionCreate', async (interaction) => {
         const guess = interaction.options.getNumber('guess');
         try {
             let user = await getuser(interaction.member.id);
+            if (user.balance < bet) {
+                return interaction.editReply(`Insufficient funds! Balance: ${numtoemo(user.balance)} 💵`);
+            }
             const roll = Math.floor(Math.random() * 5) + 1;
             const didWin = (roll === guess);
             const payout = didWin ? (bet * 4) : -bet; 
@@ -1907,6 +1910,9 @@ client.on('interactionCreate', async (interaction) => {
         await interaction.deferReply();
         const bet = interaction.options.getNumber('bet-amount');
         const user = await getuser(interaction.member.id);
+        if (user.balance < bet) {
+            return interaction.editReply(`Insufficient funds! Balance: ${numtoemo(user.balance)} 💵`);
+        }
         const multipliers = [10, 4, 2, 1.2, 0.5, 0.5, 1.2, 2, 4, 10];
         const rows = 10;
         let ballPos = 5; 
@@ -2205,6 +2211,7 @@ client.on('messageCreate', async (message) => {
     if (message.content.includes("x.com") || message.content.includes("twitter.com")) {
         if (message.author.bot) return;
         try {
+            if (message.content.includes("fxtwitter.com")) return;
             let replacement = message.content
                 .replace("x.com", "fixupx.com")
                 .replace("twitter.com", "fxtwitter.com");
