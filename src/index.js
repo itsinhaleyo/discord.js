@@ -8,6 +8,7 @@ const { GoogleGenAI } = require("@google/genai");
 const ytdl = require('youtube-dl-exec');
 const fetch = require('isomorphic-unfetch');
 const { getData, getTracks } = require('spotify-url-info')(fetch);
+const { MusicCard } = require("./handlers/MusicCard.js");
 const fs = require('fs');
 const path = require('path');
 const util = require('util');
@@ -1363,11 +1364,6 @@ client.on('interactionCreate', async (interaction) => {
                 };
             }));
             const lb = new LeaderboardBuilder()
-                .setHeader({
-                    title: subcommand === 'money' ? "Wealthiest Players" : "Top Ranked Players",
-                    subtitle: `Top 10 in ${interaction.guild.name}`,
-                    image: interaction.guild.iconURL({ extension: "png" }) || ""
-                })
                 .setPlayers(players)
                 .setVariant("default")
                 .setTextStyles({
@@ -2188,14 +2184,13 @@ client.on('interactionCreate', async (interaction) => {
                     const card = new MusicCard()
                         .setAuthor("JVKE")
                         .setTitle("Golden Hour")
-                        .setImage(
-                            "https://lh3.googleusercontent.com/i1qCCS4BbP6z11E08FkQg6fN-83Uj4fQg4bmBsD2E6SvGQ3RW7nXxpQ3hmcSlI5Ipek10H7R4BjV5mAY=w544-h544-l90-rj"
-                        )
+                        .setImage("https://lh3.googleusercontent.com/i1qCCS4BbP6z11E08FkQg6fN-83Uj4fQg4bmBsD2E6SvGQ3RW7nXxpQ3hmcSlI5Ipek10H7R4BjV5mAY=w544-h544-l90-rj")
                         .setProgress(39)
                         .setCurrentTime("01:58")
                         .setTotalTime("02:59");
                     const image = await card.build();
-                    await interaction.editReply({image});
+                    const attachment = new AttachmentBuilder(image, { name: 'music-card.png' });
+                    await interaction.editReply({ files: [attachment] });
                 } catch(error) {
                     console.error(error);
                     await interaction.editReply(`Error running test:\n\`\`\`${error.message}\`\`\``);
