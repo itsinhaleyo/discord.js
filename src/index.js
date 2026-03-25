@@ -18,13 +18,17 @@ const songsDir = path.join(__dirname, 'songs');
 const musictimers = new Map();
 const musicqueues = new Map();
 
-function createProgressBar(currentMs, totalMs, size = 15) {
-    if (!totalMs || totalMs <= 0) return "▱".repeat(size) + " `[0%]`";
-    const progress = Math.min(currentMs / totalMs, 1);
-    const progressIndex = Math.round(size * progress);
-    const bar = "▰".repeat(progressIndex) + "▱".repeat(size - progressIndex);
-    const percentage = Math.round(progress * 100);
-    return `**${bar}** \`[${percentage}%]\``;
+async function createMusicCardImage(song, serverQueue, totalMs) {
+    const progress = Math.min(Math.round((serverQueue.currentTimestamp / totalMs) * 100), 100);
+    const card = new MusicCard()
+        .setAuthor(song.author)
+        .setTitle(song.displayTitle || song.title)
+        .setImage(song.thumbnail)
+        .setProgress(progress)
+        .setCurrentTime(formatTime(serverQueue.currentTimestamp))
+        .setTotalTime(formatTime(totalMs));
+    const buffer = await card.build();
+    return new AttachmentBuilder(buffer, { name: `card.png` });
 }
 
 async function playSong(guildId) {
@@ -90,26 +94,34 @@ async function playSong(guildId) {
         } else {
             output = { title: song.title, duration: 0, thumbnail: null };
         }
-        const videoTitle = output.title || song.title;
         const totalMs = (output.duration || song.duration || 0) * 1000;
-        const generateEmbed = () => {
+        let thumb = output.thumbnail || (output.thumbnails && output.thumbnails[0]?.url) || song.thumbnail;
+        if (thumb && typeof thumb === 'string') {
+            thumb = thumb.replace(/\.webp($|\?)/, '.jpg$1');
+            if (thumb.includes('?')) {
+                thumb = thumb.split('?')[0];
+            }
+        }
+        song.thumbnail = thumb || "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=";
+        const videoAuthor = output.uploader || output.channel || output.artist || song.author || "Unknown Artist";
+        song.author = videoAuthor;
+        const attachment = await createMusicCardImage(song, serverQueue, totalMs);
+        const generateEmbed = (attachment) => {
             const start = 1 + (serverQueue.page * 5);
             const upcoming = serverQueue.songs.slice(start, start + 5);
-            const queueList = upcoming.length > 0 ? upcoming.map((s, i) => `\`${start + i}.\` ${s.title}`).join('\n') : "No more songs.";
-            const currentRes = serverQueue.player.state.resource;
-            const volPercent = currentRes && currentRes.volume ? Math.round(currentRes.volume.volume * 100) : 100;
-            const volIcon = volPercent === 0 ? "🔇" : volPercent < 50 ? "🔉" : "🔊";
+            const queueList = upcoming.length > 0 
+                ? upcoming.map((s, i) => `\`${start + i}.\` ${s.title}`).join('\n') 
+                : "No more songs in queue.";
             return new EmbedBuilder()
-                .setTitle("Now Playing 🎶")
-                .setDescription(`**[${song.displayTitle || videoTitle}](${song.url})**\n${createProgressBar(serverQueue.currentTimestamp, totalMs)}`)
-                .setThumbnail(output.thumbnail || null)
+                .setImage('attachment://card.png') 
                 .addFields(
-                    { name: 'Duration', value: `\`${formatTime(serverQueue.currentTimestamp)} / ${formatTime(totalMs)}\``, inline: true },
-                    { name: 'Volume', value: `${volIcon} \`${volPercent}%\``, inline: true },
-                    { name: 'Queue Size', value: `${serverQueue.songs.length} songs`, inline: true },
+                    { name: 'Queue Size', value: `\`${serverQueue.songs.length} songs\``, inline: true },
+                    { name: 'Volume', value: `\`${Math.round((serverQueue.player.state.resource?.volume?.volume || 1) * 100)}%\``, inline: true },
                     { name: `Upcoming (Page ${serverQueue.page + 1}):`, value: queueList }
-                ).setColor("#00ff00");
+                )
+                .setColor("#9333EA");
         };
+        const embed = generateEmbed(attachment);
         const musicRow = new ActionRowBuilder().addComponents(
             new ButtonBuilder().setCustomId('pause_resume').setLabel('⏸️/▶️').setStyle(ButtonStyle.Primary),
             new ButtonBuilder().setCustomId('skip_song').setLabel('⏭️').setStyle(ButtonStyle.Secondary),
@@ -121,7 +133,7 @@ async function playSong(guildId) {
             new ButtonBuilder().setCustomId('vol_up').setLabel('🔊⬆️').setStyle(ButtonStyle.Secondary),
             new ButtonBuilder().setCustomId('vol_down').setLabel('🔉⬇️').setStyle(ButtonStyle.Secondary),
         );
-        const sentMessage = await serverQueue.textChannel.send({ embeds: [generateEmbed()], components: [musicRow, navRow] });
+        const sentMessage = await serverQueue.textChannel.send({ embeds: [embed], files: [attachment], components: [musicRow, navRow] });
         serverQueue.lastMessage = sentMessage;
         const resource = createAudioResource(filePath, { 
             inputType: StreamType.Arbitrary, 
@@ -177,13 +189,20 @@ async function playSong(guildId) {
         });
         serverQueue.player.once(AudioPlayerStatus.Playing, () => {
             const timer = setInterval(async () => {
-                if (serverQueue.player.state.status === AudioPlayerStatus.Playing) {
-                    serverQueue.currentTimestamp += 1000;
-                    if (serverQueue.currentTimestamp % 1000 === 0 && serverQueue.lastMessage) {
-                        await serverQueue.lastMessage.edit({ embeds: [generateEmbed()] }).catch(() => {});
-                    }
-                } else { clearInterval(timer); }
-            }, 1000);
+            if (serverQueue.player.state.status === AudioPlayerStatus.Playing) {
+                serverQueue.currentTimestamp += 1000;
+                if (serverQueue.currentTimestamp % 10000 === 0 && serverQueue.lastMessage) {
+                const newAttachment = await createMusicCardImage(song, serverQueue, totalMs);
+                const newEmbed = generateEmbed(newAttachment);
+                await serverQueue.lastMessage.edit({ 
+                    embeds: [newEmbed], 
+                    files: [newAttachment] 
+                }).catch(() => {});
+            }
+            } else { 
+                clearInterval(timer); 
+            }
+        }, 1000);
         });
         serverQueue.player.once(AudioPlayerStatus.Idle, () => {
             if (serverQueue.currentTimestamp < 1000 && !serverQueue.isSkipping) {

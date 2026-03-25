@@ -46,9 +46,18 @@ class MusicCard extends Builder {
   async render() {
     const { author, currentTime, image, progress, title, totalTime } =
       this.options.getOptions();
-    
-    const art = await loadImage(image);
+    const fallback = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=";
 
+    let art;
+    try {
+        if (!image || typeof image !== 'string' || image.length < 10) {
+            throw new Error("Invalid URL");
+        }
+        art = await loadImage(image);
+    } catch (err) {
+        console.warn(`[MusicCard] Failed to load: ${image}. Using fallback.`);
+        art = await loadImage(fallback);
+    }
     return JSX.createElement(
       "div",
       {
