@@ -1,13 +1,13 @@
-const { Client, Message, AttachmentBuilder } = require('discord.js');
-const canvacord = require('canvacord');
+const { AttachmentBuilder } = require('discord.js');
+const { RankCardBuilder, Font } = require("canvacord");
 const db = require('../../database/db');
 const cooldowns = new Set();
+Font.loadDefault();
 
 function getRandomXp() {
     return Math.floor(Math.random() * (20 - 5 + 1)) + 5;
 }
 
-// Turn  Numbers to Emojis
 function numtoemo(number) {
     const emojiMap = {'0': '0️⃣', '1': '1️⃣', '2': '2️⃣', '3': '3️⃣', '4': '4️⃣', '5': '5️⃣', '6': '6️⃣', '7': '7️⃣', '8': '8️⃣', '9': '9️⃣'};
     return number.toString().replace(/\d/g, digit => emojiMap[digit]);
@@ -22,11 +22,10 @@ module.exports = async (client, message) => {
         let user = rows[0];
         if (user) {
             let newXp = Number(user.xp) + xpToGive;
-            let neededXp = 100 * Number(user.level);
-            if (newXp >= neededXp) {
+            if (newXp >= (100 * Number(user.level))) {
                 const newLevel = Number(user.level) + 1;
-                const xpLeft = newXp - neededXp;
-                const bonusBalance = Number(user.balance) + neededXp;
+                const xpLeft = newXp - (100 * Number(user.level));
+                const bonusBalance = Number(user.balance) + (100 * Number(user.level));
                 await db.query(
                     'UPDATE users SET level = ?, xp = ?, balance = ? WHERE userid = ?', 
                     [newLevel, xpLeft, bonusBalance, message.author.id]
@@ -36,19 +35,28 @@ module.exports = async (client, message) => {
                      WHERE (level > ?) OR (level = ? AND xp > ?)`, 
                     [newLevel, newLevel, xpLeft]
                 );
-                const rankCard = new canvacord.Rank()
+                const rankCard = new RankCardBuilder()
                     .setAvatar(message.author.displayAvatarURL({ size: 256, extension: 'png' }))
-                    .setRank(rankData.rank)
+                    .setRank(Number(rankData.rank))
                     .setLevel(newLevel)
                     .setCurrentXP(xpLeft)
                     .setRequiredXP(100 * newLevel)
-                    .setProgressBar('#00FF00', 'COLOR')
                     .setUsername(message.author.username)
-                    .setBackground("COLOR", "#23272A");
-                const data = await rankCard.build();
+                    .setDisplayName(message.member.displayName || message.author.username)
+                    .setBackground("#23272A")
+                    .setStyles({
+                        progressbar: {
+                            thumb: {
+                                style: {
+                                    backgroundColor: "#00FF00",
+                                },
+                            },
+                        },
+                    });
+                const data = await rankCard.build({ format: 'png' });
                 const attachment = new AttachmentBuilder(data, { name: 'levelup.png' });
                 message.channel.send({
-                    content: `🎉 Congratulations ${message.member}! You reached **Level ${newLevel}** and earned **${numtoemo(neededXp)}** 💵!`,
+                    content: `🎉 Congratulations ${message.member}! You reached **Level ${newLevel}** and earned **${numtoemo(100 * Number(user.level))}** 💵!`,
                     files: [attachment]
                 });
             } else {
@@ -56,7 +64,7 @@ module.exports = async (client, message) => {
             }
         } else {
             const currentDate = new Date().toDateString();
-            await db.query('INSERT INTO users VALUES(?, ?, ?, ?, ?)', [message.author.id, 25000, currentDate, xpToGive, 1]);
+            await db.query('INSERT INTO users (userid, balance, daily, xp, level) VALUES(?, ?, ?, ?, ?)', [message.author.id, 25000, currentDate, xpToGive, 1]);
         }
         cooldowns.add(message.author.id);
         setTimeout(() => cooldowns.delete(message.author.id), 10000);

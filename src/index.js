@@ -2,7 +2,8 @@ require('dotenv').config();
 const { REST, Routes, ActionRowBuilder, MessageFlags, ButtonBuilder, ButtonStyle, ComponentType, ActivityType, ApplicationCommandOptionType, Client, GatewayIntentBits, IntentsBitField, EmbedBuilder, AttachmentBuilder, Events } = require('discord.js');
 const { VoiceConnectionStatus, joinVoiceChannel, createAudioPlayer, createAudioResource, getVoiceConnection, StreamType, AudioPlayerStatus, NoSubscriberBehavior } = require('@discordjs/voice');
 const eventHandler = require('./handlers/eventHandler');
-const canvacord = require('canvacord');
+const { LeaderboardBuilder, RankCardBuilder, Font } = require('canvacord');
+Font.loadDefault();
 const { GoogleGenAI } = require("@google/genai");
 const ytdl = require('youtube-dl-exec');
 const fetch = require('isomorphic-unfetch');
@@ -15,6 +16,7 @@ const songsDir = path.join(__dirname, 'songs');
 //Audio Player
 const musictimers = new Map();
 const musicqueues = new Map();
+
 function createProgressBar(currentMs, totalMs, size = 15) {
     if (!totalMs || totalMs <= 0) return "▱".repeat(size) + " `[0%]`";
     const progress = Math.min(currentMs / totalMs, 1);
@@ -93,12 +95,16 @@ async function playSong(guildId) {
             const start = 1 + (serverQueue.page * 5);
             const upcoming = serverQueue.songs.slice(start, start + 5);
             const queueList = upcoming.length > 0 ? upcoming.map((s, i) => `\`${start + i}.\` ${s.title}`).join('\n') : "No more songs.";
+            const currentRes = serverQueue.player.state.resource;
+            const volPercent = currentRes && currentRes.volume ? Math.round(currentRes.volume.volume * 100) : 100;
+            const volIcon = volPercent === 0 ? "🔇" : volPercent < 50 ? "🔉" : "🔊";
             return new EmbedBuilder()
                 .setTitle("Now Playing 🎶")
                 .setDescription(`**[${song.displayTitle || videoTitle}](${song.url})**\n${createProgressBar(serverQueue.currentTimestamp, totalMs)}`)
                 .setThumbnail(output.thumbnail || null)
                 .addFields(
                     { name: 'Duration', value: `\`${formatTime(serverQueue.currentTimestamp)} / ${formatTime(totalMs)}\``, inline: true },
+                    { name: 'Volume', value: `${volIcon} \`${volPercent}%\``, inline: true },
                     { name: 'Queue Size', value: `${serverQueue.songs.length} songs`, inline: true },
                     { name: `Upcoming (Page ${serverQueue.page + 1}):`, value: queueList }
                 ).setColor("#00ff00");
@@ -172,7 +178,7 @@ async function playSong(guildId) {
             const timer = setInterval(async () => {
                 if (serverQueue.player.state.status === AudioPlayerStatus.Playing) {
                     serverQueue.currentTimestamp += 1000;
-                    if (serverQueue.currentTimestamp % 10000 === 0 && serverQueue.lastMessage) {
+                    if (serverQueue.currentTimestamp % 1000 === 0 && serverQueue.lastMessage) {
                         await serverQueue.lastMessage.edit({ embeds: [generateEmbed()] }).catch(() => {});
                     }
                 } else { clearInterval(timer); }
@@ -537,6 +543,7 @@ const commands = [
     { name: 'daily', description: 'Collect 25000 Daily' },
     { name: 'ping', description: 'Replies With the Bots Ping' },
     { name: 'queue', description: 'Displays the current music queue' },
+    { name: 'test', description: 'Test Functtion'},
     { 
         name: 'eval', 
         description: 'run a line of code',
@@ -1297,22 +1304,31 @@ client.on('interactionCreate', async (interaction) => {
         try {
             await interaction.deferReply();
             const targetUser = interaction.options.getUser('user') || interaction.user;
-            let user = await getuser(targetUser);
+            let user = await getuser(targetUser.id); 
             const [[rankData]] = await db.query(
                 `SELECT COUNT(*) + 1 AS \`rank\` FROM users 
                 WHERE (level > ?) OR (level = ? AND xp > ?)`, 
                 [user.level, user.level, user.xp]
             );
-            const rank = new canvacord.Rank()
+            const rank = new RankCardBuilder()
                 .setAvatar(targetUser.displayAvatarURL({ size: 256, extension: 'png' }))
-                .setRank(rankData.rank)
+                .setRank(Number(rankData.rank))
                 .setLevel(Number(user.level))
                 .setCurrentXP(Number(user.xp))
                 .setRequiredXP(100 * Number(user.level))
-                .setProgressBar('#FF0069', 'COLOR')
                 .setUsername(targetUser.username)
-                .setBackground("COLOR", "#23272A");
-            const data = await rank.build();
+                .setDisplayName(targetUser.globalName || targetUser.username)
+                .setBackground("#23272A")
+                .setStyles({
+                    progressbar: {
+                        thumb: {
+                            style: {
+                                backgroundColor: "#FF0069",
+                            },
+                        },
+                    },
+                });
+            const data = await rank.build({ format: 'png' });
             const attachment = new AttachmentBuilder(data, { name: 'rank.png' });
             await interaction.editReply({ files: [attachment] });
         } catch (error) {
@@ -1326,77 +1342,44 @@ client.on('interactionCreate', async (interaction) => {
             await interaction.deferReply();
             const subcommand = interaction.options.getSubcommand();
             const query = subcommand === 'money' 
-                ? "SELECT userid, balance FROM users ORDER BY balance DESC"
-                : "SELECT userid, level, xp FROM users ORDER BY level DESC, xp DESC";
+                ? "SELECT userid, balance as xp, level FROM users ORDER BY balance DESC LIMIT 10"
+                : "SELECT userid, level, xp FROM users ORDER BY level DESC, xp DESC LIMIT 10";
             const [allUsers] = await db.query(query);
             if (allUsers.length === 0) return interaction.editReply("No data found.");
-            let currentPage = 0;
-            const itemsPerPage = 10;
-            const totalPages = Math.ceil(allUsers.length / itemsPerPage);
-            const buildEmbed = async (page) => {
-                const start = page * itemsPerPage;
-                const end = start + itemsPerPage;
-                const pageUsers = allUsers.slice(start, end);
-                const lines = [];
-                for (let i = 0; i < pageUsers.length; i++) {
-                    const u = pageUsers[i];
-                    const rank = start + i + 1;
-                    let name = "Unknown";
-                    try {
-                        const fetched = await interaction.client.users.fetch(u.userid);
-                        name = fetched.username;
-                    } catch {}
-
-                    const val = subcommand === 'money' ? `${numtoemo(u.balance)} 💵` : `Lvl ${u.level} (${u.xp} XP)`;
-                    lines.push(`**${rank}.** ${name} • ${val}`);
+            const players = await Promise.all(allUsers.map(async (u, index) => {
+                let fetchedUser;
+                try {
+                    fetchedUser = await interaction.client.users.fetch(u.userid);
+                } catch {
+                    fetchedUser = { username: "Unknown", displayAvatarURL: () => "" };
                 }
-                return new EmbedBuilder()
-                    .setTitle(subcommand === 'money' ? "💰 Money Leaderboard" : "⭐ Rank Leaderboard")
-                    .setColor('Gold')
-                    .setDescription(lines.join('\n'))
-                    .setFooter({ text: `Page ${page + 1} of ${totalPages}` })
-                    .setTimestamp();
-            };
-            const getButtons = (page) => new ActionRowBuilder().addComponents(
-                new ButtonBuilder()
-                    .setCustomId('prev')
-                    .setLabel('Previous')
-                    .setStyle(ButtonStyle.Secondary)
-                    .setDisabled(page === 0),
-                new ButtonBuilder()
-                    .setCustomId('next')
-                    .setLabel('Next')
-                    .setStyle(ButtonStyle.Primary)
-                    .setDisabled(page === totalPages - 1)
-            );
-            const initialEmbed = await buildEmbed(currentPage);
-            const message = await interaction.editReply({ 
-                embeds: [initialEmbed], 
-                components: [getButtons(currentPage)] 
-            });
-            const collector = message.createMessageComponentCollector({ 
-                componentType: ComponentType.Button, 
-                time: 60000
-            });
-            collector.on('collect', async i => {
-                if (i.user.id !== interaction.user.id) {
-                    return i.reply({ content: "Run the command yourself to flip pages!", flags: [MessageFlags.Ephemeral] });
-                }
-                if (i.customId === 'prev') currentPage--;
-                if (i.customId === 'next') currentPage++;
-                await i.update({ 
-                    embeds: [await buildEmbed(currentPage)], 
-                    components: [getButtons(currentPage)] 
+                return {
+                    avatar: fetchedUser.displayAvatarURL({ extension: "png", size: 128 }),
+                    username: fetchedUser.username,
+                    displayName: fetchedUser.displayName || fetchedUser.username,
+                    level: subcommand === 'money' ? null : Number(u.level),
+                    xp: subcommand === 'money' ? Number(u.xp) : Number(u.xp),
+                    rank: index + 1,
+                };
+            }));
+            const lb = new LeaderboardBuilder()
+                .setHeader({
+                    title: subcommand === 'money' ? "Wealthiest Players" : "Top Ranked Players",
+                    subtitle: `Top 10 in ${interaction.guild.name}`,
+                    image: interaction.guild.iconURL({ extension: "png" }) || ""
+                })
+                .setPlayers(players)
+                .setVariant("default")
+                .setTextStyles({
+                    xp: subcommand === 'money' ? "" : "XP",
+                    level: subcommand === 'money' ? "" : "Level" 
                 });
-            });
-            collector.on('end', () => {
-                const disabledRow = getButtons(currentPage);
-                disabledRow.components.forEach(btn => btn.setDisabled(true));
-                interaction.editReply({ components: [disabledRow] }).catch(() => {});
-            });
+            const image = await lb.build({ format: "png" });
+            const attachment = new AttachmentBuilder(image, { name: 'leaderboard.png' });
+            await interaction.editReply({ files: [attachment] });
         } catch (error) {
             console.error(`Leaderboard Error: ${error}`);
-            interaction.editReply("Failed to load the leaderboard.");
+            interaction.editReply("Failed to load the leaderboard image.");
         }
     }
 
@@ -2188,6 +2171,41 @@ client.on('interactionCreate', async (interaction) => {
                 .setColor('Red')
                 .setDescription(`\`\`\`js\n${error.message}\n\`\`\``);
             await interaction.editReply({ embeds: [errorEmbed] });
+        }
+    }
+
+    if (interaction.commandName === "test") {
+        if (interaction.member.id === process.env.DEV_ID) {
+            if (!interaction.inGuild()) {
+                interaction.reply({
+                    content: 'You can only run this command inside a server.',
+                    flags: [MessageFlags.Ephemeral],
+                });
+                return;
+            } try {
+                await interaction.deferReply();
+                try {
+                    const card = new MusicCard()
+                        .setAuthor("JVKE")
+                        .setTitle("Golden Hour")
+                        .setImage(
+                            "https://lh3.googleusercontent.com/i1qCCS4BbP6z11E08FkQg6fN-83Uj4fQg4bmBsD2E6SvGQ3RW7nXxpQ3hmcSlI5Ipek10H7R4BjV5mAY=w544-h544-l90-rj"
+                        )
+                        .setProgress(39)
+                        .setCurrentTime("01:58")
+                        .setTotalTime("02:59");
+                    const image = await card.build();
+                    await interaction.editReply({image});
+                } catch(error) {
+                    console.error(error);
+                    await interaction.editReply(`Error running test:\n\`\`\`${error.message}\`\`\``);
+                }
+            } catch(error) {
+                interaction.reply(`Please try the Command Again\n`+error);
+                console.log(error);
+            }
+        } else {
+            interaction.reply('Only my bot DEV can use this command');
         }
     }
 });
