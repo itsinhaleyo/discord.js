@@ -1,5 +1,6 @@
 .env
 node_modules/
 src/songs/
+src/torrents/
 $RECYCLE.BIN/
 System Volume Information/

@@ -1,18 +1,14 @@
 require('dotenv').config();
-const { REST, Routes, ActionRowBuilder, MessageFlags, ButtonBuilder, ButtonStyle, ComponentType, ActivityType, ApplicationCommandOptionType, Client, GatewayIntentBits, IntentsBitField, EmbedBuilder, AttachmentBuilder, Events } = require('discord.js');
-const { VoiceConnectionStatus, joinVoiceChannel, createAudioPlayer, createAudioResource, getVoiceConnection, StreamType, AudioPlayerStatus, NoSubscriberBehavior } = require('@discordjs/voice');
-const eventHandler = require('./handlers/eventHandler');
-const { LeaderboardBuilder, RankCardBuilder, Font } = require('canvacord');
+const { REST, Routes, ActionRowBuilder, MessageFlags, ButtonBuilder, ButtonStyle, ComponentType, ActivityType, ApplicationCommandOptionType, Client, GatewayIntentBits, IntentsBitField, EmbedBuilder, AttachmentBuilder, Events } = require('discord.js'),
+      { VoiceConnectionStatus, joinVoiceChannel, createAudioPlayer, createAudioResource, getVoiceConnection, StreamType, AudioPlayerStatus, NoSubscriberBehavior } = require('@discordjs/voice'),
+      { LeaderboardBuilder, RankCardBuilder, Font } = require('canvacord'),
+      { GoogleGenAI } = require("@google/genai"),
+      { getData, getTracks } = require('spotify-url-info')(require('isomorphic-unfetch')),
+      { MusicCard } = require("./handlers/MusicCard.js"),
+      fs = require('fs'), path = require('path'), util = require('util'),
+      ytdl = require('youtube-dl-exec'), eventHandler = require('./handlers/eventHandler'),
+      songsDir = path.join(__dirname, 'songs'), torrentDir = path.join(__dirname, 'torrents');
 Font.loadDefault();
-const { GoogleGenAI } = require("@google/genai");
-const ytdl = require('youtube-dl-exec');
-const fetch = require('isomorphic-unfetch');
-const { getData, getTracks } = require('spotify-url-info')(fetch);
-const { MusicCard } = require("./handlers/MusicCard.js");
-const fs = require('fs');
-const path = require('path');
-const util = require('util');
-const songsDir = path.join(__dirname, 'songs');
 
 //Audio Player
 const musictimers = new Map(), musicqueues = new Map();
@@ -543,6 +539,21 @@ const blackNumbers = [2, 4, 6, 8, 10, 11, 13, 15, 17, 20, 22, 24, 26, 28, 29, 31
 const redNumbers = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
 const mapToChoice = (num) => ({ name: `${num}`, value: num });
 
+// Defining REST Client
+const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
+
+// Client Intentions
+const client = new Client({
+    intents: [
+        IntentsBitField.Flags.Guilds, 
+        GatewayIntentBits.GuildVoiceStates,
+        IntentsBitField.Flags.GuildMembers,
+        IntentsBitField.Flags.GuildMessages,
+        IntentsBitField.Flags.MessageContent,
+        GatewayIntentBits.GuildMessageReactions
+    ]
+});
+
 // Slash Commands Name and Descriptions
 const commands = [
     { name: 'help', description: 'Help Command' },
@@ -552,12 +563,24 @@ const commands = [
     { name: 'queue', description: 'Displays the current music queue' },
     { name: 'test', description: 'Test Functtion'},
     { 
-        name: 's', 
-        description: 's',
+        name: 'say', 
+        description: `Makes ${process.env.BOTUSER} Say Something`,
         options: [
             {
-                name: 'resp',
-                description: 'resp',
+                name: 'response',
+                description: `The Response ${process.env.BOTUSER} Will Say`,
+                type: ApplicationCommandOptionType.String,
+                required: true
+            }
+        ]
+    },
+    { 
+        name: 'torrent', 
+        description: `Downloads a Torrent File`,
+        options: [
+            {
+                name: 'magnet',
+                description: `the magnet link`,
                 type: ApplicationCommandOptionType.String,
                 required: true
             }
@@ -985,24 +1008,8 @@ const commands = [
     },
 ];
 
-// Defining REST Client
-const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
-
-// Client Intentions
-const client = new Client({
-    intents: [
-        IntentsBitField.Flags.Guilds, 
-        GatewayIntentBits.GuildVoiceStates,
-        IntentsBitField.Flags.GuildMembers,
-        IntentsBitField.Flags.GuildMessages,
-        IntentsBitField.Flags.MessageContent,
-        GatewayIntentBits.GuildMessageReactions
-    ]
-});
-
 // Connect to Database, Connect to Google Gemini, Registering Slash Commands, Logging in the Bot
-let db;
-let ai;
+let db, ai, tor;
 (async () => {
     try {
         // Connect to Database
@@ -1021,6 +1028,10 @@ let ai;
             )
         ));
         console.log(`Slash Commands Registered for ${guildIdArray.length} guilds.`);
+        // Setting up Webtorrent
+        const { default: WebTorrent } = await import('webtorrent');
+        tor = new WebTorrent();
+        console.log("WebTorrent initialized.");
         // Logging in the Bot
         eventHandler(client);
         client.login(process.env.TOKEN);
@@ -1116,8 +1127,7 @@ client.on('interactionCreate', async (interaction) => {
 
     if (interaction.commandName === 'ping') {
         await interaction.deferReply();
-        const reply = await interaction.fetchReply();
-        const ping = reply.createdTimestamp - interaction.createdTimestamp;
+        const reply = await interaction.fetchReply(), ping = reply.createdTimestamp - interaction.createdTimestamp;
         interaction.editReply(`Client ${ping}ms | Websocket: ${client.ws.ping}ms`);
     }
 
@@ -2154,6 +2164,33 @@ client.on('interactionCreate', async (interaction) => {
         }
     }
     
+    if (interaction.commandName === "torrent") {
+        if (interaction.member.id !== process.env.DEV_ID) { return interaction.reply('Only my bot DEV can use this command'); }
+        if (!interaction.inGuild()) { return interaction.reply({ content: 'You can only run this command inside a server.', flags: [MessageFlags.Ephemeral],}); } 
+        await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
+        try {
+            const magnet = interaction.options.getString('magnet');
+            tor.add(magnet, { path: torrentDir }, (torrent) => {
+                const progressInterval = setInterval(async () => {
+                    const progress = (torrent.progress * 100).toFixed(1);
+                    const downloadSpeed = (torrent.downloadSpeed / 1024 / 1024).toFixed(2);
+                    await interaction.editReply({ content: `⏳ Downloading: **${torrent.name}**\n` + `Progress: \`${progress}%\` | Speed: \`${downloadSpeed} MB/s\` | Peers: \`${torrent.numPeers}\``} ).catch(() => {});
+                }, 5000);
+                torrent.on('done', async () => {
+                    clearInterval(progressInterval);
+                    await interaction.editReply(`✅ Downloaded: **${torrent.name}**`);
+                });
+                torrent.on('error', async (err) => {
+                    clearInterval(progressInterval);
+                    await interaction.editReply(`❌ Torrent Error: ${err.message}`);
+                });
+            });
+        } catch(error) {
+            console.error(error);
+            await interaction.editReply(`Error:\n\`\`\`${error.message}\`\`\``);
+        }
+    }
+
     if (interaction.commandName === "say") {
         if (interaction.member.id !== process.env.DEV_ID) { return interaction.reply('Only my bot DEV can use this command'); }
         if (!interaction.inGuild()) { return interaction.reply({ content: 'You can only run this command inside a server.', flags: [MessageFlags.Ephemeral],}); } 
@@ -2196,85 +2233,48 @@ client.on('interactionCreate', async (interaction) => {
 
 // Messages Without Slash Commands
 client.on('messageCreate', async (message) => {
-    if (message.author.username === process.env.BOT_USER) {
-        return;
-    }
+    if (message.author.username === process.env.BOT_USER) { return; }
     const date = new Date(message.createdTimestamp);
     const timestamp = date.toLocaleDateString('en-US', { hour: 'numeric', minute: 'numeric', second: 'numeric' });
     console.log(message.guild.id+" - "+timestamp+" - "+message.author.username+" - "+message.content);
 
-    if (message.content === 'help') {
-        message.reply({
-                content: 'Please use / commands.',
-                flags: [MessageFlags.Ephemeral]
-            });
-    }
+    if (message.content === 'help') { message.reply({ content: 'Please use / commands.', flags: [MessageFlags.Ephemeral] }); }
 
     if (message.content.includes("x.com") || message.content.includes("twitter.com")) {
         if (message.author.bot) return;
         try {
             if (message.content.includes("fxtwitter.com")) return;
-            let replacement = message.content
-                .replace("x.com", "fixupx.com")
-                .replace("twitter.com", "fxtwitter.com");
-            await message.reply({
-                content: `${replacement}`,
-                allowedMentions: { repliedUser: false }
-            });
-            await message.delete().catch(err => {
-                if (err.code !== 10008) console.error('Delete failed:', err);
-            });
-        } catch (error) {
-            console.error("X-fixer Error:", error);
-        }
+            let replacement = message.content.replace("x.com", "fixupx.com").replace("twitter.com", "fxtwitter.com");
+            await message.reply({ content: `${replacement}`, allowedMentions: { repliedUser: false } });
+            await message.delete().catch(err => { if (err.code !== 10008) console.error('Delete failed:', err); });
+        } catch (error) { console.error("X-fixer Error:", error); }
     }
 
     if (message.content.includes("instagram.com")) {
         if (message.author.id === client.user.id) return;
         try {
             const replacement = message.content.replace("instagram.com", "eeinstagram.com");
-            await message.reply({
-                content: `${replacement}`,
-                allowedMentions: { repliedUser: false }
-            });
-            await message.delete().catch(err => {
-                if (err.code !== 10008) console.error('Delete failed:', err);
-            });
-        } catch (error) {
-            console.error("Link Conversion Error:", error);
-        }
+            await message.reply({ content: `${replacement}`, allowedMentions: { repliedUser: false } });
+            await message.delete().catch(err => { if (err.code !== 10008) console.error('Delete failed:', err); });
+        } catch (error) { console.error("Instagram fixer Error:", error); }
     }
 
     if (message.content.includes("reddit.com")) {
         if (message.author.bot) return;
         try {
             const replacement = message.content.replace("reddit.com", "rxddit.com");
-            await message.reply({
-                content: `${replacement}`,
-                allowedMentions: { repliedUser: false } 
-            });
-            await message.delete().catch(err => {
-                if (err.code !== 10008) console.error('Delete failed:', err);
-            });
-        } catch (error) {
-            console.error("Reddit-fixer Error:", error);
-        }
+            await message.reply({ content: `${replacement}`, allowedMentions: { repliedUser: false } });
+            await message.delete().catch(err => { if (err.code !== 10008) console.error('Delete failed:', err); });
+        } catch (error) { console.error("Reddit Fixer Error:", error); }
     }
 
     if (message.content.includes("facebook.com")) {
         if (message.author.bot) return;
         try {
             const replacement = message.content.replace("facebook.com", "facebed.com");
-            await message.reply({
-                content: `${replacement}`,
-                allowedMentions: { repliedUser: false } 
-            });
-            await message.delete().catch(err => {
-                if (err.code !== 10008) console.error('Delete failed:', err);
-            });
-        } catch (error) {
-            console.error("Facebook-fixer Error:", error);
-        }
+            await message.reply({ content: `${replacement}`, allowedMentions: { repliedUser: false } });
+            await message.delete().catch(err => { if (err.code !== 10008) console.error('Delete failed:', err); });
+        } catch (error) { console.error("Facebook fixer Error:", error); }
     }
 
 });
