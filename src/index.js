@@ -15,8 +15,7 @@ const util = require('util');
 const songsDir = path.join(__dirname, 'songs');
 
 //Audio Player
-const musictimers = new Map();
-const musicqueues = new Map();
+const musictimers = new Map(), musicqueues = new Map();
 
 async function createMusicCardImage(song, serverQueue, totalMs) {
     const progress = Math.min(Math.round((serverQueue.currentTimestamp / totalMs) * 100), 100);
@@ -124,7 +123,7 @@ async function playSong(guildId) {
         const embed = generateEmbed(attachment);
         const musicRow = new ActionRowBuilder().addComponents(
             new ButtonBuilder().setCustomId('pause_resume').setLabel('⏸️/▶️').setStyle(ButtonStyle.Primary),
-            new ButtonBuilder().setCustomId('skip_song').setLabel('⏭️').setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder().setCustomId('skip_song').setLabel('Skip⏭️').setStyle(ButtonStyle.Secondary),
             new ButtonBuilder().setCustomId('stop_music').setLabel('🛑').setStyle(ButtonStyle.Danger),
         );
         const navRow = new ActionRowBuilder().addComponents(
@@ -255,12 +254,7 @@ async function processDownloadQueue(guildId) {
 }
 
 // Format Time
-function formatTime(ms) {
-    const totalSeconds = Math.floor(ms / 1000);
-    const minutes = Math.floor(totalSeconds / 60);
-    const seconds = totalSeconds % 60;
-    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-}
+function formatTime(ms) { const totalSeconds = Math.floor(ms / 1000); const minutes = Math.floor(totalSeconds / 60); const seconds = totalSeconds % 60; return `${minutes}:${seconds.toString().padStart(2, '0')}`;}
 
 // Get User Data
 async function getuser(userId) {
@@ -273,11 +267,7 @@ async function getuser(userId) {
 }
 
 // Function to get a Random Number
-function getRandomNumber(x, y) {
-    const range = y - x + 1;
-    const randomNumber = Math.floor(Math.random() * range);
-    return randomNumber + x;
-}
+function getRandomNumber(x, y) { const range = y - x + 1; const randomNumber = Math.floor(Math.random() * range); return randomNumber + x;}
 
 // Turn  Numbers to Emojis
 function numtoemo(number) {
@@ -546,10 +536,7 @@ function calculateScore(hand) {
 }
 
 // Hishdice Functions
-const diceChances = Array.from({ length: 19 }, (_, i) => ({
-    name: `${(i + 1) * 5}% Chance`,
-    value: i + 1
-}));
+const diceChances = Array.from({ length: 19 }, (_, i) => ({ name: `${(i + 1) * 5}% Chance`, value: i + 1 }));
 
 // Roulette Command
 const blackNumbers = [2, 4, 6, 8, 10, 11, 13, 15, 17, 20, 22, 24, 26, 28, 29, 31, 33, 35];
@@ -564,6 +551,18 @@ const commands = [
     { name: 'ping', description: 'Replies With the Bots Ping' },
     { name: 'queue', description: 'Displays the current music queue' },
     { name: 'test', description: 'Test Functtion'},
+    { 
+        name: 's', 
+        description: 's',
+        options: [
+            {
+                name: 'resp',
+                description: 'resp',
+                type: ApplicationCommandOptionType.String,
+                required: true
+            }
+        ]
+    },
     { 
         name: 'eval', 
         description: 'run a line of code',
@@ -1081,13 +1080,14 @@ client.on('interactionCreate', async (interaction) => {
     if (!interaction.isChatInputCommand()) return;
     console.log(timestamp+" - "+interaction.user.username+" - "+interaction.commandName);
 
-    if (interaction.commandName === "high") await runHiLow(interaction, 'high');
-    if (interaction.commandName === "low") await runHiLow(interaction, 'low');
-    if (interaction.commandName === 'rock') await runRPS(interaction, 'rock');
-    if (interaction.commandName === 'paper') await runRPS(interaction, 'paper');
-    if (interaction.commandName === 'scissors') await runRPS(interaction, 'scissors');
+    if (interaction.commandName === "high") { if (!interaction.inGuild()) { return interaction.reply({ content: 'You can only run this command inside a server.', flags: [MessageFlags.Ephemeral],}); } await runHiLow(interaction, 'high');}
+    if (interaction.commandName === "low") { if (!interaction.inGuild()) { return interaction.reply({ content: 'You can only run this command inside a server.', flags: [MessageFlags.Ephemeral],}); } await runHiLow(interaction, 'low')}
+    if (interaction.commandName === 'rock') { if (!interaction.inGuild()) { return interaction.reply({ content: 'You can only run this command inside a server.', flags: [MessageFlags.Ephemeral],}); } await runRPS(interaction, 'rock')}
+    if (interaction.commandName === 'paper') { if (!interaction.inGuild()) { return interaction.reply({ content: 'You can only run this command inside a server.', flags: [MessageFlags.Ephemeral],}); } await runRPS(interaction, 'paper')}
+    if (interaction.commandName === 'scissors') { if (!interaction.inGuild()) { return interaction.reply({ content: 'You can only run this command inside a server.', flags: [MessageFlags.Ephemeral],}); } await runRPS(interaction, 'scissors')}
 
     if (interaction.commandName === 'help') {
+        if (!interaction.inGuild()) { return interaction.reply({ content: 'You can only run this command inside a server.', flags: [MessageFlags.Ephemeral],}); } 
         const embed = new EmbedBuilder()
             .setTitle('Commands List')
             .setColor('Blue')
@@ -1148,12 +1148,7 @@ client.on('interactionCreate', async (interaction) => {
     }
 
     if (interaction.commandName === "give") {
-        if (!interaction.inGuild()) {
-            return interaction.reply({
-                content: 'You can only run this command inside a server.',
-                flags: [MessageFlags.Ephemeral],
-            });
-        }
+        if (!interaction.inGuild()) { return interaction.reply({ content: 'You can only run this command inside a server.', flags: [MessageFlags.Ephemeral],}); } 
         try {
             await interaction.deferReply();
             const amount = interaction.options.getNumber('amount');
@@ -1195,12 +1190,7 @@ client.on('interactionCreate', async (interaction) => {
     }
 
     if (interaction.commandName === 'coinflip') {
-        if (!interaction.inGuild()) {
-            return interaction.reply({
-                content: 'You can only run this command inside a server.',
-                flags: [MessageFlags.Ephemeral],
-            });
-        }
+        if (!interaction.inGuild()) { return interaction.reply({ content: 'You can only run this command inside a server.', flags: [MessageFlags.Ephemeral],}); } 
         try {
             await interaction.deferReply();
             let user = await getuser(interaction.member.id);
@@ -1237,12 +1227,6 @@ client.on('interactionCreate', async (interaction) => {
     }
 
     if (interaction.commandName === 'dig') {
-        if (!interaction.inGuild()) {
-            return interaction.reply({
-                content: 'You can only run this command inside a server.',
-                flags: [MessageFlags.Ephemeral],
-            });
-        }
         try {
             await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
             const [[cooldown]] = await db.query("SELECT * FROM cooldown WHERE userid = ? AND command = 'dig'", [interaction.member.id]);
@@ -1321,6 +1305,7 @@ client.on('interactionCreate', async (interaction) => {
     }
 
     if (interaction.commandName === "level") {
+        if (!interaction.inGuild()) { return interaction.reply({ content: 'You can only run this command inside a server.', flags: [MessageFlags.Ephemeral],}); } 
         try {
             await interaction.deferReply();
             const targetUser = interaction.options.getUser('user') || interaction.user;
@@ -1358,6 +1343,7 @@ client.on('interactionCreate', async (interaction) => {
     }
 
     if (interaction.commandName === 'leaderboard') {
+        if (!interaction.inGuild()) { return interaction.reply({ content: 'You can only run this command inside a server.', flags: [MessageFlags.Ephemeral],}); } 
         try {
             await interaction.deferReply();
             const subcommand = interaction.options.getSubcommand();
@@ -1399,12 +1385,7 @@ client.on('interactionCreate', async (interaction) => {
     }
 
     if (interaction.commandName === "roulette") {
-        if (!interaction.inGuild()) {
-            return interaction.reply({
-                content: 'You can only run this command inside a server.',
-                flags: [MessageFlags.Ephemeral],
-            });
-        }
+        if (!interaction.inGuild()) { return interaction.reply({ content: 'You can only run this command inside a server.', flags: [MessageFlags.Ephemeral],}); } 
         try {
             await interaction.deferReply();
             let user = await getuser(interaction.member.id);
@@ -1453,12 +1434,7 @@ client.on('interactionCreate', async (interaction) => {
     }
 
     if (interaction.commandName === "slot") {
-        if (!interaction.inGuild()) {
-            return interaction.reply({
-                content: 'You can only run this command inside a server.',
-                flags: [MessageFlags.Ephemeral],
-            });
-        }
+        if (!interaction.inGuild()) { return interaction.reply({ content: 'You can only run this command inside a server.', flags: [MessageFlags.Ephemeral],}); } 
         try {
             await interaction.deferReply();
             let user = await getuser(interaction.member.id);
@@ -1489,12 +1465,7 @@ client.on('interactionCreate', async (interaction) => {
     }
 
     if (interaction.commandName === "hashdice") {
-        if (!interaction.inGuild()) {
-            return interaction.reply({
-                content: 'You can only run this command inside a server.',
-                flags: [64],
-            });
-        }
+        if (!interaction.inGuild()) { return interaction.reply({ content: 'You can only run this command inside a server.', flags: [MessageFlags.Ephemeral],}); } 
         try {
             await interaction.deferReply();
             const bet = interaction.options.getNumber('bet-amount');
@@ -1558,12 +1529,7 @@ client.on('interactionCreate', async (interaction) => {
     }
 
     if (interaction.commandName === "towers") {
-        if (!interaction.inGuild()) {
-            return interaction.reply({
-                content: 'You can only run this command inside a server.',
-                flags: [MessageFlags.Ephemeral],
-            })
-        };
+        if (!interaction.inGuild()) { return interaction.reply({ content: 'You can only run this command inside a server.', flags: [MessageFlags.Ephemeral],}); } 
         await interaction.deferReply();
         const result = await db.query("SELECT * FROM towers WHERE userid = ?", [interaction.member.id]);
         const game = result[0][0];
@@ -1644,12 +1610,7 @@ client.on('interactionCreate', async (interaction) => {
     }
 
     if (interaction.commandName === "bj" || interaction.commandName == "blackjack") {
-        if (!interaction.inGuild()) {
-            return interaction.reply({
-                content: 'You can only run this command inside a server.',
-                flags: [64],
-            });
-        }
+        if (!interaction.inGuild()) { return interaction.reply({ content: 'You can only run this command inside a server.', flags: [MessageFlags.Ephemeral],}); } 
         await interaction.deferReply();
         let user = await getuser(interaction.member.id);
         const bet = interaction.options.getNumber('bet-amount');
@@ -1749,6 +1710,7 @@ client.on('interactionCreate', async (interaction) => {
     }
 
     if (interaction.commandName === "crash") {
+        if (!interaction.inGuild()) { return interaction.reply({ content: 'You can only run this command inside a server.', flags: [MessageFlags.Ephemeral],}); } 
         await interaction.deferReply();
         const bet = interaction.options.getNumber('bet-amount');
         let user = await getuser(interaction.member.id);
@@ -1813,6 +1775,7 @@ client.on('interactionCreate', async (interaction) => {
     }
 
     if (interaction.commandName === "dice") {
+        if (!interaction.inGuild()) { return interaction.reply({ content: 'You can only run this command inside a server.', flags: [MessageFlags.Ephemeral],}); } 
         await interaction.deferReply();
         const bet = interaction.options.getNumber('bet-amount');
         const guess = interaction.options.getNumber('guess');
@@ -1849,6 +1812,7 @@ client.on('interactionCreate', async (interaction) => {
     }
 
     if (interaction.commandName === "baccarat") {
+        if (!interaction.inGuild()) { return interaction.reply({ content: 'You can only run this command inside a server.', flags: [MessageFlags.Ephemeral],}); } 
         await interaction.deferReply();
         const bet = interaction.options.getNumber('bet-amount');
         const user = await getuser(interaction.member.id);
@@ -1905,6 +1869,7 @@ client.on('interactionCreate', async (interaction) => {
     }
 
     if (interaction.commandName === "plinko") {
+        if (!interaction.inGuild()) { return interaction.reply({ content: 'You can only run this command inside a server.', flags: [MessageFlags.Ephemeral],}); } 
         await interaction.deferReply();
         const bet = interaction.options.getNumber('bet-amount');
         const user = await getuser(interaction.member.id);
@@ -1972,6 +1937,7 @@ client.on('interactionCreate', async (interaction) => {
     }
 
     if (interaction.commandName === "ai") {
+        if (!interaction.inGuild()) { return interaction.reply({ content: 'You can only run this command inside a server.', flags: [MessageFlags.Ephemeral],}); } 
         await interaction.deferReply();
         try {
             const prompt = interaction.options.get('prompt')?.value;
@@ -1993,6 +1959,7 @@ client.on('interactionCreate', async (interaction) => {
     }
 
     if (interaction.commandName === "play") {
+        if (!interaction.inGuild()) { return interaction.reply({ content: 'You can only run this command inside a server.', flags: [MessageFlags.Ephemeral],}); } 
         await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
         const query = interaction.options.getString('search');
         const guildId = interaction.guildId;
@@ -2110,10 +2077,9 @@ client.on('interactionCreate', async (interaction) => {
     }
 
     if (interaction.commandName === "queue") {
+        if (!interaction.inGuild()) { return interaction.reply({ content: 'You can only run this command inside a server.', flags: [MessageFlags.Ephemeral],}); } 
         const serverQueue = musicqueues.get(interaction.guildId);
-        if (!serverQueue || serverQueue.songs.length === 0) {
-            return interaction.reply({ content: "The queue is currently empty.", flags: [MessageFlags.Ephemeral] });
-        }
+        if (!serverQueue || serverQueue.songs.length === 0) { return interaction.reply({ content: "The queue is currently empty.", flags: [MessageFlags.Ephemeral] }); }
         const songsPerPage = 10;
         const totalPages = Math.ceil(serverQueue.songs.length / songsPerPage);
         let currentPage = 0;
@@ -2164,9 +2130,8 @@ client.on('interactionCreate', async (interaction) => {
     }
 
     if (interaction.commandName === "eval") {
-        if (interaction.user.id !== process.env.DEV_ID) {
-            return interaction.reply({ content: 'Only my developer can use this.', flags: [MessageFlags.Ephemeral] });
-        }
+        if (interaction.member.id !== process.env.DEV_ID) { return interaction.reply('Only my bot DEV can use this command'); }
+        if (!interaction.inGuild()) { return interaction.reply({ content: 'You can only run this command inside a server.', flags: [MessageFlags.Ephemeral],}); } 
         try {
             await interaction.deferReply();
             const code = interaction.options.getString('code');
@@ -2188,38 +2153,43 @@ client.on('interactionCreate', async (interaction) => {
             await interaction.editReply({ embeds: [errorEmbed] });
         }
     }
+    
+    if (interaction.commandName === "say") {
+        if (interaction.member.id !== process.env.DEV_ID) { return interaction.reply('Only my bot DEV can use this command'); }
+        if (!interaction.inGuild()) { return interaction.reply({ content: 'You can only run this command inside a server.', flags: [MessageFlags.Ephemeral],}); } 
+        try {
+            await interaction.deferReply();
+            try {
+                const response = interaction.options.getString('resp');
+                await interaction.editReply(response);
+            } catch(error) {
+                console.error(error);
+                await interaction.editReply(`Error:\n\`\`\`${error.message}\`\`\``);
+            }
+        } catch(error) {
+            interaction.reply(`Please try the Command Again\n`+error);
+            console.log(error);
+        }
+    }
 
     if (interaction.commandName === "test") {
-        if (interaction.member.id === process.env.DEV_ID) {
-            if (!interaction.inGuild()) {
-                interaction.reply({
-                    content: 'You can only run this command inside a server.',
-                    flags: [MessageFlags.Ephemeral],
-                });
-                return;
-            } try {
-                await interaction.deferReply();
-                try {
-                    const card = new MusicCard()
-                        .setAuthor("JVKE")
-                        .setTitle("Golden Hour")
-                        .setImage("https://lh3.googleusercontent.com/i1qCCS4BbP6z11E08FkQg6fN-83Uj4fQg4bmBsD2E6SvGQ3RW7nXxpQ3hmcSlI5Ipek10H7R4BjV5mAY=w544-h544-l90-rj")
-                        .setProgress(39)
-                        .setCurrentTime("01:58")
-                        .setTotalTime("02:59");
-                    const image = await card.build();
-                    const attachment = new AttachmentBuilder(image, { name: 'music-card.png' });
-                    await interaction.editReply({ files: [attachment] });
-                } catch(error) {
-                    console.error(error);
-                    await interaction.editReply(`Error running test:\n\`\`\`${error.message}\`\`\``);
-                }
-            } catch(error) {
-                interaction.reply(`Please try the Command Again\n`+error);
-                console.log(error);
-            }
-        } else {
-            interaction.reply('Only my bot DEV can use this command');
+        if (interaction.member.id !== process.env.DEV_ID) { return interaction.reply('Only my bot DEV can use this command'); }
+        if (!interaction.inGuild()) { return interaction.reply({ content: 'You can only run this command inside a server.', flags: [MessageFlags.Ephemeral],}); }
+        try {
+            await interaction.deferReply();
+            const card = new MusicCard()
+                .setAuthor("JVKE")
+                .setTitle("Golden Hour")
+                .setImage("https://lh3.googleusercontent.com/i1qCCS4BbP6z11E08FkQg6fN-83Uj4fQg4bmBsD2E6SvGQ3RW7nXxpQ3hmcSlI5Ipek10H7R4BjV5mAY=w544-h544-l90-rj")
+                .setProgress(39)
+                .setCurrentTime("01:58")
+                .setTotalTime("02:59");
+            const image = await card.build();
+            const attachment = new AttachmentBuilder(image, { name: 'music-card.png' });
+            await interaction.editReply({ files: [attachment] });
+        } catch(error) {
+            interaction.reply(`Please try the Command Again\n`+error);
+            console.log(`Error running test:\n\`\`\`${error.message}\`\`\``);
         }
     }
 });
