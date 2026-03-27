@@ -2,7 +2,7 @@ require('dotenv').config();
 const { REST, Routes, ActionRowBuilder, MessageFlags, ButtonBuilder, ButtonStyle, ComponentType, ActivityType, ApplicationCommandOptionType, Client, GatewayIntentBits, IntentsBitField, EmbedBuilder, AttachmentBuilder, Events } = require('discord.js'),
       { VoiceConnectionStatus, joinVoiceChannel, createAudioPlayer, createAudioResource, getVoiceConnection, StreamType, AudioPlayerStatus, NoSubscriberBehavior } = require('@discordjs/voice'),
       { LeaderboardBuilder, RankCardBuilder, Font } = require('canvacord'),
-      { GoogleGenAI } = require("@google/genai"), Stocks = require('stocks.js'),
+      { GoogleGenAI } = require("@google/genai"), axios = require('axios'),
       { getData, getTracks } = require('spotify-url-info')(require('isomorphic-unfetch')),
       { MusicCard } = require("./handlers/MusicCard.js"), { BalanceCard } = require("./handlers/BalanceCard.js"),
       fs = require('fs'), path = require('path'), util = require('util'),
@@ -263,14 +263,20 @@ async function getuser(userId) {
 }
 
 // Get Stock Market Data
-async function getStockData(symbol) {
-  const options = {
-    symbol: symbol,
-    interval: 'daily',
-    amount: 1
-  };
-  const data = await stocks.timeSeries(options);
-  return data[0];
+async function getCryptoData(coinId) {
+    try {
+        const url = `https://api.coingecko.com/api/v3/simple/price`;
+        const response = await axios.get(url, {
+            params: { ids: coinId.toLowerCase(), vs_currencies: 'usd' },
+            headers: { 'x-cg-demo-api-key': process.env.CG_API_KEY }
+        });
+        const price = response.data[coinId.toLowerCase()]?.usd;
+        if (!price) return null;
+        return price;
+    } catch (error) {
+        console.error("CoinGecko API Error:", error.message);
+        return null;
+    }
 }
 
 // Function to get a Random Number
@@ -1067,7 +1073,7 @@ const commands = [
 ];
 
 // Connect to Database, Connect to Google Gemini, Registering Slash Commands, Logging in the Bot
-let db, ai, tor, stocks;
+let db, ai, tor;
 (async () => {
     try {
         // Connect to Database
@@ -1086,9 +1092,6 @@ let db, ai, tor, stocks;
             )
         ));
         console.log(`Slash Commands Registered for ${guildIdArray.length} guilds.`);
-        // Connecting to Stocks API
-        stocks = new Stocks(process.env.SM_API_KEY);
-        console.log("Stock Market API Initilized");
         // Setting up Webtorrent
         const { default: WebTorrent } = await import('webtorrent');
         tor = new WebTorrent();
@@ -2263,47 +2266,80 @@ client.on('interactionCreate', async (interaction) => {
     }
 
     if (interaction.commandName === 'portfolio') {
-        try{
-            if (!interaction.inGuild()) { return interaction.reply({ content: 'You can only run this command inside a server.', flags: [MessageFlags.Ephemeral],}); }
+        try {
             await interaction.deferReply();
-            const userid = interaction.member.id;
-            const [holdings] = await db.query('SELECT symbol, shares FROM portfolios WHERE userid = ?', [userid]);
-            if (holdings.length === 0) { return interaction.editReply("Your portfolio is empty. Go buy some stocks!"); }
-            let list = holdings.map(h => `**${h.symbol}**: ${h.shares} shares`).join('\n');
+            const user = await getuser(interaction.member.id);
+            const [holdings] = await db.query('SELECT symbol, shares, average_price FROM portfolios WHERE userid = ?', [interaction.member.id]);
+            if (holdings.length === 0) {
+                return interaction.editReply(`💵 **Cash:** ${Number(user.balance).toLocaleString()} credits\n📊 **Holdings:** None.`);
+            }
+            const coinIds = holdings.map(h => h.symbol.toLowerCase()).join(',');
+            const response = await axios.get('https://api.coingecko.com/api/v3/simple/price', {
+                params: {
+                    ids: coinIds,
+                    vs_currencies: 'usd'
+                },
+                headers: { 'x-cg-demo-api-key': process.env.CG_API_KEY }
+            });
+            const prices = response.data;
+            let totalValue = 0;
+            let totalCostBasis = 0;
+            let list = "";
+            for (const stock of holdings) {
+                const coinId = stock.symbol.toLowerCase();
+                const currentPrice = prices[coinId]?.usd || 0;
+                const costBasis = stock.average_price * stock.shares;
+                const currentValue = currentPrice * stock.shares;
+                totalValue += currentValue;
+                totalCostBasis += costBasis;
+                const pnl = currentValue - costBasis;
+                const pnlPercent = costBasis > 0 ? ((pnl / costBasis) * 100).toFixed(2) : "0.00";
+                const emoji = pnl >= 0 ? "📈" : "📉";
+                list += `${emoji} **${stock.symbol.toUpperCase()}**: ${stock.shares} shares | **${pnlPercent}%**\n`;
+            }
+            const totalPnl = totalValue - totalCostBasis;
+            const totalPnlPercent = totalCostBasis > 0 ? ((totalPnl / totalCostBasis) * 100).toFixed(2) : "0.00";
+            const embedColor = totalPnl >= 0 ? 0x00FF00 : 0xFF0000; // Green if up, Red if down
             const embed = {
-                title: `${interaction.user.username}'s Stock Portfolio`,
-                description: list,
-                color: 0x00ff00,
+                title: `💰 ${interaction.user.username}'s Portfolio`,
+                color: embedColor,
+                fields: [
+                    { name: '💵 Cash Balance', value: `${Number(user.balance).toLocaleString()} credits`, inline: true },
+                    { name: '📊 Asset Value', value: `${Math.round(totalValue).toLocaleString()} credits`, inline: true },
+                    { name: '✨ Total Profit/Loss', value: `**${totalPnlPercent}%** (${totalPnl >= 0 ? '+' : ''}${Math.round(totalPnl).toLocaleString()})`, inline: false },
+                    { name: '📂 Detailed Holdings', value: list || "No data" }
+                ],
                 timestamp: new Date()
             };
             await interaction.editReply({ embeds: [embed] });
         } catch (err) {
-            console.error(err);
-            await interaction.editReply(`Error:\n\`\`\`${err}\`\`\``);
+            console.error("Portfolio Command Error:", err.response?.data || err.message);
+            await interaction.editReply("❌ Error: Could not connect to CoinGecko. Please check the coin IDs in your portfolio.");
         }
     }
 
     if (interaction.commandName === 'buy') {
-        if (interaction.member.id !== process.env.DEV_ID) { return interaction.reply('Only my bot DEV can use this command'); }
         if (!interaction.inGuild()) { return interaction.reply({ content: 'You can only run this command inside a server.', flags: [MessageFlags.Ephemeral],}); }
-        await interaction.deferReply();
-        const user = getuser(interaction.member.id);
-        const symbol = interaction.options.getString('symbol').toUpperCase();
-        const amountToBuy = interaction.options.getNumber('amount');
-        if (amountToBuy < 1) { return await interaction.editReply("You Must get more than 1 Share."); }
-        const stockData = await getStockData(symbol);
-        if (!stockData || stockData.length === 0) return interaction.editReply(`Could not find price for **${symbol}**. Please try again later.`);
-        const price = stockData.close;
-        const totalCost = price * amountToBuy;
-        if (Number(user.balance) < totalCost) { return interaction.editReply(`You need ${totalCost} credits, but you only have ${user.balance}.`); }
-        if (isNaN(totalCost) || totalCost <= 0) { return interaction.editReply("Invalid transaction amount."); }
         try {
+            await interaction.deferReply();
+            const user = await getuser(interaction.member.id);
+            const symbol = interaction.options.getString('symbol').toUpperCase();
+            const amountToBuy = interaction.options.getNumber('amount');
+            if (amountToBuy < 1) { return await interaction.editReply("You Must get more than 1 Share."); }
+            const stockData = await getCryptoData(symbol);
+            if (!stockData || stockData.length === 0) return interaction.editReply(`Could not find price for **${symbol}**.\nPlease try the Cypto Name and not the Ticker.\nexample:bitcoin and not btc`);
+            const price = Math.round(stockData);
+            const totalCost = price * amountToBuy;
+            if (user.balance < totalCost) { return interaction.editReply(`You need 💵${totalCost} for ${amountToBuy}-${symbol}\nBalance 💵${user.balance}.`); }
+            if (isNaN(totalCost) || totalCost <= 0) { return interaction.editReply("Invalid transaction amount."); }
             await db.query('UPDATE users SET balance = balance - ? WHERE userid = ?', [totalCost, interaction.member.id]);
             await db.query(`
-                INSERT INTO portfolios (userid, symbol, shares) 
-                VALUES (?, ?, ?) 
-                ON DUPLICATE KEY UPDATE shares = shares + VALUES(shares)`, 
-                [interaction.member.id, symbol, amountToBuy]
+                INSERT INTO portfolios (userid, symbol, shares, average_price) 
+                VALUES (?, ?, ?, ?) 
+                ON DUPLICATE KEY UPDATE 
+                    average_price = (average_price * shares + VALUES(average_price) * VALUES(shares)) / (shares + VALUES(shares)),
+                    shares = shares + VALUES(shares)`, 
+                [interaction.member.id, symbol, amountToBuy, price]
             );
             await db.query('INSERT INTO stock_logs (userid, symbol, action, amount, price_per_share, total_cost) VALUES (?, ?, ?, ?, ?, ?)', 
                 [interaction.member.id, symbol, 'BUY', amountToBuy, price, totalCost]);
@@ -2319,9 +2355,9 @@ client.on('interactionCreate', async (interaction) => {
         await interaction.deferReply();
         const symbol = interaction.options.getString('symbol').toUpperCase();
         const amountToSell = interaction.options.getNumber('amount');
-        const stockData = await getStockData(symbol);
+        const stockData = await getCryptoData(symbol);
         if (!stockData || stockData.length === 0) return interaction.editReply("Could not fetch price.");
-        const price = Math.round(stockData.close); 
+        const price = Math.round(stockData); 
         const totalReturn = price * amountToSell;
         const [holding] = await db.query('SELECT shares FROM portfolios WHERE userid = ? AND symbol = ?', [interaction.member.id, symbol]);
         if (!holding || holding.shares < amountToSell) { return interaction.editReply(`You don't have enough shares! You only own **${holding?.shares || 0}**.`); }
@@ -2347,7 +2383,7 @@ client.on('interactionCreate', async (interaction) => {
         try {
             await interaction.deferReply();
             const symbol = interaction.options.getString('symbol');
-            let data = await getStockData(symbol);
+            let data = await getCryptoData(symbol);
             const response = data 
                 ? `Stock data for ${symbol}: \`\`\`json\n${JSON.stringify(data[0], null, 2)}\`\`\``
                 : "No data found.";
