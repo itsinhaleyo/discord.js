@@ -4,7 +4,7 @@ const { REST, Routes, ActionRowBuilder, MessageFlags, ButtonBuilder, ButtonStyle
       { LeaderboardBuilder, RankCardBuilder, Font } = require('canvacord'),
       { GoogleGenAI } = require("@google/genai"),
       { getData, getTracks } = require('spotify-url-info')(require('isomorphic-unfetch')),
-      { MusicCard } = require("./handlers/MusicCard.js"),
+      { MusicCard } = require("./handlers/MusicCard.js"), { BalanceCard } = require("./handlers/BalanceCard.js"),
       fs = require('fs'), path = require('path'), util = require('util'),
       ytdl = require('youtube-dl-exec'), eventHandler = require('./handlers/eventHandler'),
       songsDir = path.join(__dirname, 'songs'), torrentDir = path.join(__dirname, 'torrents');
@@ -535,8 +535,7 @@ function calculateScore(hand) {
 const diceChances = Array.from({ length: 19 }, (_, i) => ({ name: `${(i + 1) * 5}% Chance`, value: i + 1 }));
 
 // Roulette Command
-const blackNumbers = [2, 4, 6, 8, 10, 11, 13, 15, 17, 20, 22, 24, 26, 28, 29, 31, 33, 35];
-const redNumbers = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
+const blackNumbers = [2, 4, 6, 8, 10, 11, 13, 15, 17, 20, 22, 24, 26, 28, 29, 31, 33, 35], redNumbers = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
 const mapToChoice = (num) => ({ name: `${num}`, value: num });
 
 // Defining REST Client
@@ -1090,7 +1089,6 @@ client.on('interactionCreate', async (interaction) => {
     const timestamp = date.toLocaleDateString('en-US', { hour: 'numeric', minute: 'numeric', second: 'numeric' });
     if (!interaction.isChatInputCommand()) return;
     console.log(timestamp+" - "+interaction.user.username+" - "+interaction.commandName);
-
     if (interaction.commandName === "high") { if (!interaction.inGuild()) { return interaction.reply({ content: 'You can only run this command inside a server.', flags: [MessageFlags.Ephemeral],}); } await runHiLow(interaction, 'high');}
     if (interaction.commandName === "low") { if (!interaction.inGuild()) { return interaction.reply({ content: 'You can only run this command inside a server.', flags: [MessageFlags.Ephemeral],}); } await runHiLow(interaction, 'low')}
     if (interaction.commandName === 'rock') { if (!interaction.inGuild()) { return interaction.reply({ content: 'You can only run this command inside a server.', flags: [MessageFlags.Ephemeral],}); } await runRPS(interaction, 'rock')}
@@ -1135,25 +1133,19 @@ client.on('interactionCreate', async (interaction) => {
         try {
             await interaction.deferReply();
             const targetUser = interaction.options.getUser('user') || interaction.user;
-            let user = await getuser(interaction.member.id);
-            const balanceEmbed = new EmbedBuilder()
-                .setAuthor({ 
-                    name: `${targetUser.username}'s Wallet`, 
-                    iconURL: targetUser.displayAvatarURL({ dynamic: true }) 
-                })
-                .setColor('Gold')
-                .addFields(
-                    { 
-                        name: 'Balance', 
-                        value: `💵**${numtoemo(user.balance)}**`, 
-                        inline: false 
-                    }
-                )
-                .setTimestamp()
-            await interaction.editReply({ embeds: [balanceEmbed] });
+            let userData = await getuser(targetUser.id);
+            const card = new BalanceCard()
+                .setUsername(targetUser.username)
+                .setAvatar(targetUser.displayAvatarURL({ extension: 'png', size: 256 }))
+                .setBalance(userData.balance.toLocaleString());
+            const image = await card.build();
+            const attachment = new AttachmentBuilder(image, { name: 'balance.png' });
+            await interaction.editReply({ files: [attachment] });
         } catch (error) {
-            console.error("Balance Error: " + error);
-            interaction.editReply("Could not retrieve balance. Please try again.");
+            console.error("Balance Error: ", error);
+            if (interaction.deferred) {
+                await interaction.editReply("Could not retrieve balance image.");
+            }
         }
     }
 
@@ -2214,18 +2206,9 @@ client.on('interactionCreate', async (interaction) => {
         if (!interaction.inGuild()) { return interaction.reply({ content: 'You can only run this command inside a server.', flags: [MessageFlags.Ephemeral],}); }
         try {
             await interaction.deferReply();
-            const card = new MusicCard()
-                .setAuthor("JVKE")
-                .setTitle("Golden Hour")
-                .setImage("https://lh3.googleusercontent.com/i1qCCS4BbP6z11E08FkQg6fN-83Uj4fQg4bmBsD2E6SvGQ3RW7nXxpQ3hmcSlI5Ipek10H7R4BjV5mAY=w544-h544-l90-rj")
-                .setProgress(39)
-                .setCurrentTime("01:58")
-                .setTotalTime("02:59");
-            const image = await card.build();
-            const attachment = new AttachmentBuilder(image, { name: 'music-card.png' });
-            await interaction.editReply({ files: [attachment] });
+            await interaction.editReply({ files: [] });
         } catch(error) {
-            interaction.reply(`Please try the Command Again\n`+error);
+            await interaction.editReply(`Please try the Command Again\n`+error);
             console.log(`Error running test:\n\`\`\`${error.message}\`\`\``);
         }
     }
