@@ -2,7 +2,7 @@ require('dotenv').config();
 const { REST, Routes, ActionRowBuilder, MessageFlags, ButtonBuilder, ButtonStyle, ComponentType, ActivityType, ApplicationCommandOptionType, Client, GatewayIntentBits, IntentsBitField, EmbedBuilder, AttachmentBuilder, Events } = require('discord.js'),
       { VoiceConnectionStatus, joinVoiceChannel, createAudioPlayer, createAudioResource, getVoiceConnection, StreamType, AudioPlayerStatus, NoSubscriberBehavior } = require('@discordjs/voice'),
       { LeaderboardBuilder, RankCardBuilder, Font } = require('canvacord'),
-      { GoogleGenAI } = require("@google/genai"),
+      { GoogleGenAI } = require("@google/genai"), Stocks = require('stocks.js'),
       { getData, getTracks } = require('spotify-url-info')(require('isomorphic-unfetch')),
       { MusicCard } = require("./handlers/MusicCard.js"), { BalanceCard } = require("./handlers/BalanceCard.js"),
       fs = require('fs'), path = require('path'), util = require('util'),
@@ -260,6 +260,17 @@ async function getuser(userId) {
     yesterday.setDate(yesterday.getDate() - 1);
     await db.query('INSERT INTO users VALUES(?, ?, ?, ?, ?)', [userId, 25000, yesterday.toDateString(), 0, 1]);
     return { userid: userId, balance: 25000, daily: yesterday.toDateString(), xp: 0, level: 1 };
+}
+
+// Get Stock Market Data
+async function getStockData(symbol) {
+  const options = {
+    symbol: symbol,
+    interval: 'daily',
+    amount: 1
+  };
+  const data = await stocks.timeSeries(options);
+  return data[0];
 }
 
 // Function to get a Random Number
@@ -556,11 +567,59 @@ const client = new Client({
 // Slash Commands Name and Descriptions
 const commands = [
     { name: 'help', description: 'Help Command' },
-    { name: 'dig', description: '60% chance to Collect 1-1000 every Minute' },
+    { name: 'claim', description: '60% chance to Collect 1-1000 every Minute' },
     { name: 'daily', description: 'Collect 25000 Daily' },
     { name: 'ping', description: 'Replies With the Bots Ping' },
     { name: 'queue', description: 'Displays the current music queue' },
-    { name: 'test', description: 'Test Functtion'},
+    { name: 'portfolio', description: 'Displays your market portfolio'},
+    { 
+        name: 'test', 
+        description: 'Test Functtion',
+        options: [
+            {
+                name: 'symbol',
+                description: `the stock symbol`,
+                type: ApplicationCommandOptionType.String,
+                required: true
+            }
+        ]
+    },
+    {
+        name: 'buy',
+        description: 'Buy a Stock Using 💵',
+        options: [
+            {
+                name: 'symbol',
+                description: `The Symbol of The Stock you wish to purchase.`,
+                type: ApplicationCommandOptionType.String,
+                required: true
+            },
+            {
+                name: 'amount',
+                description: `the amount you wish to spend`,
+                type: ApplicationCommandOptionType.Number,
+                required: true
+            }
+        ]
+    },
+    {
+        name: 'sell',
+        description: 'Sell a Stock Using 💵',
+        options: [
+            {
+                name: 'symbol',
+                description: `The Symbol of The Stock you wish to sell.`,
+                type: ApplicationCommandOptionType.String,
+                required: true
+            },
+            {
+                name: 'amount',
+                description: `the amount you wish to sell`,
+                type: ApplicationCommandOptionType.Number,
+                required: true
+            }
+        ]
+    },
     { 
         name: 'say', 
         description: `Makes ${process.env.BOTUSER} Say Something`,
@@ -1008,7 +1067,7 @@ const commands = [
 ];
 
 // Connect to Database, Connect to Google Gemini, Registering Slash Commands, Logging in the Bot
-let db, ai, tor;
+let db, ai, tor, stocks;
 (async () => {
     try {
         // Connect to Database
@@ -1027,6 +1086,9 @@ let db, ai, tor;
             )
         ));
         console.log(`Slash Commands Registered for ${guildIdArray.length} guilds.`);
+        // Connecting to Stocks API
+        stocks = new Stocks(process.env.SM_API_KEY);
+        console.log("Stock Market API Initilized");
         // Setting up Webtorrent
         const { default: WebTorrent } = await import('webtorrent');
         tor = new WebTorrent();
@@ -1110,10 +1172,9 @@ client.on('interactionCreate', async (interaction) => {
                 "`/play - Play a Song/Playlist from a Youtube or Spotify Link`\n"+
                 "`/queue - View Current Music Queue`\n"+
                 "### 💰 Economy\n" +
-                "`/balance - View your wallet`\n" +
-                "`/give - Give another User 💵`\n"+
-                "`/daily - Claim your 25,000💵`\n" +
-                "`/dig - Mine for rewards (every minute)`\n" +
+                "`/balance` • `/give` • `/daily`\n" +
+                "`/claim` • `/portfolio` • `/buy`\n" +
+                "`/sell`" +
                 "### 🎲 Games\n" +
                 "`/blackjack` • `/slots` • `/roulette`\n" +
                 "`/coinflip` • `/rock/paper/scissors` • `/towers`\n" +
@@ -1155,7 +1216,7 @@ client.on('interactionCreate', async (interaction) => {
             await interaction.deferReply();
             const amount = interaction.options.getNumber('amount');
             const targetUser = interaction.options.getUser('user');
-            if (targetUser.id === interaction.user.id) return interaction.editReply("You can't give money to yourself!");
+            if (targetUser.id === interaction.member.id) return interaction.editReply("You can't give money to yourself!");
             let sender = await getuser(interaction.member.id);
             let receiver = await getuser(targetUser.id);
             if (sender.balance < amount) {
@@ -1228,7 +1289,7 @@ client.on('interactionCreate', async (interaction) => {
         }
     }
 
-    if (interaction.commandName === 'dig') {
+    if (interaction.commandName === 'claim') {
         try {
             await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
             const [[cooldown]] = await db.query("SELECT * FROM cooldown WHERE userid = ? AND command = 'dig'", [interaction.member.id]);
@@ -1618,7 +1679,7 @@ client.on('interactionCreate', async (interaction) => {
         const bet = interaction.options.getNumber('bet-amount');
         if (!bet || bet < 1) return interaction.editReply("Enter a valid bet.");
         if (Number(user.balance) < bet) return interaction.editReply(`Low balance: ${user.balance}💵`);
-        await db.query("UPDATE users SET balance = balance - ? WHERE userid = ?", [bet, interaction.user.id]);
+        await db.query("UPDATE users SET balance = balance - ? WHERE userid = ?", [bet, interaction.member.id]);
         let deck = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
         let playerHand = [deck[Math.floor(Math.random() * deck.length)], deck[Math.floor(Math.random() * deck.length)]];
         let dealerHand = [deck[Math.floor(Math.random() * deck.length)]];
@@ -1637,7 +1698,7 @@ client.on('interactionCreate', async (interaction) => {
         const playerHasBJ = calculateScore(playerHand) === 21;
         if (playerHasBJ) {
             const bjPayout = Math.floor(bet * 2.5);
-            await db.query("UPDATE users SET balance = balance + ? WHERE userid = ?", [bjPayout, interaction.user.id]);
+            await db.query("UPDATE users SET balance = balance + ? WHERE userid = ?", [bjPayout, interaction.member.id]);
             const bjEmbed = generateEmbed("BLACKJACK! 🃏", true, 0x00FF00)
                 .setDescription(`Natural 21!\nYou won **+${bjPayout - bet}**!\nNew Balance: **${user.balance - bet + bjPayout}**`);
             return await interaction.editReply({ embeds: [bjEmbed] });
@@ -1648,7 +1709,7 @@ client.on('interactionCreate', async (interaction) => {
         });
         await gameMessage.react('👊');
         await gameMessage.react('✋');
-        const filter = (reaction, user) => ['👊', '✋'].includes(reaction.emoji.name) && user.id === interaction.user.id;
+        const filter = (reaction, user) => ['👊', '✋'].includes(reaction.emoji.name) && user.id === interaction.member.id;
         const collector = gameMessage.createReactionCollector({ filter, time: 60000 });
         collector.on('collect', async (reaction, user) => {
             await reaction.users.remove(user.id).catch(() => null);
@@ -1700,7 +1761,7 @@ client.on('interactionCreate', async (interaction) => {
                 finalTitle = "Game Timed Out! ⏰";
             }
             if (payout > 0) {
-                await db.query("UPDATE users SET balance = balance + ? WHERE userid = ?", [payout, interaction.user.id]);
+                await db.query("UPDATE users SET balance = balance + ? WHERE userid = ?", [payout, interaction.member.id]);
             }
             const finalEmbed = generateEmbed(finalTitle, true)
                 .setColor(embedColor)
@@ -2201,15 +2262,100 @@ client.on('interactionCreate', async (interaction) => {
         }
     }
 
+    if (interaction.commandName === 'portfolio') {
+        try{
+            if (!interaction.inGuild()) { return interaction.reply({ content: 'You can only run this command inside a server.', flags: [MessageFlags.Ephemeral],}); }
+            await interaction.deferReply();
+            const userid = interaction.member.id;
+            const [holdings] = await db.query('SELECT symbol, shares FROM portfolios WHERE userid = ?', [userid]);
+            if (holdings.length === 0) { return interaction.editReply("Your portfolio is empty. Go buy some stocks!"); }
+            let list = holdings.map(h => `**${h.symbol}**: ${h.shares} shares`).join('\n');
+            const embed = {
+                title: `${interaction.user.username}'s Stock Portfolio`,
+                description: list,
+                color: 0x00ff00,
+                timestamp: new Date()
+            };
+            await interaction.editReply({ embeds: [embed] });
+        } catch (err) {
+            console.error(err);
+            await interaction.editReply(`Error:\n\`\`\`${err}\`\`\``);
+        }
+    }
+
+    if (interaction.commandName === 'buy') {
+        if (interaction.member.id !== process.env.DEV_ID) { return interaction.reply('Only my bot DEV can use this command'); }
+        if (!interaction.inGuild()) { return interaction.reply({ content: 'You can only run this command inside a server.', flags: [MessageFlags.Ephemeral],}); }
+        await interaction.deferReply();
+        const user = getuser(interaction.member.id);
+        const symbol = interaction.options.getString('symbol').toUpperCase();
+        const amountToBuy = interaction.options.getNumber('amount');
+        if (amountToBuy < 1) { return await interaction.editReply("You Must get more than 1 Share."); }
+        const stockData = await getStockData(symbol);
+        if (!stockData || stockData.length === 0) return interaction.editReply(`Could not find price for **${symbol}**. Please try again later.`);
+        const price = stockData.close;
+        const totalCost = price * amountToBuy;
+        if (Number(user.balance) < totalCost) { return interaction.editReply(`You need ${totalCost} credits, but you only have ${user.balance}.`); }
+        if (isNaN(totalCost) || totalCost <= 0) { return interaction.editReply("Invalid transaction amount."); }
+        try {
+            await db.query('UPDATE users SET balance = balance - ? WHERE userid = ?', [totalCost, interaction.member.id]);
+            await db.query(`
+                INSERT INTO portfolios (userid, symbol, shares) 
+                VALUES (?, ?, ?) 
+                ON DUPLICATE KEY UPDATE shares = shares + VALUES(shares)`, 
+                [interaction.member.id, symbol, amountToBuy]
+            );
+            await db.query('INSERT INTO stock_logs (userid, symbol, action, amount, price_per_share, total_cost) VALUES (?, ?, ?, ?, ?, ?)', 
+                [interaction.member.id, symbol, 'BUY', amountToBuy, price, totalCost]);
+            await interaction.editReply(`Successfully bought **${amountToBuy}** shares of **${symbol}** for 💵**${totalCost}**`);
+        } catch (err) {
+            console.error(err);
+            await interaction.editReply(`Error:\n\`\`\`${err}\`\`\``);
+        }
+    }
+
+    if (interaction.commandName === 'sell') {
+        if (!interaction.inGuild()) { return interaction.reply({ content: 'You can only run this command inside a server.', flags: [MessageFlags.Ephemeral],}); }
+        await interaction.deferReply();
+        const symbol = interaction.options.getString('symbol').toUpperCase();
+        const amountToSell = interaction.options.getNumber('amount');
+        const stockData = await getStockData(symbol);
+        if (!stockData || stockData.length === 0) return interaction.editReply("Could not fetch price.");
+        const price = Math.round(stockData.close); 
+        const totalReturn = price * amountToSell;
+        const [holding] = await db.query('SELECT shares FROM portfolios WHERE userid = ? AND symbol = ?', [interaction.member.id, symbol]);
+        if (!holding || holding.shares < amountToSell) { return interaction.editReply(`You don't have enough shares! You only own **${holding?.shares || 0}**.`); }
+        try {
+            await db.query('UPDATE users SET balance = balance + ? WHERE userid = ?', [totalReturn, interaction.member.id]);
+            if (holding.shares === amountToSell) {
+                await db.query('DELETE FROM portfolios WHERE userid = ? AND symbol = ?', [interaction.member.id, symbol]);
+            } else {
+                await db.query('UPDATE portfolios SET shares = shares - ? WHERE userid = ? AND symbol = ?', [amountToSell, interaction.member.id, symbol]);
+            }
+            await db.query('INSERT INTO stock_logs (userid, symbol, action, amount, price_per_share, total_cost) VALUES (?, ?, ?, ?, ?, ?)', 
+                [interaction.member.id, symbol, 'SELL', amountToSell, price, totalReturn]);
+            await interaction.editReply(`Sold **${amountToSell}** shares of **${symbol}** for **${totalReturn}** credits!`);
+        } catch (err) {
+            console.error(err);
+            await interaction.editReply("Database error.");
+        }
+    }
+
     if (interaction.commandName === "test") {
         if (interaction.member.id !== process.env.DEV_ID) { return interaction.reply('Only my bot DEV can use this command'); }
         if (!interaction.inGuild()) { return interaction.reply({ content: 'You can only run this command inside a server.', flags: [MessageFlags.Ephemeral],}); }
         try {
             await interaction.deferReply();
-            await interaction.editReply({ files: [] });
+            const symbol = interaction.options.getString('symbol');
+            let data = await getStockData(symbol);
+            const response = data 
+                ? `Stock data for ${symbol}: \`\`\`json\n${JSON.stringify(data[0], null, 2)}\`\`\``
+                : "No data found.";
+            await interaction.editReply(response);
         } catch(error) {
-            await interaction.editReply(`Please try the Command Again\n`+error);
-            console.log(`Error running test:\n\`\`\`${error.message}\`\`\``);
+            const errorMsg = error?.message || "An unknown error occurred";
+            await interaction.editReply(`Error:\n\`\`\`${errorMsg}\`\`\``);
+            console.error("Full Error Object:", error);
         }
     }
 });
