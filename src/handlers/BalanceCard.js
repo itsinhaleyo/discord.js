@@ -28,8 +28,8 @@ class BalanceCard extends Builder {
                 "div",
                 { style: { display: "flex", flexDirection: "column" } },
                 JSX.createElement("div", { style: { fontSize: "32px", fontWeight: "bold", display: "flex" } }, username),
-                JSX.createElement("div", { style: { fontSize: "22px", color: "#f1c40f", marginTop: "5px", display: "flex" } }, `Cash: 💵 ${balance}`),
-                JSX.createElement("div", { style: { fontSize: "22px", color: "#2ecc71", marginTop: "5px", display: "flex" } }, `Assets: 📈 ${assetValue}`)
+                JSX.createElement("div", { style: { fontSize: "22px", color: "#f1c40f", marginTop: "5px", display: "flex" } }, `💵 ${balance}`),
+                JSX.createElement("div", { style: { fontSize: "22px", color: "#2ecc71", marginTop: "5px", display: "flex" } }, `📈 ${assetValue}`)
             )
         );
     }

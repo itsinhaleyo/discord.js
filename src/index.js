@@ -1180,7 +1180,7 @@ client.on('interactionCreate', async (interaction) => {
         try {
             await interaction.deferReply();
             const targetUser = interaction.options.getUser('user') || interaction.user;
-            let userData = await getuser(targetUser.id);
+            let user = await getuser(targetUser.id);
             const [holdings] = await db.query('SELECT symbol, shares FROM portfolios WHERE userid = ?', [targetUser.id]);
             let totalAssetValue = 0;
             if (holdings.length > 0) {
@@ -1200,7 +1200,7 @@ client.on('interactionCreate', async (interaction) => {
             const card = new BalanceCard()
                 .setUsername(targetUser.username)
                 .setAvatar(targetUser.displayAvatarURL({ extension: 'png', size: 256 }))
-                .setBalance(userData.balance.toLocaleString())
+                .setBalance(user.balance.toLocaleString())
                 .setAssetValue(Math.round(totalAssetValue).toLocaleString());
             const image = await card.build();
             const attachment = new AttachmentBuilder(image, { name: 'balance.png' });
@@ -2361,9 +2361,8 @@ client.on('interactionCreate', async (interaction) => {
                 }
                 if (i.customId === 'confirm_buy') {
                     const freshUser = await getuser(interaction.member.id);
-                    if (freshUser.balance < totalCost) {
-                        return i.update({ content: '❌ You no longer have enough credits!', embeds: [], components: [] });
-                    }
+                    if (freshUser.balance < totalCost) { return i.update({ content: '❌ You no longer have enough credits!', embeds: [], components: [] }); }
+                    if (totalCost >= 1000) { await giveXp(interaction); }
                     await db.query('UPDATE users SET balance = balance - ? WHERE userid = ?', [totalCost, interaction.member.id]);
                     await db.query(`
                         INSERT INTO portfolios (userid, symbol, shares, average_price) 
@@ -2426,6 +2425,7 @@ client.on('interactionCreate', async (interaction) => {
             });
             collector.on('collect', async (i) => {
                 if (i.user.id !== interaction.user.id) { return i.reply({ content: "This isn't your menu!", ephemeral: true }); }
+                await giveXp(interaction);
                 const selectedSymbol = i.values[0];
                 const stockData = await getCryptoData(selectedSymbol);
                 if (!stockData) return i.update({ content: "❌ Error fetching current price.", components: [] });
@@ -2452,24 +2452,6 @@ client.on('interactionCreate', async (interaction) => {
         } catch (err) {
             console.error(err);
             await interaction.editReply("❌ An error occurred while opening the sell menu.");
-        }
-    }
-
-    if (interaction.commandName === "test") {
-        if (interaction.member.id !== process.env.DEV_ID) { return interaction.reply('Only my bot DEV can use this command'); }
-        if (!interaction.inGuild()) { return interaction.reply({ content: 'You can only run this command inside a server.', flags: [MessageFlags.Ephemeral],}); }
-        try {
-            await interaction.deferReply();
-            const symbol = interaction.options.getString('symbol');
-            let data = await getCryptoData(symbol);
-            const response = data 
-                ? `Stock data for ${symbol}: \`\`\`json\n${JSON.stringify(data[0], null, 2)}\`\`\``
-                : "No data found.";
-            await interaction.editReply(response);
-        } catch(error) {
-            const errorMsg = error?.message || "An unknown error occurred";
-            await interaction.editReply(`Error:\n\`\`\`${errorMsg}\`\`\``);
-            console.error("Full Error Object:", error);
         }
     }
 });
