@@ -1,5 +1,5 @@
 require('dotenv').config();
-const { REST, Routes, ActionRowBuilder, MessageFlags, ButtonBuilder, ButtonStyle, ComponentType, ActivityType, ApplicationCommandOptionType, Client, GatewayIntentBits, IntentsBitField, EmbedBuilder, AttachmentBuilder, Events } = require('discord.js'),
+const { REST, Routes, ActionRowBuilder, MessageFlags, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, ButtonBuilder, ButtonStyle, ComponentType, ActivityType, ApplicationCommandOptionType, Client, GatewayIntentBits, IntentsBitField, EmbedBuilder, AttachmentBuilder, Events } = require('discord.js'),
       { VoiceConnectionStatus, joinVoiceChannel, createAudioPlayer, createAudioResource, getVoiceConnection, StreamType, AudioPlayerStatus, NoSubscriberBehavior } = require('@discordjs/voice'),
       { LeaderboardBuilder, RankCardBuilder, Font } = require('canvacord'),
       { GoogleGenAI } = require("@google/genai"), axios = require('axios'),
@@ -578,6 +578,7 @@ const commands = [
     { name: 'ping', description: 'Replies With the Bots Ping' },
     { name: 'queue', description: 'Displays the current music queue' },
     { name: 'portfolio', description: 'Displays your market portfolio'},
+    { name: 'sell', description: 'Sell a Stock' },
     { 
         name: 'test', 
         description: 'Test Functtion',
@@ -603,24 +604,6 @@ const commands = [
             {
                 name: 'amount',
                 description: `the amount you wish to spend`,
-                type: ApplicationCommandOptionType.Number,
-                required: true
-            }
-        ]
-    },
-    {
-        name: 'sell',
-        description: 'Sell a Stock Using 💵',
-        options: [
-            {
-                name: 'symbol',
-                description: `The Symbol of The Stock you wish to sell.`,
-                type: ApplicationCommandOptionType.String,
-                required: true
-            },
-            {
-                name: 'amount',
-                description: `the amount you wish to sell`,
                 type: ApplicationCommandOptionType.Number,
                 required: true
             }
@@ -1198,18 +1181,33 @@ client.on('interactionCreate', async (interaction) => {
             await interaction.deferReply();
             const targetUser = interaction.options.getUser('user') || interaction.user;
             let userData = await getuser(targetUser.id);
+            const [holdings] = await db.query('SELECT symbol, shares FROM portfolios WHERE userid = ?', [targetUser.id]);
+            let totalAssetValue = 0;
+            if (holdings.length > 0) {
+                const coinIds = holdings.map(h => h.symbol.toLowerCase()).join(',');
+                const response = await axios.get('https://api.coingecko.com/api/v3/simple/price', {
+                    params: {
+                        ids: coinIds,
+                        vs_currencies: 'usd'
+                    },
+                    headers: { 'x-cg-demo-api-key': process.env.CG_API_KEY }
+                });
+                for (const stock of holdings) {
+                    const currentPrice = response.data[stock.symbol.toLowerCase()]?.usd || 0;
+                    totalAssetValue += (currentPrice * stock.shares);
+                }
+            }
             const card = new BalanceCard()
                 .setUsername(targetUser.username)
                 .setAvatar(targetUser.displayAvatarURL({ extension: 'png', size: 256 }))
-                .setBalance(userData.balance.toLocaleString());
+                .setBalance(userData.balance.toLocaleString())
+                .setAssetValue(Math.round(totalAssetValue).toLocaleString());
             const image = await card.build();
             const attachment = new AttachmentBuilder(image, { name: 'balance.png' });
             await interaction.editReply({ files: [attachment] });
         } catch (error) {
             console.error("Balance Error: ", error);
-            if (interaction.deferred) {
-                await interaction.editReply("Could not retrieve balance image.");
-            }
+            await interaction.editReply("Could not retrieve balance image.");
         }
     }
 
@@ -2304,8 +2302,8 @@ client.on('interactionCreate', async (interaction) => {
                 title: `💰 ${interaction.user.username}'s Portfolio`,
                 color: embedColor,
                 fields: [
-                    { name: '💵 Cash Balance', value: `${Number(user.balance).toLocaleString()} credits`, inline: true },
-                    { name: '📊 Asset Value', value: `${Math.round(totalValue).toLocaleString()} credits`, inline: true },
+                    { name: '💵 Cash Balance', value: `${Number(user.balance).toLocaleString()}`, inline: true },
+                    { name: '📊 Asset Value', value: `${Math.round(totalValue).toLocaleString()}`, inline: true },
                     { name: '✨ Total Profit/Loss', value: `**${totalPnlPercent}%** (${totalPnl >= 0 ? '+' : ''}${Math.round(totalPnl).toLocaleString()})`, inline: false },
                     { name: '📂 Detailed Holdings', value: list || "No data" }
                 ],
@@ -2319,61 +2317,141 @@ client.on('interactionCreate', async (interaction) => {
     }
 
     if (interaction.commandName === 'buy') {
-        if (!interaction.inGuild()) { return interaction.reply({ content: 'You can only run this command inside a server.', flags: [MessageFlags.Ephemeral],}); }
+        if (!interaction.inGuild()) return interaction.reply({ content: 'You can only run this command inside a server.', flags: [64] });
         try {
             await interaction.deferReply();
             const user = await getuser(interaction.member.id);
-            const symbol = interaction.options.getString('symbol').toUpperCase();
+            const symbol = interaction.options.getString('symbol').toLowerCase();
             const amountToBuy = interaction.options.getNumber('amount');
-            if (amountToBuy < 1) { return await interaction.editReply("You Must get more than 1 Share."); }
+            if (amountToBuy < 1) return await interaction.editReply("You must buy at least 1 share.");
             const stockData = await getCryptoData(symbol);
-            if (!stockData || stockData.length === 0) return interaction.editReply(`Could not find price for **${symbol}**.\nPlease try the Cypto Name and not the Ticker.\nexample:bitcoin and not btc`);
+            if (!stockData) return interaction.editReply(`❌ Could not find price for **${symbol}**.`);
             const price = Math.round(stockData);
             const totalCost = price * amountToBuy;
-            if (user.balance < totalCost) { return interaction.editReply(`You need 💵${totalCost} for ${amountToBuy}-${symbol}\nBalance 💵${user.balance}.`); }
-            if (isNaN(totalCost) || totalCost <= 0) { return interaction.editReply("Invalid transaction amount."); }
-            await db.query('UPDATE users SET balance = balance - ? WHERE userid = ?', [totalCost, interaction.member.id]);
-            await db.query(`
-                INSERT INTO portfolios (userid, symbol, shares, average_price) 
-                VALUES (?, ?, ?, ?) 
-                ON DUPLICATE KEY UPDATE 
-                    average_price = (average_price * shares + VALUES(average_price) * VALUES(shares)) / (shares + VALUES(shares)),
-                    shares = shares + VALUES(shares)`, 
-                [interaction.member.id, symbol, amountToBuy, price]
-            );
-            await db.query('INSERT INTO stock_logs (userid, symbol, action, amount, price_per_share, total_cost) VALUES (?, ?, ?, ?, ?, ?)', 
-                [interaction.member.id, symbol, 'BUY', amountToBuy, price, totalCost]);
-            await interaction.editReply(`Successfully bought **${amountToBuy}** shares of **${symbol}** for 💵**${totalCost}**`);
+            if (user.balance < totalCost) { return interaction.editReply(`❌ **Insufficient Funds!**\nCost: 💵**${totalCost.toLocaleString()}** | Balance: 💵**${Number(user.balance).toLocaleString()}**`); }
+            const row = new ActionRowBuilder()
+                .addComponents(
+                    new ButtonBuilder()
+                        .setCustomId('confirm_buy')
+                        .setLabel('Confirm Purchase')
+                        .setStyle(ButtonStyle.Success),
+                    new ButtonBuilder()
+                        .setCustomId('cancel_buy')
+                        .setLabel('Cancel')
+                        .setStyle(ButtonStyle.Danger)
+                );
+            const confirmEmbed = {
+                title: `Confirming Purchase: ${symbol.toUpperCase()}`,
+                description: `Are you sure you want to buy **${amountToBuy}** shares?\n\n**Price per unit:** 💵${price.toLocaleString()}\n**Total Cost:** 💵${totalCost.toLocaleString()}`,
+                color: 0xFFA500,
+            };
+            const response = await interaction.editReply({
+                embeds: [confirmEmbed],
+                components: [row]
+            });
+            const collector = response.createMessageComponentCollector({
+                componentType: ComponentType.Button,
+                time: 30000
+            });
+            collector.on('collect', async (i) => {
+                if (i.user.id !== interaction.user.id) { return i.reply({ content: "This isn't your transaction!", ephemeral: true }); }
+                if (i.customId === 'cancel_buy') {
+                    await i.update({ content: '❌ Transaction cancelled.', embeds: [], components: [] });
+                    return collector.stop();
+                }
+                if (i.customId === 'confirm_buy') {
+                    const freshUser = await getuser(interaction.member.id);
+                    if (freshUser.balance < totalCost) {
+                        return i.update({ content: '❌ You no longer have enough credits!', embeds: [], components: [] });
+                    }
+                    await db.query('UPDATE users SET balance = balance - ? WHERE userid = ?', [totalCost, interaction.member.id]);
+                    await db.query(`
+                        INSERT INTO portfolios (userid, symbol, shares, average_price) 
+                        VALUES (?, ?, ?, ?) 
+                        ON DUPLICATE KEY UPDATE 
+                            average_price = (average_price * shares + VALUES(average_price) * VALUES(shares)) / (shares + VALUES(shares)),
+                            shares = shares + VALUES(shares)`, 
+                        [interaction.member.id, symbol, amountToBuy, price]
+                    );
+                    await db.query('INSERT INTO stock_logs (userid, symbol, action, amount, price_per_share, total_cost) VALUES (?, ?, ?, ?, ?, ?)', 
+                        [interaction.member.id, symbol, 'BUY', amountToBuy, price, totalCost]);
+                    const buyEmbed = {
+                        title: `🛒 Purchase Successful!`,
+                        color: 0x00FF00,
+                        fields: [
+                            { name: 'Asset', value: symbol.toUpperCase(), inline: true },
+                            { name: 'Quantity', value: amountToBuy.toString(), inline: true },
+                            { name: 'Total Cost', value: `💵**${totalCost.toLocaleString()}**`, inline: false },
+                        ],
+                        footer: { text: `Transaction logged for ${interaction.user.username}` },
+                        timestamp: new Date()
+                    };
+                    await i.update({ embeds: [buyEmbed], components: [] });
+                    collector.stop();
+                }
+            });
+            collector.on('end', (collected, reason) => {
+                if (reason === 'time') { interaction.editReply({ content: '⏰ Transaction timed out.', embeds: [], components: [] }); }
+            });
         } catch (err) {
             console.error(err);
-            await interaction.editReply(`Error:\n\`\`\`${err}\`\`\``);
+            await interaction.editReply(`Error during purchase: \`${err.message}\``);
         }
     }
 
     if (interaction.commandName === 'sell') {
-        if (!interaction.inGuild()) { return interaction.reply({ content: 'You can only run this command inside a server.', flags: [MessageFlags.Ephemeral],}); }
         await interaction.deferReply();
-        const symbol = interaction.options.getString('symbol').toUpperCase();
-        const amountToSell = interaction.options.getNumber('amount');
-        const stockData = await getCryptoData(symbol);
-        if (!stockData || stockData.length === 0) return interaction.editReply("Could not fetch price.");
-        const price = Math.round(stockData); 
-        const totalReturn = price * amountToSell;
-        const [holding] = await db.query('SELECT shares FROM portfolios WHERE userid = ? AND symbol = ?', [interaction.member.id, symbol]);
-        if (!holding || holding.shares < amountToSell) { return interaction.editReply(`You don't have enough shares! You only own **${holding?.shares || 0}**.`); }
         try {
-            await db.query('UPDATE users SET balance = balance + ? WHERE userid = ?', [totalReturn, interaction.member.id]);
-            if (holding.shares === amountToSell) {
-                await db.query('DELETE FROM portfolios WHERE userid = ? AND symbol = ?', [interaction.member.id, symbol]);
-            } else {
-                await db.query('UPDATE portfolios SET shares = shares - ? WHERE userid = ? AND symbol = ?', [amountToSell, interaction.member.id, symbol]);
-            }
-            await db.query('INSERT INTO stock_logs (userid, symbol, action, amount, price_per_share, total_cost) VALUES (?, ?, ?, ?, ?, ?)', 
-                [interaction.member.id, symbol, 'SELL', amountToSell, price, totalReturn]);
-            await interaction.editReply(`Sold **${amountToSell}** shares of **${symbol}** for **${totalReturn}** credits!`);
+            const [holdings] = await db.query('SELECT symbol, shares FROM portfolios WHERE userid = ? AND shares > 0', [interaction.member.id]);
+            if (holdings.length === 0) { return interaction.editReply("❌ You don't own any assets to sell!"); }
+            const selectMenu = new StringSelectMenuBuilder()
+                .setCustomId('sell_select')
+                .setPlaceholder('Choose an asset to sell...')
+                .addOptions(
+                    holdings.map(h => 
+                        new StringSelectMenuOptionBuilder()
+                            .setLabel(h.symbol.toUpperCase())
+                            .setDescription(`You own ${h.shares.toLocaleString()} units`)
+                            .setValue(h.symbol)
+                    )
+                );
+            const row = new ActionRowBuilder().addComponents(selectMenu);
+            const response = await interaction.editReply({
+                content: "Select the asset you'd like to sell from your portfolio:",
+                components: [row]
+            });
+            const collector = response.createMessageComponentCollector({
+                componentType: ComponentType.StringSelect,
+                time: 30000 
+            });
+            collector.on('collect', async (i) => {
+                if (i.user.id !== interaction.user.id) { return i.reply({ content: "This isn't your menu!", ephemeral: true }); }
+                const selectedSymbol = i.values[0];
+                const stockData = await getCryptoData(selectedSymbol);
+                if (!stockData) return i.update({ content: "❌ Error fetching current price.", components: [] });
+                const price = Math.round(stockData);
+                const holding = holdings.find(h => h.symbol === selectedSymbol);
+                const totalReturn = price * holding.shares;
+                await db.query('UPDATE users SET balance = balance + ? WHERE userid = ?', [totalReturn, interaction.member.id]);
+                await db.query('DELETE FROM portfolios WHERE userid = ? AND symbol = ?', [interaction.member.id, selectedSymbol]);
+                await db.query('INSERT INTO stock_logs (userid, symbol, action, amount, price_per_share, total_cost) VALUES (?, ?, ?, ?, ?, ?)', 
+                    [interaction.member.id, selectedSymbol, 'SELL', holding.shares, price, totalReturn]);
+                const sellEmbed = {
+                    title: `📉 Sale Successful!`,
+                    color: 0xFF0000,
+                    description: `Sold all **${holding.shares}** units of **${selectedSymbol.toUpperCase()}**`,
+                    fields: [
+                        { name: 'Sale Price', value: `💵${price.toLocaleString()}`, inline: true },
+                        { name: 'Total Credits Received', value: `💵**${totalReturn.toLocaleString()}**`, inline: true }
+                    ],
+                    timestamp: new Date()
+                };
+                await i.update({ content: null, embeds: [sellEmbed], components: [] });
+                collector.stop();
+            });
         } catch (err) {
             console.error(err);
-            await interaction.editReply("Database error.");
+            await interaction.editReply("❌ An error occurred while opening the sell menu.");
         }
     }
 
