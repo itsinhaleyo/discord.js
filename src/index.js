@@ -279,6 +279,21 @@ async function getCryptoData(coinId) {
     }
 }
 
+async function getCoinIdFromTicker(query) {
+    try {
+        const response = await axios.get('https://api.coingecko.com/api/v3/search', {
+            params: { query: query.toLowerCase() },
+            headers: { 'x-cg-demo-api-key': process.env.CG_API_KEY }
+        });
+        const coins = response.data.coins;
+        if (!coins || coins.length === 0) return null;
+        return coins[0].id;
+    } catch (error) {
+        console.error("Search API Error:", error.message);
+        return null;
+    }
+}
+
 // Function to get a Random Number
 function getRandomNumber(x, y) { const range = y - x + 1; const randomNumber = Math.floor(Math.random() * range); return randomNumber + x;}
 
@@ -2365,9 +2380,11 @@ client.on('interactionCreate', async (interaction) => {
             const user = await getuser(interaction.member.id);
             const symbol = interaction.options.getString('symbol').toLowerCase();
             const amountToBuy = interaction.options.getNumber('amount');
+            const coinId = await getCoinIdFromTicker(symbol);
+            if (!coinId) { return interaction.editReply(`❌ Could not find any coin matching "**${userInput}**".`); }
             if (amountToBuy < 1) return await interaction.editReply("You must buy at least 1 share.");
-            const stockData = await getCryptoData(symbol);
-            if (!stockData) return interaction.editReply(`❌ Could not find price for **${symbol}**.`);
+            const stockData = await getCryptoData(coinId);
+            if (!stockData) return interaction.editReply(`❌ Could not find price for **${coinId}**.`);
             const price = Math.round(stockData);
             const totalCost = price * amountToBuy;
             if (user.balance < totalCost) { return interaction.editReply(`❌ **Insufficient Funds!**\nCost: 💵**${totalCost.toLocaleString()}** | Balance: 💵**${Number(user.balance).toLocaleString()}**`); }
@@ -2383,7 +2400,7 @@ client.on('interactionCreate', async (interaction) => {
                         .setStyle(ButtonStyle.Danger)
                 );
             const confirmEmbed = {
-                title: `Confirming Purchase: ${symbol.toUpperCase()}`,
+                title: `Confirming Purchase: ${coinId.toUpperCase()}`,
                 description: `Are you sure you want to buy **${amountToBuy}** shares?\n\n**Price per unit:** 💵${price.toLocaleString()}\n**Total Cost:** 💵${totalCost.toLocaleString()}`,
                 color: 0xFFA500,
             };
@@ -2412,15 +2429,15 @@ client.on('interactionCreate', async (interaction) => {
                         ON DUPLICATE KEY UPDATE 
                             average_price = (average_price * shares + VALUES(average_price) * VALUES(shares)) / (shares + VALUES(shares)),
                             shares = shares + VALUES(shares)`, 
-                        [interaction.member.id, symbol, amountToBuy, price]
+                        [interaction.member.id, coinId, amountToBuy, price]
                     );
                     await db.query('INSERT INTO stock_logs (userid, symbol, action, amount, price_per_share, total_cost) VALUES (?, ?, ?, ?, ?, ?)', 
-                        [interaction.member.id, symbol, 'BUY', amountToBuy, price, totalCost]);
+                        [interaction.member.id, coinId, 'BUY', amountToBuy, price, totalCost]);
                     const buyEmbed = {
                         title: `🛒 Purchase Successful!`,
                         color: 0x00FF00,
                         fields: [
-                            { name: 'Asset', value: symbol.toUpperCase(), inline: true },
+                            { name: 'Asset', value: coinId.toUpperCase(), inline: true },
                             { name: 'Quantity', value: amountToBuy.toString(), inline: true },
                             { name: 'Total Cost', value: `💵**${totalCost.toLocaleString()}**`, inline: false },
                         ],
@@ -2501,16 +2518,17 @@ client.on('interactionCreate', async (interaction) => {
         const symbol = interaction.options.getString('symbol').toLowerCase();
         await interaction.deferReply();
         try {
+            const coinId = await getCoinIdFromTicker(symbol);
+            if (!coinId) {  return interaction.editReply(`❌ Could not find any coin matching "**${symbol}**".`); }
             const response = await axios.get('https://api.coingecko.com/api/v3/coins/markets', {
                 params: {
                     vs_currency: 'usd',
-                    ids: symbol,
+                    ids: coinId,
                     sparkline: true,
                     price_change_percentage: '24h' 
                 },
                 headers: { 'x-cg-demo-api-key': process.env.CG_API_KEY }
             });
-            if (!response.data || response.data.length === 0) { return interaction.editReply(`❌ Could not find data for **${symbol}**. Try the full name (e.g. bitcoin).`); }
             const coin = response.data[0];
             const chartData = coin.sparkline_in_7d.price;
             const myChart = new QuickChart();
