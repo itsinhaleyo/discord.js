@@ -5,7 +5,7 @@ const { REST, Routes, ActionRowBuilder, MessageFlags, StringSelectMenuBuilder, S
       { GoogleGenAI } = require("@google/genai"), axios = require('axios'),
       { getData, getTracks } = require('spotify-url-info')(require('isomorphic-unfetch')),
       { MusicCard } = require("./handlers/MusicCard.js"), { BalanceCard } = require("./handlers/BalanceCard.js"),
-      fs = require('fs'), path = require('path'), util = require('util'),
+      fs = require('fs'), path = require('path'), util = require('util'), QuickChart = require('quickchart-js'),
       ytdl = require('youtube-dl-exec'), eventHandler = require('./handlers/eventHandler'),
       songsDir = path.join(__dirname, 'songs'), torrentDir = path.join(__dirname, 'torrents');
 Font.loadDefault();
@@ -605,6 +605,18 @@ const commands = [
                 name: 'amount',
                 description: `the amount you wish to spend`,
                 type: ApplicationCommandOptionType.Number,
+                required: true
+            }
+        ]
+    },
+        {
+        name: 'price',
+        description: 'Check a Stocks Preformance',
+        options: [
+            {
+                name: 'symbol',
+                description: `The Symbol of The Stock you wish to view.`,
+                type: ApplicationCommandOptionType.String,
                 required: true
             }
         ]
@@ -2482,6 +2494,82 @@ client.on('interactionCreate', async (interaction) => {
         } catch (err) {
             console.error(err);
             await interaction.editReply("❌ An error occurred while opening the sell menu.");
+        }
+    }
+
+    if (interaction.commandName === 'price') {
+        const symbol = interaction.options.getString('symbol').toLowerCase();
+        await interaction.deferReply();
+        try {
+            const response = await axios.get('https://api.coingecko.com/api/v3/coins/markets', {
+                params: {
+                    vs_currency: 'usd',
+                    ids: symbol,
+                    sparkline: true,
+                    price_change_percentage: '24h' 
+                },
+                headers: { 'x-cg-demo-api-key': process.env.CG_API_KEY }
+            });
+            if (!response.data || response.data.length === 0) { return interaction.editReply(`❌ Could not find data for **${symbol}**. Try the full name (e.g. bitcoin).`); }
+            const coin = response.data[0];
+            const chartData = coin.sparkline_in_7d.price;
+            const myChart = new QuickChart();
+            myChart.setVersion('3');
+            myChart.setWidth(500);
+            myChart.setHeight(150);
+            myChart.setBackgroundColor('transparent'); 
+            myChart.setConfig({
+                type: 'line',
+                data: {
+                    labels: chartData.map(() => ''), 
+                    datasets: [{
+                        data: chartData,
+                        borderColor: coin.price_change_percentage_24h >= 0 ? 'green' : 'red',
+                        fill: false,
+                        pointRadius: 0,
+                        borderWidth: 2,
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    plugins: { 
+                        legend: { display: false },
+                        tickFormat: { prefix: '$', useGrouping: true }
+                    },
+                    scales: {
+                        x: { display: false },
+                        y: { 
+                            display: true,
+                            position: 'left',
+                            ticks: {
+                                color: 'white',
+                                callback: (val) => val.toLocaleString()
+                            },
+                            min: Math.min(...chartData) * 0.999,
+                            max: Math.max(...chartData) * 1.001
+                        }
+                    }
+                }
+            });
+            const chartUrl = await myChart.getShortUrl(); 
+            const priceEmbed = {
+                title: `${coin.name} (${coin.symbol.toUpperCase()})`,
+                thumbnail: { url: coin.image },
+                color: coin.price_change_percentage_24h >= 0 ? 0x00FF00 : 0xFF0000,
+                fields: [
+                    { name: '💰 Current Price', value: `💵 $${coin.current_price.toLocaleString()}`, inline: true },
+                    { name: '📉 24h Change', value: `${coin.price_change_percentage_24h.toFixed(2)}%`, inline: true },
+                    { name: '📊 24h High / Low', value: `High: $${coin.high_24h.toLocaleString()}\nLow: $${coin.low_24h.toLocaleString()}`, inline: false },
+                    { name: '💎 Market Cap', value: `$${coin.market_cap.toLocaleString()}`, inline: true },
+                    { name: '⏱️ Last Updated', value: `<t:${Math.floor(Date.parse(coin.last_updated) / 1000)}:R>`, inline: true }
+                ],
+                image: { url: chartUrl }
+            };
+            await interaction.editReply({ embeds: [priceEmbed] });
+        } catch(error) {
+            const errorMsg = error?.message || "An unknown error occurred";
+            await interaction.editReply(`Error:\n\`\`\`${errorMsg}\`\`\``);
+            console.error("Full Error Object:", error);
         }
     }
 
