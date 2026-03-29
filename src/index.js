@@ -655,6 +655,11 @@ const commands = [
                 type: ApplicationCommandOptionType.Subcommand
             },
             {
+                name: 'assets',
+                description: 'Top 10 asset holders',
+                type: ApplicationCommandOptionType.Subcommand
+            },
+            {
                 name: 'rank',
                 description: 'Top 10 highest level users',
                 type: ApplicationCommandOptionType.Subcommand
@@ -1160,7 +1165,7 @@ client.on('interactionCreate', async (interaction) => {
                 "### 💰 Economy\n" +
                 "`/balance` • `/give` • `/daily`\n" +
                 "`/claim` • `/portfolio` • `/buy`\n" +
-                "`/sell`" +
+                "`/sell`\n" +
                 "### 🎲 Games\n" +
                 "`/blackjack` • `/slots` • `/roulette`\n" +
                 "`/coinflip` • `/rock/paper/scissors` • `/towers`\n" +
@@ -1407,44 +1412,69 @@ client.on('interactionCreate', async (interaction) => {
     }
 
     if (interaction.commandName === 'leaderboard') {
-        if (!interaction.inGuild()) { return interaction.reply({ content: 'You can only run this command inside a server.', flags: [MessageFlags.Ephemeral],}); } 
+        if (!interaction.inGuild()) return interaction.reply({ content: 'Server only.', flags: [MessageFlags.Ephemeral] });
         try {
             await interaction.deferReply();
             const subcommand = interaction.options.getSubcommand();
-            const query = subcommand === 'money' 
-                ? "SELECT userid, balance as xp, level FROM users ORDER BY balance DESC LIMIT 10"
-                : "SELECT userid, level, xp FROM users ORDER BY level DESC, xp DESC LIMIT 10";
-            const [allUsers] = await db.query(query);
-            if (allUsers.length === 0) return interaction.editReply("No data found.");
-            const players = await Promise.all(allUsers.map(async (u, index) => {
-                let fetchedUser;
-                try {
-                    fetchedUser = await interaction.client.users.fetch(u.userid);
-                } catch {
-                    fetchedUser = { username: "Unknown", displayAvatarURL: () => "" };
-                }
-                return {
-                    avatar: fetchedUser.displayAvatarURL({ extension: "png", size: 128 }),
-                    username: fetchedUser.username,
-                    displayName: fetchedUser.displayName || fetchedUser.username,
-                    level: subcommand === 'money' ? null : Number(u.level),
-                    xp: subcommand === 'money' ? Number(u.xp) : Number(u.xp),
-                    rank: index + 1,
-                };
-            }));
+            let players = [];
+            if (subcommand === 'assets') {
+                const [allHoldings] = await db.query("SELECT userid, symbol, shares FROM portfolios WHERE shares > 0");
+                if (allHoldings.length === 0) return interaction.editReply("No one owns any stocks yet!");
+                const uniqueSymbols = [...new Set(allHoldings.map(h => h.symbol.toLowerCase()))].join(',');
+                const response = await axios.get('https://api.coingecko.com/api/v3/simple/price', {
+                    params: { ids: uniqueSymbols, vs_currencies: 'usd' },
+                    headers: { 'x-cg-demo-api-key': process.env.CG_API_KEY }
+                });
+                const prices = response.data;
+                const userTotals = {};
+                allHoldings.forEach(h => {
+                    const price = prices[h.symbol.toLowerCase()]?.usd || 0;
+                    userTotals[h.userid] = (userTotals[h.userid] || 0) + (price * h.shares);
+                });
+                const sortedUsers = Object.entries(userTotals)
+                    .sort(([, a], [, b]) => b - a)
+                    .slice(0, 10);
+                players = await Promise.all(sortedUsers.map(async ([userid, total], index) => {
+                    const fetchedUser = await interaction.client.users.fetch(userid).catch(() => ({ username: "Unknown" }));
+                    return {
+                        avatar: fetchedUser.displayAvatarURL ? fetchedUser.displayAvatarURL({ extension: "png" }) : "",
+                        username: fetchedUser.username,
+                        xp: Math.round(total),
+                        rank: index + 1,
+                    };
+                }));
+            } else {
+                const query = subcommand === 'money' 
+                    ? "SELECT userid, balance, level FROM users ORDER BY balance DESC LIMIT 10"
+                    : "SELECT userid, level, xp FROM users ORDER BY level DESC, xp DESC LIMIT 10";
+                const [allUsers] = await db.query(query);
+                if (allUsers.length === 0) return interaction.editReply("No data found.");
+                players = await Promise.all(allUsers.map(async (u, index) => {
+                    let fetchedUser;
+                    try { fetchedUser = await interaction.client.users.fetch(u.userid); } catch { fetchedUser = { username: "Unknown", displayAvatarURL: () => "" }; }
+                    return {
+                        avatar: fetchedUser.displayAvatarURL ? fetchedUser.displayAvatarURL({ extension: "png", size: 128 }) : "",
+                        username: fetchedUser.username,
+                        displayName: fetchedUser.displayName || fetchedUser.username,
+                        level: subcommand === 'money' ? null : Number(u.level),
+                        xp: subcommand === 'money' ? Number(u.balance) : Number(u.xp),
+                        rank: index + 1,
+                    };
+                }));
+            }
             const lb = new LeaderboardBuilder()
                 .setPlayers(players)
                 .setVariant("default")
                 .setTextStyles({
-                    xp: subcommand === 'money' ? "" : "XP",
-                    level: subcommand === 'money' ? "" : "Level" 
+                    xp: subcommand === 'assets' ? "" : (subcommand === 'money' ? "" : "XP"),
+                    level: subcommand === 'assets' || subcommand === 'money' ? "" : "Level"
                 });
             const image = await lb.build({ format: "png" });
             const attachment = new AttachmentBuilder(image, { name: 'leaderboard.png' });
             await interaction.editReply({ files: [attachment] });
         } catch (error) {
             console.error(`Leaderboard Error: ${error}`);
-            interaction.editReply("Failed to load the leaderboard image.");
+            if (!interaction.replied) interaction.editReply("Failed to load the leaderboard image.");
         }
     }
 
@@ -2452,6 +2482,24 @@ client.on('interactionCreate', async (interaction) => {
         } catch (err) {
             console.error(err);
             await interaction.editReply("❌ An error occurred while opening the sell menu.");
+        }
+    }
+
+    if (interaction.commandName === "test") {
+        if (interaction.member.id !== process.env.DEV_ID) { return interaction.reply('Only my bot DEV can use this command'); }
+        if (!interaction.inGuild()) { return interaction.reply({ content: 'You can only run this command inside a server.', flags: [MessageFlags.Ephemeral],}); }
+        try {
+            await interaction.deferReply();
+            const symbol = interaction.options.getString('symbol');
+            let data = await getCryptoData(symbol);
+            const response = data 
+                ? `Stock data for ${symbol}: \`\`\`json\n${JSON.stringify(data[0], null, 2)}\`\`\``
+                : "No data found.";
+            await interaction.editReply(response);
+        } catch(error) {
+            const errorMsg = error?.message || "An unknown error occurred";
+            await interaction.editReply(`Error:\n\`\`\`${errorMsg}\`\`\``);
+            console.error("Full Error Object:", error);
         }
     }
 });

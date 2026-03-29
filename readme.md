@@ -20,35 +20,6 @@ Head to this link https://discord.com/developers/applications to get your Bot To
 Add this token id to your .env TOKEN = tokenid
 
 
-For Setting up Dev id's:
-
-Under discord account settings, scroll to the bottom and click advanced, Turn on Developer Mode.
-
-Now Rightclick your useraccount in a server and Copy User ID,
-
-Add that to your .env beside DEV_ID = 
-
-NOTE: You can add multiple dev id's by adding it into { id, id2, id3, etc }
-
-
-For setting up Client id:
-
-Make Sure your Bot has been added to a test server of your choosing.
-
-Right Click your bot and Choose Copy User ID
-
-Now add this to your .env beside CLIENT_ID =
-
-
-For setting up Guild Id:
-
-Right Click the Test server Icon and Copy Server ID,
-
-Add this to your .env beside GUILD_ID = 
-
-NOTE: You can add multiple guild id's by adding it into { id, id2, id3, etc }
-
-
 For setting up the bot user:
 
 Enter your bots username that will be used beside BOT_USER = 
