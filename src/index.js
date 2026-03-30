@@ -1,9 +1,9 @@
 require('dotenv').config();
 const { REST, Routes, ActionRowBuilder, MessageFlags, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, ButtonBuilder, ButtonStyle, ComponentType, ActivityType, ApplicationCommandOptionType, Client, GatewayIntentBits, IntentsBitField, EmbedBuilder, AttachmentBuilder, Events } = require('discord.js'),
       { VoiceConnectionStatus, joinVoiceChannel, createAudioPlayer, createAudioResource, getVoiceConnection, StreamType, AudioPlayerStatus, NoSubscriberBehavior } = require('@discordjs/voice'),
-      { LeaderboardBuilder, RankCardBuilder, Font } = require('canvacord'),
-      { GoogleGenAI } = require("@google/genai"), axios = require('axios'),
-      { getData, getTracks } = require('spotify-url-info')(require('isomorphic-unfetch')),
+      { LeaderboardBuilder, RankCardBuilder, Font } = require('canvacord'), express = require('express'), session = require('express-session'), MySQLStore = require('express-mysql-session')(session),
+      { GoogleGenAI } = require("@google/genai"), axios = require('axios'), passport = require('passport'), LocalStrategy = require('passport-local').Strategy,
+      { getData, getTracks } = require('spotify-url-info')(require('isomorphic-unfetch')), bcrypt = require('bcrypt'),
       { MusicCard } = require("./handlers/MusicCard.js"), { BalanceCard } = require("./handlers/BalanceCard.js"),
       fs = require('fs'), path = require('path'), util = require('util'), QuickChart = require('quickchart-js'),
       ytdl = require('youtube-dl-exec'), eventHandler = require('./handlers/eventHandler'),
@@ -1184,7 +1184,7 @@ client.on('interactionCreate', async (interaction) => {
                 "### 🛠️ Utility\n" +
                 "`/ping - Replies with the bot's latency`\n" +
                 "`/level - Shows your server level`\n" +
-                "`/leaderboard - Shows User Rankings`\n"+
+                "`/leaderboard - Shows Rankings`\n"+
                 "`/ai - Generate a response from Gemini`\n" +
                 "### 🎵 Music\n"+
                 "`/play - Play a Song/Playlist from a Youtube or Spotify Link`\n"+
@@ -1192,7 +1192,7 @@ client.on('interactionCreate', async (interaction) => {
                 "### 💰 Economy\n" +
                 "`/balance` • `/give` • `/daily`\n" +
                 "`/claim` • `/portfolio` • `/buy`\n" +
-                "`/sell`\n" +
+                "`/sell` • `/price`\n" +
                 "### 🎲 Games\n" +
                 "`/blackjack` • `/slots` • `/roulette`\n" +
                 "`/coinflip` • `/rock/paper/scissors` • `/towers`\n" +
@@ -2657,3 +2657,83 @@ client.on('messageCreate', async (message) => {
     }
 
 });
+
+// Website Coding
+const web = express();
+web.use(express.urlencoded({ extended: false }));
+web.use(express.static('public'));
+const port = process.env.PORT;
+const sessionStore = new MySQLStore({}, db);
+web.set('trust proxy', 1);
+web.use(session({
+    secret: process.env.SESSION_SECRET,
+    resave: false,
+    saveUninitialized: false,
+    store: sessionStore,
+    proxy: true,
+    cookie: { 
+        maxAge: 1000 * 60 * 60 * 24,
+        secure: true
+    }
+}));
+web.use(passport.initialize());
+web.use(passport.session());
+
+passport.use(new LocalStrategy({ usernameField: 'email' }, async (email, password, done) => {
+    try {
+        const [rows] = await db.query('SELECT * FROM webusers WHERE email = ?', [email]);
+        const user = rows[0];
+        if (!user) return done(null, false);
+        const isMatch = await bcrypt.compare(password, user.password);
+        if (!isMatch) return done(null, false);
+        return done(null, user);
+    } catch (err) { return done(err); }
+}));
+
+passport.serializeUser((user, done) => done(null, user.id));
+passport.deserializeUser(async (id, done) => {
+    try {
+        const [rows] = await db.query('SELECT * FROM webusers WHERE id = ?', [id]);
+        done(null, rows[0]); 
+    } catch (err) { done(err); }
+});
+
+web.post('/login', passport.authenticate('local', {
+    successRedirect: '/',
+    failureRedirect: '/login'
+}));
+
+web.post('/register', async (req, res) => {
+    try {
+        const hashedPassword = await bcrypt.hash(req.body.password, 10);
+        await db.query('INSERT INTO webusers (email, password) VALUES (?, ?)', [req.body.email, hashedPassword]);
+        res.redirect('/login');
+    } catch (err) { res.status(500).send("Registration failed"); }
+});
+
+web.post('/logout', (req, res, next) => {
+    req.logout((err) => {
+        if (err) { return next(err); }
+        res.redirect('/login');
+    });
+});
+
+const checkAuth = (req, res, next) => req.isAuthenticated() ? next() : res.redirect('/login');
+
+web.get('/', checkAuth, (req, res) => {
+    let html = fs.readFileSync(path.join(__dirname, 'public', 'home.html'), 'utf8');
+    html = html.replace('User', req.user.email);
+    res.send(html);
+});
+
+web.get('/login', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'login.html'));
+});
+
+web.get('/register', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'signup.html'));
+});
+
+web.listen(port, () => { 
+    console.log(`Website running at http://localhost:${port}/`); }
+);
