@@ -175,28 +175,6 @@
             padding-top: 80px;
         }
 
-        .hero {
-            text-align: center;
-            padding: 100px 20px;
-            max-width: 1000px;
-            margin: 0 auto;
-        }
-
-        .hero h1 {
-            font-size: 3.5rem;
-            margin-bottom: 1rem;
-            background: linear-gradient(to right, #fff, var(--discord-blue));
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-
-        .hero p {
-            font-size: 1.2rem;
-            color: var(--text-muted);
-            max-width: 600px;
-            margin: 0 auto 2.5rem;
-        }
-
         .cta-btn {
             display: inline-block;
             background: var(--discord-blue);
@@ -214,30 +192,39 @@
             box-shadow: 0 10px 20px rgba(88, 101, 242, 0.4);
         }
 
-        .features {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 2rem;
-            padding: 50px 20px;
-            max-width: 1000px;
-            margin: 0 auto;
-        }
-
-        .feature-card {
-            background: var(--card-bg);
-            padding: 2rem;
-            border-radius: 20px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            text-align: center;
-        }
-
-        .feature-card h3 { margin-top: 0; color: var(--discord-blue); }
-        .feature-card p { color: var(--text-muted); font-size: 0.95rem; }
-
         .bot-stats {
             text-align: center;
             padding: 50px 20px;
             background: rgba(0,0,0,0.2);
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+            margin: 2rem auto;
+            max-width: 500px;
+            width: 100%;
+        }
+
+        .stat-card {
+            background: rgba(15, 23, 42, 0.5);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            padding: 1.25rem;
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            text-align: center;
+        }
+
+        .stat-card.full-width {
+            grid-column: span 2;
+            padding: 1rem 2rem;
+        }
+
+        .stat-value {
+            font-size: 1.2rem;
+            font-weight: 700;
         }
     </style>
 </head>
@@ -265,36 +252,88 @@
             </nav>
         </div>
     </header>
-    <section class="hero">
-        <h1>Meet Jew Bot</h1>
-        <p>The ultimate Discord companion for economy, leveling, and competitive leaderboards. Start your journey today.</p>
-        <a href="https://discord.com/oauth2/authorize?client_id=1479879290270126263" class="cta-btn">Add to Your Discord Server</a>
-    </section>
-    <section class="features">
-        <div class="feature-card">
-            <h3>💰 Economy</h3>
-            <p>Earn coins, gamble, and climb the global riches leaderboard.</p>
-        </div>
-        <div class="feature-card">
-            <h3>⭐ Leveling</h3>
-            <p>Stay active to gain XP and unlock unique roles and perks.</p>
-        </div>
-        <div class="feature-card">
-            <h3>📊 Web Dashboard</h3>
-            <p>Track your progress and stats directly from our clean web interface.</p>
-        </div>
-    </section>
-    <section class="bot-stats">
-        <div style="display: flex; justify-content: center; gap: 50px;">
-            <div>
-                <h2 style="margin:0;">{{userCount}}+</h2>
-                <p style="color: var(--text-muted);">Users</p>
+    <div class="dashboard-wrapper" style="max-width: 800px; margin: 0 auto; text-align: center;"></div>
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-label">Total Balance</div>
+                <div class="stat-value">💰 {{balance}}</div>
             </div>
-            <div>
-                <h2 style="margin:0;">{{serverCount}}+</h2>
-                <p style="color: var(--text-muted);">Servers</p>
+            <div class="stat-card">
+                <div class="stat-label">Your Level</div>
+                <div class="stat-value">⭐ {{level}}</div>
+            </div>
+            <div class="stat-card full-width">
+                <div class="stat-label">Daily Reward</div>
+                <div id="daily-container">
+                    <button onclick="claimDaily()" id="daily-btn" class="btn-discord" style="margin: 0; width: 100%;">
+                        Claim Daily 💰 25,000
+                    </button>
+                    <div id="cooldown-timer" style="display: none; color: #94a3b8; font-size: 0.9rem; margin-top: 12px;">
+                        Next reward in: <span id="timer-text" style="color: #fff; font-weight: bold;">--:--:--</span>
+                    </div>
+                </div>
             </div>
         </div>
-    </section>
+        <script>
+            let hasClaimed = {{hasClaimed}};
+            let msLeft = {{msUntilMidnight}};
+            function updateTimer() {
+                if (msLeft <= 0) {
+                    location.reload(); 
+                    return;
+                }
+                const hours = Math.floor(msLeft / 3600000);
+                const minutes = Math.floor((msLeft % 3600000) / 60000);
+                const seconds = Math.floor((msLeft % 60000) / 1000);
+
+                document.getElementById('timer-text').innerText = 
+                    `${hours}h ${minutes}m ${seconds}s`;
+                msLeft -= 1000;
+            }
+            if (hasClaimed) {
+                const btn = document.getElementById('daily-btn');
+                if(btn) {
+                    btn.disabled = true;
+                    btn.innerText = "✅ Claimed Today";
+                    btn.style.background = "rgba(255,255,255,0.05)";
+                    btn.style.color = "#94a3b8";
+                    document.getElementById('cooldown-timer').style.display = "block";
+                    setInterval(updateTimer, 1000);
+                    updateTimer();
+                }
+            }
+            async function claimDaily() {
+                const btn = document.getElementById('daily-btn');
+                btn.disabled = true;
+                btn.innerText = "Processing...";
+                try {
+                    const response = await fetch('/claim-daily', { method: 'POST' });
+                    const data = await response.json();
+                    if (data.success) {
+                        location.reload(); 
+                    } else {
+                        alert(data.message);
+                        btn.disabled = false;
+                        btn.innerText = "Claim Daily 💰 25,000";
+                    }
+                } catch (err) {
+                    alert("Error connecting to server.");
+                }
+            }
+        </script>
+        <div class="bot-stats" style="margin-top: 3rem;">
+        <div style="display: flex; justify-content: center; gap: 40px; margin-bottom: 1.5rem;">
+            <div>
+                <h2 style="margin:0; font-size: 1.5rem;">{{userCount}}</h2>
+                <p style="color: var(--text-muted); font-size: 0.8rem;">Users</p>
+            </div>
+            <div>
+                <h2 style="margin:0; font-size: 1.5rem;">{{serverCount}}</h2>
+                <p style="color: var(--text-muted); font-size: 0.8rem;">Servers</p>
+            </div>
+        </div>
+        <a href="https://discord.com/oauth2/authorize?client_id=1479879290270126263" class="cta-btn">Add Jew to Your Server</a>
+    </div>
+    </div>
 </body>
 </html>

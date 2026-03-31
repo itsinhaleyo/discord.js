@@ -2735,19 +2735,59 @@ web.post('/logout', (req, res, next) => {
 
 const checkAuth = (req, res, next) => req.isAuthenticated() ? next() : res.redirect('/login');
 
-web.get('/', checkAuth, async (req, res) => {
+web.post('/claim-daily', checkAuth, async (req, res) => {
     try {
-        const user = req.user;
-        const avatarUrl = `https://cdn.discordapp.com/avatars/${user.userid}/${user.avatar}.png`;
+        const currentDate = new Date().toDateString();
+        const dailyAmount = 25000;
+        const [rows] = await db.query('SELECT * FROM users WHERE userid = ?', [req.user.userid]);
+        const user = rows[0];
+        if (user.daily === currentDate) { return res.json({ success: false, message: "You've already collected your reward today!" }); }
+        const newBalance = Number(user.balance) + dailyAmount;
+        await db.query('UPDATE users SET balance = ?, daily = ? WHERE userid = ?', [newBalance, currentDate, req.user.userid]);
+        res.json({ 
+            success: true, 
+            message: `Successfully claimed 💰 ${dailyAmount.toLocaleString()}!`,
+            newBalance: newBalance.toLocaleString() 
+        });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ success: false, message: "Server error occurred." });
+    }
+});
+
+web.get('/', async (req, res) => {
+    try {
         const [[{ count: userCount }]] = await db.query('SELECT COUNT(*) as count FROM users');
+        const serverCount = client.guilds.cache.size || 0;
         let html = fs.readFileSync(path.join(__dirname, 'public', 'home.html'), 'utf8');
+        if (req.isAuthenticated()) {
+            const user = req.user;
+            const currentDate = new Date().toDateString();
+            const hasClaimed = (user.daily === currentDate);
+            const now = new Date();
+            const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+            const msUntilMidnight = midnight - now;
+            html = html.replace('{{hasClaimed}}', hasClaimed)
+                       .replace('{{msUntilMidnight}}', msUntilMidnight)
+                       .replace('{{balance}}', (user.balance || 0).toLocaleString())
+                       .replace('{{level}}', user.level || 1);
+            const avatarUrl = `https://cdn.discordapp.com/avatars/${user.userid}/${user.avatar}.png`;
+            html = html.replaceAll('{{avatarurl}}', avatarUrl);
+        } else {
+            html = html.replace('{{hasClaimed}}', 'false')
+                       .replace('{{msUntilMidnight}}', '0')
+                       .replace('{{balance}}', '0')
+                       .replace('{{level}}', '1');
+            const loginToClaim = `<a href="/auth/discord" class="btn-discord" style="text-align:center;">Login to Claim Daily</a>`;
+            html = html.replace('<button onclick="claimDaily()" id="daily-btn"', '<!--')
+                       .replace('Claim Daily 💰 25,000\n        </button>', '--> ' + loginToClaim);
+        }
         html = html.replace('{{userCount}}', userCount.toLocaleString())
-                   .replace('{{serverCount}}', client.guilds.cache.size)
-                   .replace('{{avatarurl}}', avatarUrl);
+                   .replace('{{serverCount}}', serverCount.toLocaleString());
         res.send(html);
     } catch (err) {
         console.error(err);
-        res.status(500).send("Error loading home page");
+        res.status(500).send("Error loading home");
     }
 });
 
