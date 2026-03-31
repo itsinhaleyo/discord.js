@@ -151,7 +151,7 @@
             transform: scale(1.1);
         }
 
-        .nav-links a, .logout-link {
+        .nav-links a {
             text-decoration: none;
             color: #94a3b8;
             font-size: 0.9rem;
@@ -163,7 +163,7 @@
             padding: 0;
         }
 
-        .nav-links a:hover, .logout-link:hover {
+        .nav-links a:hover {
             color: #5865F2;
         }
 
@@ -239,13 +239,10 @@
                 <div class="dropdown">
                     <button class="dropbtn">Leaderboards ▾</button>
                     <div class="dropdown-content">
-                        <a href="/leaderboard/money">💰 Money Top</a>
-                        <a href="/leaderboard/rank">⭐ Rank Top</a>
+                        <a href="/leaderboard/money">💰 Money</a>
+                        <a href="/leaderboard/rank">⭐ Rank</a>
                     </div>
                 </div>
-                <form action="/logout" method="POST" style="display:inline;">
-                    <button type="submit" class="logout-link">Logout</button>
-                </form>
                 <a href="/profile">
                     <img src="{{avatarurl}}" class="nav-user-avatar">
                 </a>
@@ -255,11 +252,11 @@
     <div class="dashboard-wrapper" style="max-width: 800px; margin: 0 auto; text-align: center;"></div>
         <div class="stats-grid">
             <div class="stat-card">
-                <div class="stat-label">Total Balance</div>
+                <div class="stat-label">Balance</div>
                 <div class="stat-value">💰 {{balance}}</div>
             </div>
             <div class="stat-card">
-                <div class="stat-label">Your Level</div>
+                <div class="stat-label">Level</div>
                 <div class="stat-value">⭐ {{level}}</div>
             </div>
             <div class="stat-card full-width">

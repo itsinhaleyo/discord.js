@@ -1297,7 +1297,6 @@ client.on('interactionCreate', async (interaction) => {
             }
             if (bet >= 1000) giveXp(interaction);
             const flipResult = Math.random() < 0.5 ? 'heads' : 'tails';
-            const imagePath = path.join(__dirname, 'images', `${flipResult}.png`); 
             const file = new AttachmentBuilder(imagePath);
             const win = sideChosen === flipResult;
             const payout = win ? bet : -bet;
@@ -1306,7 +1305,7 @@ client.on('interactionCreate', async (interaction) => {
             const embed = new EmbedBuilder()
                 .setTitle(win ? '🪙 You Won!' : '🪙 You Lost!')
                 .setColor(win ? 'Green' : 'Red')
-                .setThumbnail(`attachment://${flipResult}.png`) 
+                .setThumbnail(`${process.env.DOMAIN}/images/${flipResult}.png`) 
                 .setDescription([
                     `The coin landed on: **${flipResult.toUpperCase()}**`,
                     `You chose: **${sideChosen.toUpperCase()}**`,
@@ -2661,7 +2660,7 @@ client.on('messageCreate', async (message) => {
 // Website Coding
 const web = express();
 web.use(express.urlencoded({ extended: false }));
-web.use(express.static('public'));
+web.use(express.static(path.join(__dirname, 'public')));
 const port = process.env.PORT;
 const sessionStore = new MySQLStore({}, db);
 web.set('trust proxy', 1);
@@ -2830,9 +2829,13 @@ web.get('/login', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'login.html'));
 });
 
+web.use((req, res, next) => {
+    res.status(404).sendFile(path.join(__dirname, 'public', '404.html'));
+});
+
 web.use((err, req, res, next) => {
-    console.error("DEBUG - Auth Error Object:", err);
-    res.status(500).send("Authentication Error: " + err.message);
+    console.error("DEBUG - Server Error:", err.stack);
+    res.status(500).send("Something went wrong on our end!");
 });
 
 web.listen(port, () => { 

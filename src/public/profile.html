@@ -151,7 +151,7 @@
             transform: scale(1.1);
         }
 
-        .nav-links a, .logout-link {
+        .nav-links a {
             text-decoration: none;
             color: #94a3b8;
             font-size: 0.9rem;
@@ -163,7 +163,7 @@
             padding: 0;
         }
 
-        .nav-links a:hover, .logout-link:hover {
+        .nav-links a:hover {
             color: #5865F2;
         }
 
@@ -263,18 +263,39 @@
             transform: translateY(-2px);
         }
 
-        .btn-logout {
-            background: none;
-            border: none;
-            color: var(--text-muted);
+        .btn-logout-special {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, rgba(239, 68, 68, 0.2), rgba(220, 38, 38, 0.4));
+            color: #fecaca;
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            border-radius: 12px;
+            font-weight: 700;
+            font-size: 0.95rem;
             cursor: pointer;
-            font-size: 0.9rem;
-            text-decoration: underline;
-            transition: color 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            backdrop-filter: blur(4px);
         }
 
-        .btn-logout:hover {
-            color: #ef4444;
+        .btn-logout-special:hover {
+            background: linear-gradient(135deg, rgba(239, 68, 68, 0.4), rgba(220, 38, 38, 0.6));
+            border-color: rgba(239, 68, 68, 0.6);
+            color: #fff;
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px -5px rgba(239, 68, 68, 0.3);
+        }
+
+        .btn-logout-special:active {
+            transform: translateY(0);
+        }
+
+        .btn-logout-special .icon {
+            font-size: 1.1rem;
+            filter: drop-shadow(0 0 5px rgba(239, 68, 68, 0.5));
         }
     </style>
 </head>
@@ -289,13 +310,10 @@
                 <div class="dropdown">
                     <button class="dropbtn">Leaderboards ▾</button>
                     <div class="dropdown-content">
-                        <a href="/leaderboard/money">💰 Money Top</a>
-                        <a href="/leaderboard/rank">⭐ Rank Top</a>
+                        <a href="/leaderboard/money">💰 Money</a>
+                        <a href="/leaderboard/rank">⭐ Rank</a>
                     </div>
                 </div>
-                <form action="/logout" method="POST" style="display:inline;">
-                    <button type="submit" class="logout-link">Logout</button>
-                </form>
                 <a href="/profile">
                     <img src="{{avatarurl}}" class="nav-user-avatar">
                 </a>
@@ -318,9 +336,16 @@
                 </div>
             </div>
         </div>
-        <form action="/logout" method="POST">
-            <button type="submit" class="btn-logout">Logout session</button>
-        </form>
+        <div class="logout-section" style="margin-top: 2rem; padding-top: 2rem; border-top: 1px solid rgba(255,255,255,0.05);">
+            <form action="/logout" method="POST">
+                <button type="submit" class="btn-logout-special">
+                    <span class="icon">🚀</span> Sign Out of Session
+                </button>
+            </form>
+            <p style="color: var(--text-muted); font-size: 0.8rem; margin-top: 1rem;">
+                Securely ends your session on this device.
+            </p>
+        </div>
     </div>
 </body>
 </html>

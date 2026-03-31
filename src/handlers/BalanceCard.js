@@ -17,7 +17,7 @@ class BalanceCard extends Builder {
     async render() {
         const { username, avatar, balance, assetValue } = this.options.getOptions();
         const userAvatar = await loadImage(avatar || "https://cdn.discordapp.com");
-        const watermark = await loadImage("./src/images/bankofisrael.png");
+        const watermark = await loadImage(`https://itsinhaleyo.online/images/bankofisrael.png`);
 
         return JSX.createElement(
             "div",
