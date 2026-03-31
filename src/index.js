@@ -2,8 +2,8 @@ require('dotenv').config();
 const { REST, Routes, ActionRowBuilder, MessageFlags, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, ButtonBuilder, ButtonStyle, ComponentType, ActivityType, ApplicationCommandOptionType, Client, GatewayIntentBits, IntentsBitField, EmbedBuilder, AttachmentBuilder, Events } = require('discord.js'),
       { VoiceConnectionStatus, joinVoiceChannel, createAudioPlayer, createAudioResource, getVoiceConnection, StreamType, AudioPlayerStatus, NoSubscriberBehavior } = require('@discordjs/voice'),
       { LeaderboardBuilder, RankCardBuilder, Font } = require('canvacord'), express = require('express'), session = require('express-session'), MySQLStore = require('express-mysql-session')(session),
-      { GoogleGenAI } = require("@google/genai"), axios = require('axios'), passport = require('passport'), LocalStrategy = require('passport-local').Strategy,
-      { getData, getTracks } = require('spotify-url-info')(require('isomorphic-unfetch')), bcrypt = require('bcrypt'),
+      { GoogleGenAI } = require("@google/genai"), axios = require('axios'), passport = require('passport'), DiscordStrategy = require('passport-discord').Strategy,
+      { getData, getTracks } = require('spotify-url-info')(require('isomorphic-unfetch')),
       { MusicCard } = require("./handlers/MusicCard.js"), { BalanceCard } = require("./handlers/BalanceCard.js"),
       fs = require('fs'), path = require('path'), util = require('util'), QuickChart = require('quickchart-js'),
       ytdl = require('youtube-dl-exec'), eventHandler = require('./handlers/eventHandler'),
@@ -2678,38 +2678,53 @@ web.use(session({
 }));
 web.use(passport.initialize());
 web.use(passport.session());
-
-passport.use(new LocalStrategy({ usernameField: 'email' }, async (email, password, done) => {
+passport.use(new DiscordStrategy({
+    clientID: process.env.CLIENT_ID,
+    clientSecret: process.env.CLIENT_SECRET,
+    callbackURL: `${process.env.DOMAIN}/auth/discord/callback`,
+    scope: ['identify', 'email'],
+    proxy: true
+}, async (accessToken, refreshToken, profile, done) => {
     try {
-        const [rows] = await db.query('SELECT * FROM webusers WHERE email = ?', [email]);
-        const user = rows[0];
-        if (!user) return done(null, false);
-        const isMatch = await bcrypt.compare(password, user.password);
-        if (!isMatch) return done(null, false);
+        const [rows] = await db.query('SELECT * FROM users WHERE userid = ?', [profile.id]);
+        let user = rows[0];
+        if (!user) {
+            await db.query(
+                `INSERT INTO users (userid, balance, daily, xp, level, username, avatar) 
+                 VALUES (?, 0, '0', 1, 1, ?, ?, ?)`,
+                [profile.id, profile.username, profile.avatar]
+            );
+            const [newRows] = await db.query('SELECT * FROM users WHERE userid = ?', [profile.id]);
+            user = newRows[0];
+        } else {
+            await db.query(
+                'UPDATE users SET username = ?, avatar = ? WHERE userid = ?',
+                [profile.username, profile.avatar, profile.id]
+            );
+            user.username = profile.username;
+            user.avatar = profile.avatar;
+        }
         return done(null, user);
-    } catch (err) { return done(err); }
+    } catch (err) {
+        return done(err);
+    }
 }));
-
-passport.serializeUser((user, done) => done(null, user.id));
+passport.serializeUser((user, done) => { done(null, user.userid); });
 passport.deserializeUser(async (id, done) => {
     try {
-        const [rows] = await db.query('SELECT * FROM webusers WHERE id = ?', [id]);
-        done(null, rows[0]); 
-    } catch (err) { done(err); }
+        const [rows] = await db.query('SELECT * FROM users WHERE userid = ?', [id]);
+        const user = rows[0];
+        if (!user) { return done(null, false); }
+        done(null, user);
+    } catch (err) {
+        done(err);
+    }
 });
 
 web.post('/login', passport.authenticate('local', {
     successRedirect: '/',
     failureRedirect: '/login'
 }));
-
-web.post('/register', async (req, res) => {
-    try {
-        const hashedPassword = await bcrypt.hash(req.body.password, 10);
-        await db.query('INSERT INTO webusers (email, password) VALUES (?, ?)', [req.body.email, hashedPassword]);
-        res.redirect('/login');
-    } catch (err) { res.status(500).send("Registration failed"); }
-});
 
 web.post('/logout', (req, res, next) => {
     req.logout((err) => {
@@ -2720,20 +2735,111 @@ web.post('/logout', (req, res, next) => {
 
 const checkAuth = (req, res, next) => req.isAuthenticated() ? next() : res.redirect('/login');
 
-web.get('/', checkAuth, (req, res) => {
-    let html = fs.readFileSync(path.join(__dirname, 'public', 'home.html'), 'utf8');
-    html = html.replace('User', req.user.email);
-    res.send(html);
+web.get('/', checkAuth, async (req, res) => {
+    try {
+        const user = req.user;
+        const avatarUrl = `https://cdn.discordapp.com/avatars/${user.userid}/${user.avatar}.png`;
+        const [[{ count: userCount }]] = await db.query('SELECT COUNT(*) as count FROM users');
+        let html = fs.readFileSync(path.join(__dirname, 'public', 'home.html'), 'utf8');
+        html = html.replace('{{userCount}}', userCount.toLocaleString())
+                   .replace('{{serverCount}}', client.guilds.cache.size)
+                   .replace('{{avatarurl}}', avatarUrl);
+        res.send(html);
+    } catch (err) {
+        console.error(err);
+        res.status(500).send("Error loading home page");
+    }
+});
+
+web.get('/profile', checkAuth, async (req, res) => {
+    try {
+        const user = req.user;
+        const avatarUrl = `https://cdn.discordapp.com/avatars/${user.userid}/${user.avatar}.png`;
+        let html = fs.readFileSync(path.join(__dirname, 'public', 'profile.html'), 'utf8');
+        html = html.replace('User', user.username || 'Member')
+                   .replace('{{balance}}', user.balance.toLocaleString())
+                   .replace('{{level}}', user.level)
+                   .replaceAll('{{avatarurl}}', avatarUrl);
+        res.send(html);
+    } catch (err) {
+        console.error(err);
+        res.status(500).send("Error loading home");
+    }
+});
+
+web.get('/leaderboard/money', checkAuth, (req, res) => handleLeaderboard(req, res, 'balance', 'Richest Users', req.user));
+web.get('/leaderboard/rank', checkAuth, (req, res) => handleLeaderboard(req, res, 'level', 'User Rankings', req.user));
+
+web.get('/auth/discord', (req, res, next) => {
+    passport.authenticate('discord', (err) => {
+        if (err) {
+            console.log("INTERNAL PASSPORT REDIRECT ERROR:", err);
+            return res.status(500).send("Passport Redirect Error: " + err.message);
+        }
+    })(req, res, next);
+});
+
+web.get('/auth/discord/callback', (req, res, next) => {
+    return passport.authenticate('discord', {
+        failureRedirect: '/login',
+        successRedirect: '/'
+    })(req, res, next);
 });
 
 web.get('/login', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'login.html'));
 });
 
-web.get('/register', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'signup.html'));
+web.use((err, req, res, next) => {
+    console.error("DEBUG - Auth Error Object:", err);
+    res.status(500).send("Authentication Error: " + err.message);
 });
 
 web.listen(port, () => { 
-    console.log(`Website running at http://localhost:${port}/`); }
+    console.log(`Website running at ${process.env.DOMAIN}:${port}/`); }
 );
+
+function renderLeaderboard(res, rows, title, userdata) {
+    let html = fs.readFileSync(path.join(__dirname, 'public', 'leaderboard.html'), 'utf8');
+    const mainAvatarUrl = `https://cdn.discordapp.com/avatars/${userdata.userid}/${userdata.avatar}.png`;
+    let tableRows = rows.map((user, index) => {
+        const rank = index + 1;
+        let medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : rank;
+        const avatarUrl = `https://cdn.discordapp.com/avatars/${user.userid}/${user.avatar}.png`;
+        return `<tr>
+            <td style="text-align:center">${medal}</td>
+            <td style="display:flex; align-items:center; gap:10px;"><img src="${avatarUrl}" style="width:30px; border-radius:50%"> ${user.username}</td>
+            <td>💰 ${user.balance.toLocaleString()}</td>
+            <td>⭐ ${user.level}</td>
+        </tr>`;
+    }).join('');
+    html = html.replace('{{rows}}', tableRows)
+        .replace('Global Leaderboard', title)
+        .replaceAll('{{avatarurl}}', mainAvatarUrl);;
+    res.send(html);
+}
+
+async function handleLeaderboard(req, res, sortColumn, title, user) {
+    try {
+        const searchTerm = req.query.search || '';
+        let query;
+        let queryParams = [];
+        if (searchTerm) {
+            query = `
+                SELECT userid, username, avatar, balance, level 
+                FROM users 
+                WHERE username LIKE ? 
+                ORDER BY ${sortColumn} DESC 
+                LIMIT 50
+            `;
+            queryParams = [`%${searchTerm}%`];
+        } else {
+            query = `SELECT userid, username, avatar, balance, level FROM users ORDER BY ${sortColumn} DESC LIMIT 10`;
+        }
+        const [rows] = await db.query(query, queryParams);
+        renderLeaderboard(res, rows, title, user);
+    } catch (err) {
+        console.error(err);
+        res.status(500).send("Error");
+    }
+}

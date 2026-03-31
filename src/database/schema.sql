@@ -4,8 +4,10 @@ CREATE TABLE users (
     userid VARCHAR(100) NOT NULL PRIMARY KEY,
     balance BIGINT NOT NULL,
     daily VARCHAR(100) NOT NULL,
-    xp VARCHAR(100) NOT NULL,
-    level VARCHAR(100) NOT NULL
+    username VARCHAR(255) NOT NULL,
+    avatar VARCHAR(100) NOT NULL,
+    xp INT NOT NULL DEFAULT 1,
+    level INT NOT NULL DEFAULT 1
 );
 
 CREATE TABLE cooldown (
@@ -50,10 +52,4 @@ CREATE TABLE stock_logs (
     price_per_share BIGINT NOT NULL,
     total_cost BIGINT NOT NULL,
     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE webusers (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  email VARCHAR(255) NOT NULL UNIQUE,
-  password VARCHAR(255) NOT NULL
 );

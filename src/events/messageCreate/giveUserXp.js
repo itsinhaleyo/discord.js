@@ -21,6 +21,8 @@ module.exports = async (client, message) => {
         const [rows] = await db.query("SELECT * FROM users WHERE userid = ?", [message.author.id]);
         let user = rows[0];
         if (user) {
+            if (!user.username) { await db.query("UPDATE users SET username = ? WHERE userid = ?", [message.author.username, message.author.id]) }
+            if (!user.avatar) { await db.query("UPDATE users SET avatar = ? WHERE userid = ?", [message.author.avatar, message.author.id]) }
             let newXp = Number(user.xp) + xpToGive;
             if (newXp >= (100 * Number(user.level))) {
                 const newLevel = Number(user.level) + 1;
