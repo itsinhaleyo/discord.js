@@ -9,6 +9,7 @@ const { REST, Routes, ActionRowBuilder, MessageFlags, StringSelectMenuBuilder, S
       ytdl = require('youtube-dl-exec'), eventHandler = require('./handlers/eventHandler'),
       songsDir = path.join(__dirname, 'songs'), torrentDir = path.join(__dirname, 'torrents');
 Font.loadDefault();
+const priceCache = {};
 
 //Audio Player
 const musictimers = new Map(), musicqueues = new Map();
@@ -2492,29 +2493,34 @@ web.get('/portfolio', checkAuth, async (req, res) => {
             return {
                 symbol: stock.symbol.toUpperCase(),
                 shares: stock.shares,
+                pnl,
                 pnlPercent,
                 isUp: pnl >= 0
             };
         }));
-        const totalPnl = totalValue - totalCostBasis;
-        const totalPnlPercent = totalCostBasis > 0 ? ((totalPnl / totalCostBasis) * 100).toFixed(2) : "0.00";
-        const tableRows = list.map(item => `
-            <tr>
-                <td>${item.symbol}</td>
-                <td>${Number(item.shares).toLocaleString()}</td>
-                <td style="color: ${item.isUp ? '#10b981' : '#ef4444'}">
-                    ${item.isUp ? '▲' : '▼'} ${item.pnlPercent}%
-                </td>
-            </tr>
-        `).join('');
+        const totalPnlAmount = totalValue - totalCostBasis;
+        const totalPnlPercent = totalCostBasis > 0 ? ((totalPnlAmount / totalCostBasis) * 100).toFixed(2) : "0.00";
+        const pnlColor = totalPnlAmount >= 0 ? '#10b981' : '#ef4444';
+        const pnlSign = totalPnlAmount >= 0 ? '+' : '';
+        const tableRows = list.map(item => {
+            const itemSign = item.pnl >= 0 ? '+' : '';
+            return `
+                <tr>
+                    <td>${item.symbol}</td>
+                    <td>${Number(item.shares).toLocaleString()}</td>
+                    <td style="color: ${item.isUp ? '#10b981' : '#ef4444'}">
+                        ${itemSign}💰${Math.round(item.pnl).toLocaleString()}
+                        <div style="font-size: 0.7rem; opacity: 0.8;">(${item.pnlPercent}%)</div>
+                    </td>
+                </tr>
+            `;
+        }).join('');
         let html = fs.readFileSync(path.join(__dirname, 'public', 'portfolio.html'), 'utf8');
-        const pnlColor = totalPnl >= 0 ? '#10b981' : '#ef4444';
         html = html.replace('{{rows}}', tableRows || '<tr><td colspan="3">No holdings found</td></tr>')
                    .replace('{{cash}}', Number(user.balance).toLocaleString())
                    .replace('{{assetValue}}', Math.round(totalValue).toLocaleString())
-                   .replace('{{totalPnl}}', `<span style="color: ${pnlColor}">${totalPnlPercent}%</span>`)
+                   .replace('{{totalPnl}}', `<span style="color: ${pnlColor}">${pnlSign}${Math.round(totalPnlAmount).toLocaleString()} (${totalPnlPercent}%)</span>`)
                    .replaceAll('{{avatarurl}}', getAvatar(user.userid, user.avatar));
-
         res.send(html);
     } catch (err) {
         console.error("Portfolio Error:", err);
@@ -2526,6 +2532,7 @@ web.get('/trading', checkAuth, (req, res) => {
     try {
         const markets = [
             { name: "Bitcoin", symbol: "btc", icon: `${process.env.DOMAIN}/images/btcicon.png` },
+            { name: "Ethereum", symbol: "eth", icon: `${process.env.DOMAIN}/images/ethicon.png` }
         ];
         let html = fs.readFileSync(path.join(__dirname, 'public', 'trading_hub.html'), 'utf8');
         const marketButtons = markets.map(coin => `
@@ -2548,25 +2555,35 @@ web.get('/trading', checkAuth, (req, res) => {
     }
 });
 
-web.get('/trading/btc', checkAuth, async (req, res) => {
+web.get('/trading/:symbol', checkAuth, async (req, res) => {
     try {
         const user = req.user;
-        const network = "avax", contract = "0x8fef4fe4970a5d6bfa7c65871a2ebfd0f42aa822";
-        const contractAddress = `https://geckoterminal.com/${network}/pools/${contract}`;
-        const [holding] = await db.query( 'SELECT shares FROM portfolios WHERE userid = ? AND symbol = "bitcoin"',  [user.userid]);
-        let html = fs.readFileSync(path.join(__dirname, 'public', 'trading.html'), 'utf8');
+        const requestedSymbol = req.params.symbol.toUpperCase();
+        const coinConfig = {
+            'BTC': { network: "avax", contract: "0x8fef4fe4970a5d6bfa7c65871a2ebfd0f42aa822" },
+            'ETH': { network: "bsc",  contract: "0xd0e226f674bbf064f54ab47f42473ff80db98cba" }
+        };
+        const coin = coinConfig[requestedSymbol];
+        if (!coin) return res.redirect('/trading');
+        const contractAddress = `https://geckoterminal.com/${coin.network}/pools/${coin.contract}`;
+        const [holding] = await db.query(
+            'SELECT shares FROM portfolios WHERE userid = ? AND symbol = ?', 
+            [user.userid, requestedSymbol]
+        );
         const userShares = holding.length > 0 ? holding[0].shares : 0;
+        let html = fs.readFileSync(path.join(__dirname, 'public', 'trading.html'), 'utf8');
         html = html.replace('{{balance}}', user.balance.toLocaleString())
                    .replace('{{ownedshares}}', userShares.toLocaleString())
-                   .replaceAll('{{share}}', 'BTC')
                    .replace('{{contractlink}}', contractAddress)
-                   .replace('{{network}}', network)
-                   .replace('{{contract}}', contract)
-                   .replace('{{coinid}}', 'BTC')
+                   .replace('{{network}}', coin.network)
+                   .replace('{{contract}}', coin.contract)
+                   .replace('{{coinid}}', requestedSymbol)
+                   .replaceAll('{{share}}', requestedSymbol)
                    .replaceAll('{{avatarurl}}', getAvatar(user.userid, user.avatar));
         res.send(html);
     } catch (err) {
-        res.status(500).send("Trading Error\n"+err.message);
+        console.error("Trading Route Error:", err);
+        res.status(500).send("Trading Error\n" + err.message);
     }
 });
 
@@ -2742,13 +2759,25 @@ async function handleLeaderboard(req, res, sortColumn, title, user) {
 }
 
 async function getContract(network, poolAddress) {
+    const cacheKey = `${network}_${poolAddress}`.toLowerCase();
+    const now = Date.now();
+    if (priceCache[cacheKey] && (now - priceCache[cacheKey].timestamp < 60 * 1000)) { return priceCache[cacheKey].price; }
     try {
         const url = `https://api.geckoterminal.com/api/v2/networks/${network}/pools/${poolAddress}`;
-        const response = await axios.get(url);
-        const price = Math.round(response.data.data.attributes.base_token_price_usd);
-        return price ? parseFloat(price) : null;
-    } catch (error) {
-        console.error("GeckoTerminal API Error:", error.response?.status, error.message);
+        const response = await axios.get(url, {
+            headers: { 'Accept': 'application/json;version=20230203' }
+        });
+        const price = parseFloat(response.data.data.attributes.base_token_price_usd);
+        if (price) {
+            priceCache[cacheKey] = {
+                price: price,
+                timestamp: now
+            };
+            return price;
+        }
         return null;
+    } catch (error) {
+        console.error("GeckoTerminal API Error:", error.message);
+        return priceCache[cacheKey] ? priceCache[cacheKey].price : null;
     }
 }
