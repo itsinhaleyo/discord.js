@@ -5,7 +5,7 @@ const { REST, Routes, ActionRowBuilder, MessageFlags, StringSelectMenuBuilder, S
       { GoogleGenAI } = require("@google/genai"), axios = require('axios'), passport = require('passport'), DiscordStrategy = require('passport-discord').Strategy,
       { getData, getTracks } = require('spotify-url-info')(require('isomorphic-unfetch')),
       { MusicCard } = require("./handlers/MusicCard.js"), { BalanceCard } = require("./handlers/BalanceCard.js"),
-      fs = require('fs'), path = require('path'), util = require('util'), QuickChart = require('quickchart-js'),
+      fs = require('fs'), path = require('path'), util = require('util'),
       ytdl = require('youtube-dl-exec'), eventHandler = require('./handlers/eventHandler'),
       songsDir = path.join(__dirname, 'songs'), torrentDir = path.join(__dirname, 'torrents');
 Font.loadDefault();
@@ -260,38 +260,6 @@ async function getuser(userId) {
     yesterday.setDate(yesterday.getDate() - 1);
     await db.query('INSERT INTO users VALUES(?, ?, ?, ?, ?)', [userId, 25000, yesterday.toDateString(), 0, 1]);
     return { userid: userId, balance: 25000, daily: yesterday.toDateString(), xp: 0, level: 1 };
-}
-
-// Get Stock Market Data
-async function getCryptoData(coinId) {
-    try {
-        const url = `https://api.coingecko.com/api/v3/simple/price`;
-        const response = await axios.get(url, {
-            params: { ids: coinId.toLowerCase(), vs_currencies: 'usd' },
-            headers: { 'x-cg-demo-api-key': process.env.CG_API_KEY }
-        });
-        const price = response.data[coinId.toLowerCase()]?.usd;
-        if (!price) return null;
-        return price;
-    } catch (error) {
-        console.error("CoinGecko API Error:", error.message);
-        return null;
-    }
-}
-
-async function getCoinIdFromTicker(query) {
-    try {
-        const response = await axios.get('https://api.coingecko.com/api/v3/search', {
-            params: { query: query.toLowerCase() },
-            headers: { 'x-cg-demo-api-key': process.env.CG_API_KEY }
-        });
-        const coins = response.data.coins;
-        if (!coins || coins.length === 0) return null;
-        return coins[0].id;
-    } catch (error) {
-        console.error("Search API Error:", error.message);
-        return null;
-    }
 }
 
 // Function to get a Random Number
@@ -592,8 +560,6 @@ const commands = [
     { name: 'daily', description: 'Collect 25000 Daily' },
     { name: 'ping', description: 'Replies With the Bots Ping' },
     { name: 'queue', description: 'Displays the current music queue' },
-    { name: 'portfolio', description: 'Displays your market portfolio'},
-    { name: 'sell', description: 'Sell a Stock' },
     { 
         name: 'test', 
         description: 'Test Functtion',
@@ -601,36 +567,6 @@ const commands = [
             {
                 name: 'symbol',
                 description: `the stock symbol`,
-                type: ApplicationCommandOptionType.String,
-                required: true
-            }
-        ]
-    },
-    {
-        name: 'buy',
-        description: 'Buy a Stock Using 💵',
-        options: [
-            {
-                name: 'symbol',
-                description: `The Symbol of The Stock you wish to purchase.`,
-                type: ApplicationCommandOptionType.String,
-                required: true
-            },
-            {
-                name: 'amount',
-                description: `the amount you wish to spend`,
-                type: ApplicationCommandOptionType.Number,
-                required: true
-            }
-        ]
-    },
-        {
-        name: 'price',
-        description: 'Check a Stocks Preformance',
-        options: [
-            {
-                name: 'symbol',
-                description: `The Symbol of The Stock you wish to view.`,
                 type: ApplicationCommandOptionType.String,
                 required: true
             }
@@ -1191,8 +1127,7 @@ client.on('interactionCreate', async (interaction) => {
                 "`/queue - View Current Music Queue`\n"+
                 "### 💰 Economy\n" +
                 "`/balance` • `/give` • `/daily`\n" +
-                "`/claim` • `/portfolio` • `/buy`\n" +
-                "`/sell` • `/price`\n" +
+                "`/claim`\n" +
                 "### 🎲 Games\n" +
                 "`/blackjack` • `/slots` • `/roulette`\n" +
                 "`/coinflip` • `/rock/paper/scissors` • `/towers`\n" +
@@ -2319,277 +2254,6 @@ client.on('interactionCreate', async (interaction) => {
         }
     }
 
-    if (interaction.commandName === 'portfolio') {
-        try {
-            await interaction.deferReply();
-            const user = await getuser(interaction.member.id);
-            const [holdings] = await db.query('SELECT symbol, shares, average_price FROM portfolios WHERE userid = ?', [interaction.member.id]);
-            if (holdings.length === 0) {
-                return interaction.editReply(`💵 **Cash:** ${Number(user.balance).toLocaleString()} credits\n📊 **Holdings:** None.`);
-            }
-            const coinIds = holdings.map(h => h.symbol.toLowerCase()).join(',');
-            const response = await axios.get('https://api.coingecko.com/api/v3/simple/price', {
-                params: {
-                    ids: coinIds,
-                    vs_currencies: 'usd'
-                },
-                headers: { 'x-cg-demo-api-key': process.env.CG_API_KEY }
-            });
-            const prices = response.data;
-            let totalValue = 0;
-            let totalCostBasis = 0;
-            let list = "";
-            for (const stock of holdings) {
-                const coinId = stock.symbol.toLowerCase();
-                const currentPrice = prices[coinId]?.usd || 0;
-                const costBasis = stock.average_price * stock.shares;
-                const currentValue = currentPrice * stock.shares;
-                totalValue += currentValue;
-                totalCostBasis += costBasis;
-                const pnl = currentValue - costBasis;
-                const pnlPercent = costBasis > 0 ? ((pnl / costBasis) * 100).toFixed(2) : "0.00";
-                const emoji = pnl >= 0 ? "📈" : "📉";
-                list += `${emoji} **${stock.symbol.toUpperCase()}**: ${stock.shares} shares | **${pnlPercent}%**\n`;
-            }
-            const totalPnl = totalValue - totalCostBasis;
-            const totalPnlPercent = totalCostBasis > 0 ? ((totalPnl / totalCostBasis) * 100).toFixed(2) : "0.00";
-            const embedColor = totalPnl >= 0 ? 0x00FF00 : 0xFF0000; // Green if up, Red if down
-            const embed = {
-                title: `💰 ${interaction.user.username}'s Portfolio`,
-                color: embedColor,
-                fields: [
-                    { name: '💵 Cash Balance', value: `${Number(user.balance).toLocaleString()}`, inline: true },
-                    { name: '📊 Asset Value', value: `${Math.round(totalValue).toLocaleString()}`, inline: true },
-                    { name: '✨ Total Profit/Loss', value: `**${totalPnlPercent}%** (${totalPnl >= 0 ? '+' : ''}${Math.round(totalPnl).toLocaleString()})`, inline: false },
-                    { name: '📂 Detailed Holdings', value: list || "No data" }
-                ],
-                timestamp: new Date()
-            };
-            await interaction.editReply({ embeds: [embed] });
-        } catch (err) {
-            console.error("Portfolio Command Error:", err.response?.data || err.message);
-            await interaction.editReply("❌ Error: Could not connect to CoinGecko. Please check the coin IDs in your portfolio.");
-        }
-    }
-
-    if (interaction.commandName === 'buy') {
-        if (!interaction.inGuild()) return interaction.reply({ content: 'You can only run this command inside a server.', flags: [64] });
-        try {
-            await interaction.deferReply();
-            const user = await getuser(interaction.member.id);
-            const symbol = interaction.options.getString('symbol').toLowerCase();
-            const amountToBuy = interaction.options.getNumber('amount');
-            const coinId = await getCoinIdFromTicker(symbol);
-            if (!coinId) { return interaction.editReply(`❌ Could not find any coin matching "**${userInput}**".`); }
-            if (amountToBuy < 1) return await interaction.editReply("You must buy at least 1 share.");
-            const stockData = await getCryptoData(coinId);
-            if (!stockData) return interaction.editReply(`❌ Could not find price for **${coinId}**.`);
-            const price = Math.round(stockData);
-            const totalCost = price * amountToBuy;
-            if (user.balance < totalCost) { return interaction.editReply(`❌ **Insufficient Funds!**\nCost: 💵**${totalCost.toLocaleString()}** | Balance: 💵**${Number(user.balance).toLocaleString()}**`); }
-            const row = new ActionRowBuilder()
-                .addComponents(
-                    new ButtonBuilder()
-                        .setCustomId('confirm_buy')
-                        .setLabel('Confirm Purchase')
-                        .setStyle(ButtonStyle.Success),
-                    new ButtonBuilder()
-                        .setCustomId('cancel_buy')
-                        .setLabel('Cancel')
-                        .setStyle(ButtonStyle.Danger)
-                );
-            const confirmEmbed = {
-                title: `Confirming Purchase: ${coinId.toUpperCase()}`,
-                description: `Are you sure you want to buy **${amountToBuy}** shares?\n\n**Price per unit:** 💵${price.toLocaleString()}\n**Total Cost:** 💵${totalCost.toLocaleString()}`,
-                color: 0xFFA500,
-            };
-            const response = await interaction.editReply({
-                embeds: [confirmEmbed],
-                components: [row]
-            });
-            const collector = response.createMessageComponentCollector({
-                componentType: ComponentType.Button,
-                time: 30000
-            });
-            collector.on('collect', async (i) => {
-                if (i.user.id !== interaction.user.id) { return i.reply({ content: "This isn't your transaction!", ephemeral: true }); }
-                if (i.customId === 'cancel_buy') {
-                    await i.update({ content: '❌ Transaction cancelled.', embeds: [], components: [] });
-                    return collector.stop();
-                }
-                if (i.customId === 'confirm_buy') {
-                    const freshUser = await getuser(interaction.member.id);
-                    if (freshUser.balance < totalCost) { return i.update({ content: '❌ You no longer have enough credits!', embeds: [], components: [] }); }
-                    if (totalCost >= 1000) { await giveXp(interaction); }
-                    await db.query('UPDATE users SET balance = balance - ? WHERE userid = ?', [totalCost, interaction.member.id]);
-                    await db.query(`
-                        INSERT INTO portfolios (userid, symbol, shares, average_price) 
-                        VALUES (?, ?, ?, ?) 
-                        ON DUPLICATE KEY UPDATE 
-                            average_price = (average_price * shares + VALUES(average_price) * VALUES(shares)) / (shares + VALUES(shares)),
-                            shares = shares + VALUES(shares)`, 
-                        [interaction.member.id, coinId, amountToBuy, price]
-                    );
-                    await db.query('INSERT INTO stock_logs (userid, symbol, action, amount, price_per_share, total_cost) VALUES (?, ?, ?, ?, ?, ?)', 
-                        [interaction.member.id, coinId, 'BUY', amountToBuy, price, totalCost]);
-                    const buyEmbed = {
-                        title: `🛒 Purchase Successful!`,
-                        color: 0x00FF00,
-                        fields: [
-                            { name: 'Asset', value: coinId.toUpperCase(), inline: true },
-                            { name: 'Quantity', value: amountToBuy.toString(), inline: true },
-                            { name: 'Total Cost', value: `💵**${totalCost.toLocaleString()}**`, inline: false },
-                        ],
-                        footer: { text: `Transaction logged for ${interaction.user.username}` },
-                        timestamp: new Date()
-                    };
-                    await i.update({ embeds: [buyEmbed], components: [] });
-                    collector.stop();
-                }
-            });
-            collector.on('end', (collected, reason) => {
-                if (reason === 'time') { interaction.editReply({ content: '⏰ Transaction timed out.', embeds: [], components: [] }); }
-            });
-        } catch (err) {
-            console.error(err);
-            await interaction.editReply(`Error during purchase: \`${err.message}\``);
-        }
-    }
-
-    if (interaction.commandName === 'sell') {
-        await interaction.deferReply();
-        try {
-            const [holdings] = await db.query('SELECT symbol, shares FROM portfolios WHERE userid = ? AND shares > 0', [interaction.member.id]);
-            if (holdings.length === 0) { return interaction.editReply("❌ You don't own any assets to sell!"); }
-            const selectMenu = new StringSelectMenuBuilder()
-                .setCustomId('sell_select')
-                .setPlaceholder('Choose an asset to sell...')
-                .addOptions(
-                    holdings.map(h => 
-                        new StringSelectMenuOptionBuilder()
-                            .setLabel(h.symbol.toUpperCase())
-                            .setDescription(`You own ${h.shares.toLocaleString()} units`)
-                            .setValue(h.symbol)
-                    )
-                );
-            const row = new ActionRowBuilder().addComponents(selectMenu);
-            const response = await interaction.editReply({
-                content: "Select the asset you'd like to sell from your portfolio:",
-                components: [row]
-            });
-            const collector = response.createMessageComponentCollector({
-                componentType: ComponentType.StringSelect,
-                time: 30000 
-            });
-            collector.on('collect', async (i) => {
-                if (i.user.id !== interaction.user.id) { return i.reply({ content: "This isn't your menu!", ephemeral: true }); }
-                await giveXp(interaction);
-                const selectedSymbol = i.values[0];
-                const stockData = await getCryptoData(selectedSymbol);
-                if (!stockData) return i.update({ content: "❌ Error fetching current price.", components: [] });
-                const price = Math.round(stockData);
-                const holding = holdings.find(h => h.symbol === selectedSymbol);
-                const totalReturn = price * holding.shares;
-                await db.query('UPDATE users SET balance = balance + ? WHERE userid = ?', [totalReturn, interaction.member.id]);
-                await db.query('DELETE FROM portfolios WHERE userid = ? AND symbol = ?', [interaction.member.id, selectedSymbol]);
-                await db.query('INSERT INTO stock_logs (userid, symbol, action, amount, price_per_share, total_cost) VALUES (?, ?, ?, ?, ?, ?)', 
-                    [interaction.member.id, selectedSymbol, 'SELL', holding.shares, price, totalReturn]);
-                const sellEmbed = {
-                    title: `📉 Sale Successful!`,
-                    color: 0xFF0000,
-                    description: `Sold all **${holding.shares}** units of **${selectedSymbol.toUpperCase()}**`,
-                    fields: [
-                        { name: 'Sale Price', value: `💵${price.toLocaleString()}`, inline: true },
-                        { name: 'Total Credits Received', value: `💵**${totalReturn.toLocaleString()}**`, inline: true }
-                    ],
-                    timestamp: new Date()
-                };
-                await i.update({ content: null, embeds: [sellEmbed], components: [] });
-                collector.stop();
-            });
-        } catch (err) {
-            console.error(err);
-            await interaction.editReply("❌ An error occurred while opening the sell menu.");
-        }
-    }
-
-    if (interaction.commandName === 'price') {
-        const symbol = interaction.options.getString('symbol').toLowerCase();
-        await interaction.deferReply();
-        try {
-            const coinId = await getCoinIdFromTicker(symbol);
-            if (!coinId) {  return interaction.editReply(`❌ Could not find any coin matching "**${symbol}**".`); }
-            const response = await axios.get('https://api.coingecko.com/api/v3/coins/markets', {
-                params: {
-                    vs_currency: 'usd',
-                    ids: coinId,
-                    sparkline: true,
-                    price_change_percentage: '24h' 
-                },
-                headers: { 'x-cg-demo-api-key': process.env.CG_API_KEY }
-            });
-            const coin = response.data[0];
-            const chartData = coin.sparkline_in_7d.price;
-            const myChart = new QuickChart();
-            myChart.setVersion('3');
-            myChart.setWidth(500);
-            myChart.setHeight(150);
-            myChart.setBackgroundColor('transparent'); 
-            myChart.setConfig({
-                type: 'line',
-                data: {
-                    labels: chartData.map(() => ''), 
-                    datasets: [{
-                        data: chartData,
-                        borderColor: coin.price_change_percentage_24h >= 0 ? 'green' : 'red',
-                        fill: false,
-                        pointRadius: 0,
-                        borderWidth: 2,
-                        tension: 0.1
-                    }]
-                },
-                options: {
-                    plugins: { 
-                        legend: { display: false },
-                        tickFormat: { prefix: '$', useGrouping: true }
-                    },
-                    scales: {
-                        x: { display: false },
-                        y: { 
-                            display: true,
-                            position: 'left',
-                            ticks: {
-                                color: 'white',
-                                callback: (val) => val.toLocaleString()
-                            },
-                            min: Math.min(...chartData) * 0.999,
-                            max: Math.max(...chartData) * 1.001
-                        }
-                    }
-                }
-            });
-            const chartUrl = await myChart.getShortUrl(); 
-            const priceEmbed = {
-                title: `${coin.name} (${coin.symbol.toUpperCase()})`,
-                thumbnail: { url: coin.image },
-                color: coin.price_change_percentage_24h >= 0 ? 0x00FF00 : 0xFF0000,
-                fields: [
-                    { name: '💰 Current Price', value: `💵 $${coin.current_price.toLocaleString()}`, inline: true },
-                    { name: '📉 24h Change', value: `${coin.price_change_percentage_24h.toFixed(2)}%`, inline: true },
-                    { name: '📊 24h High / Low', value: `High: $${coin.high_24h.toLocaleString()}\nLow: $${coin.low_24h.toLocaleString()}`, inline: false },
-                    { name: '💎 Market Cap', value: `$${coin.market_cap.toLocaleString()}`, inline: true },
-                    { name: '⏱️ Last Updated', value: `<t:${Math.floor(Date.parse(coin.last_updated) / 1000)}:R>`, inline: true }
-                ],
-                image: { url: chartUrl }
-            };
-            await interaction.editReply({ embeds: [priceEmbed] });
-        } catch(error) {
-            const errorMsg = error?.message || "An unknown error occurred";
-            await interaction.editReply(`Error:\n\`\`\`${errorMsg}\`\`\``);
-            console.error("Full Error Object:", error);
-        }
-    }
-
     if (interaction.commandName === "test") {
         if (interaction.member.id !== process.env.DEV_ID) { return interaction.reply('Only my bot DEV can use this command'); }
         if (!interaction.inGuild()) { return interaction.reply({ content: 'You can only run this command inside a server.', flags: [MessageFlags.Ephemeral],}); }
@@ -2660,6 +2324,7 @@ client.on('messageCreate', async (message) => {
 // Website Coding
 const web = express();
 web.use(express.urlencoded({ extended: false }));
+web.use(express.json());
 web.use(express.static(path.join(__dirname, 'public')));
 const port = process.env.PORT;
 const sessionStore = new MySQLStore({}, db);
@@ -2720,6 +2385,8 @@ passport.deserializeUser(async (id, done) => {
     }
 });
 
+const getAvatar = (id, hash) => { return `https://cdn.discordapp.com/avatars/${id}/${hash}.png`;};
+
 web.post('/login', passport.authenticate('local', {
     successRedirect: '/',
     failureRedirect: '/login'
@@ -2770,8 +2437,7 @@ web.get('/', async (req, res) => {
                        .replace('{{msUntilMidnight}}', msUntilMidnight)
                        .replace('{{balance}}', (user.balance || 0).toLocaleString())
                        .replace('{{level}}', user.level || 1);
-            const avatarUrl = `https://cdn.discordapp.com/avatars/${user.userid}/${user.avatar}.png`;
-            html = html.replaceAll('{{avatarurl}}', avatarUrl);
+            html = html.replaceAll('{{avatarurl}}', getAvatar(user.userid, user.avatar));
         } else {
             html = html.replace('{{hasClaimed}}', 'false')
                        .replace('{{msUntilMidnight}}', '0')
@@ -2793,16 +2459,205 @@ web.get('/', async (req, res) => {
 web.get('/profile', checkAuth, async (req, res) => {
     try {
         const user = req.user;
-        const avatarUrl = `https://cdn.discordapp.com/avatars/${user.userid}/${user.avatar}.png`;
         let html = fs.readFileSync(path.join(__dirname, 'public', 'profile.html'), 'utf8');
         html = html.replace('User', user.username || 'Member')
                    .replace('{{balance}}', user.balance.toLocaleString())
                    .replace('{{level}}', user.level)
-                   .replaceAll('{{avatarurl}}', avatarUrl);
+                   .replaceAll('{{avatarurl}}', getAvatar(user.userid, user.avatar));
         res.send(html);
     } catch (err) {
         console.error(err);
         res.status(500).send("Error loading home");
+    }
+});
+
+web.get('/portfolio', checkAuth, async (req, res) => {
+    try {
+        const user = req.user;
+        const [holdings] = await db.query(
+            'SELECT symbol, shares, average_price, network, contract FROM portfolios WHERE userid = ?', 
+            [user.userid]
+        );
+        let totalValue = 0;
+        let totalCostBasis = 0;
+        const list = await Promise.all(holdings.map(async (stock) => {
+            let currentPrice = await getContract(stock.network, stock.contract);
+            if (!currentPrice || currentPrice === 0) { currentPrice = Number(stock.average_price); }
+            const costBasis = Number(stock.average_price) * Number(stock.shares);
+            const currentValue = currentPrice * Number(stock.shares);
+            totalCostBasis += costBasis;
+            totalValue += currentValue;
+            const pnl = currentValue - costBasis;
+            const pnlPercent = costBasis > 0 ? ((pnl / costBasis) * 100).toFixed(2) : "0.00";
+            return {
+                symbol: stock.symbol.toUpperCase(),
+                shares: stock.shares,
+                pnlPercent,
+                isUp: pnl >= 0
+            };
+        }));
+        const totalPnl = totalValue - totalCostBasis;
+        const totalPnlPercent = totalCostBasis > 0 ? ((totalPnl / totalCostBasis) * 100).toFixed(2) : "0.00";
+        const tableRows = list.map(item => `
+            <tr>
+                <td>${item.symbol}</td>
+                <td>${Number(item.shares).toLocaleString()}</td>
+                <td style="color: ${item.isUp ? '#10b981' : '#ef4444'}">
+                    ${item.isUp ? '▲' : '▼'} ${item.pnlPercent}%
+                </td>
+            </tr>
+        `).join('');
+        let html = fs.readFileSync(path.join(__dirname, 'public', 'portfolio.html'), 'utf8');
+        const pnlColor = totalPnl >= 0 ? '#10b981' : '#ef4444';
+        html = html.replace('{{rows}}', tableRows || '<tr><td colspan="3">No holdings found</td></tr>')
+                   .replace('{{cash}}', Number(user.balance).toLocaleString())
+                   .replace('{{assetValue}}', Math.round(totalValue).toLocaleString())
+                   .replace('{{totalPnl}}', `<span style="color: ${pnlColor}">${totalPnlPercent}%</span>`)
+                   .replaceAll('{{avatarurl}}', getAvatar(user.userid, user.avatar));
+
+        res.send(html);
+    } catch (err) {
+        console.error("Portfolio Error:", err);
+        res.status(500).send("Portfolio Error\n" + err.message);
+    }
+});
+
+web.get('/trading', checkAuth, (req, res) => {
+    try {
+        const markets = [
+            { name: "Bitcoin", symbol: "btc", icon: `${process.env.DOMAIN}/images/btcicon.png` },
+        ];
+        let html = fs.readFileSync(path.join(__dirname, 'public', 'trading_hub.html'), 'utf8');
+        const marketButtons = markets.map(coin => `
+            <div class="market-card" onclick="location.href='/trading/${coin.symbol.toLowerCase()}'">
+                <div class="market-icon">
+                    <img src="${coin.icon}" style="width: 32px; height: 32px; object-fit: contain;">
+                </div>
+                <div class="market-info">
+                    <h3>${coin.name}</h3>
+                    <p>Trade ${coin.symbol.toUpperCase()}/USD</p>
+                </div>
+                <div class="market-arrow">➜</div>
+            </div>
+        `).join('');
+        html = html.replace('{{marketButtons}}', marketButtons)
+                   .replaceAll('{{avatarurl}}', getAvatar(req.user.userid, req.user.avatar));
+        res.send(html);
+    } catch (err) {
+        res.status(500).send("Trading Hub Error: " + err.message);
+    }
+});
+
+web.get('/trading/btc', checkAuth, async (req, res) => {
+    try {
+        const user = req.user;
+        const network = "avax", contract = "0x8fef4fe4970a5d6bfa7c65871a2ebfd0f42aa822";
+        const contractAddress = `https://geckoterminal.com/${network}/pools/${contract}`;
+        const [holding] = await db.query( 'SELECT shares FROM portfolios WHERE userid = ? AND symbol = "bitcoin"',  [user.userid]);
+        let html = fs.readFileSync(path.join(__dirname, 'public', 'trading.html'), 'utf8');
+        const userShares = holding.length > 0 ? holding[0].shares : 0;
+        html = html.replace('{{balance}}', user.balance.toLocaleString())
+                   .replace('{{ownedshares}}', userShares.toLocaleString())
+                   .replaceAll('{{share}}', 'BTC')
+                   .replace('{{contractlink}}', contractAddress)
+                   .replace('{{network}}', network)
+                   .replace('{{contract}}', contract)
+                   .replace('{{coinid}}', 'BTC')
+                   .replaceAll('{{avatarurl}}', getAvatar(user.userid, user.avatar));
+        res.send(html);
+    } catch (err) {
+        res.status(500).send("Trading Error\n"+err.message);
+    }
+});
+
+web.post('/trade/buy', checkAuth, async (req, res) => {
+    try {
+        const { coinId, network, contract, amount } = req.body;
+        const amountToBuy = parseFloat(amount);
+        const userid = req.user.userid;
+        if (!network || !contract || isNaN(amountToBuy) || amountToBuy <= 0) {
+            return res.json({ success: false, message: "Invalid trade parameters or amount." });
+        }
+        const price = await getContract(network, contract);
+        if (!price) {
+            return res.json({ success: false, message: "Could not fetch current market price from pool." });
+        }
+        const totalCost = Math.round(price * amountToBuy);
+        const [userRows] = await db.query('SELECT balance FROM users WHERE userid = ?', [userid]);
+        const currentBalance = userRows[0].balance;
+        if (currentBalance < totalCost) {
+            return res.json({ 
+                success: false, 
+                message: `Insufficient Funds! Cost: 💰${totalCost.toLocaleString()} | Balance: 💰${currentBalance.toLocaleString()}` 
+            });
+        }
+        await db.query('UPDATE users SET balance = balance - ? WHERE userid = ?', [totalCost, userid]);
+        await db.query(`
+            INSERT INTO portfolios (userid, symbol, shares, average_price, network, contract) 
+            VALUES (?, ?, ?, ?, ?, ?) 
+            ON DUPLICATE KEY UPDATE 
+                average_price = (average_price * shares + VALUES(average_price) * VALUES(shares)) / (shares + VALUES(shares)),
+                shares = shares + VALUES(shares),
+                network = VALUES(network),
+                contract = VALUES(contract)`, 
+            [userid, coinId, amountToBuy, price, network, contract]
+        );
+        await db.query('INSERT INTO stock_logs (userid, symbol, action, amount, price_per_share, total_cost) VALUES (?, ?, ?, ?, ?, ?)', 
+            [userid, coinId, 'BUY', amountToBuy, price, totalCost]);
+        res.json({ 
+            success: true, 
+            message: `Successfully purchased ${amountToBuy} ${coinId.toUpperCase()} for 💰${totalCost.toLocaleString()}!` 
+        });
+    } catch (err) {
+        console.error("Web Trade Error:", err);
+        res.status(500).json({ success: false, message: "A server error occurred during the trade." });
+    }
+});
+
+web.post('/trade/sell', checkAuth, async (req, res) => {
+    try {
+        const { coinId,network, contract, amount } = req.body;
+        const amountToSell = parseFloat(amount);
+        const userid = req.user.userid;
+        if (!network || !contract || isNaN(amountToSell) || amountToSell <= 0) {
+            return res.json({ success: false, message: "Invalid trade parameters or amount." });
+        }
+        const [holdings] = await db.query(
+            'SELECT shares FROM portfolios WHERE userid = ? AND symbol = ?', 
+            [userid, coinId]
+        );
+        if (holdings.length === 0 || holdings[0].shares < amountToSell) {
+            const owned = holdings.length > 0 ? holdings[0].shares : 0;
+            return res.json({ 
+                success: false, 
+                message: `You don't have enough shares! Owned: ${owned}` 
+            });
+        }
+        const price = await getContract(network, contract);
+        if (!price) {
+            return res.json({ success: false, message: "Could not fetch current market price from pool." });
+        }
+        const totalReturn = Math.round(price * amountToSell);
+        await db.query('UPDATE users SET balance = balance + ? WHERE userid = ?', [totalReturn, userid]);
+        if (holdings[0].shares === amountToSell) {
+            await db.query('DELETE FROM portfolios WHERE userid = ? AND symbol = ?', [userid, coinId]);
+        } else {
+            await db.query(
+                'UPDATE portfolios SET shares = shares - ? WHERE userid = ? AND symbol = ?', 
+                [amountToSell, userid, coinId]
+            );
+        }
+        await db.query(
+            'INSERT INTO stock_logs (userid, symbol, action, amount, price_per_share, total_cost) VALUES (?, ?, ?, ?, ?, ?)', 
+            [userid, coinId, 'SELL', amountToSell, price, totalReturn]
+        );
+        res.json({ 
+            success: true, 
+            message: `Successfully sold ${amountToSell} ${coinId.toUpperCase()} for 💰${totalReturn.toLocaleString()}!` 
+        });
+    } catch (err) {
+        console.error("Web Sell Error:", err);
+        res.status(500).json({ success: false, message: "A server error occurred during the sale." });
     }
 });
 
@@ -2844,7 +2699,6 @@ web.listen(port, () => {
 
 function renderLeaderboard(res, rows, title, userdata) {
     let html = fs.readFileSync(path.join(__dirname, 'public', 'leaderboard.html'), 'utf8');
-    const mainAvatarUrl = `https://cdn.discordapp.com/avatars/${userdata.userid}/${userdata.avatar}.png`;
     let tableRows = rows.map((user, index) => {
         const rank = index + 1;
         let medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : rank;
@@ -2857,8 +2711,8 @@ function renderLeaderboard(res, rows, title, userdata) {
         </tr>`;
     }).join('');
     html = html.replace('{{rows}}', tableRows)
-        .replace('Global Leaderboard', title)
-        .replaceAll('{{avatarurl}}', mainAvatarUrl);;
+        .replaceAll('{{LB-TYPE}}', title)
+        .replaceAll('{{avatarurl}}', getAvatar(userdata.userid, userdata.avatar));;
     res.send(html);
 }
 
@@ -2884,5 +2738,17 @@ async function handleLeaderboard(req, res, sortColumn, title, user) {
     } catch (err) {
         console.error(err);
         res.status(500).send("Error");
+    }
+}
+
+async function getContract(network, poolAddress) {
+    try {
+        const url = `https://api.geckoterminal.com/api/v2/networks/${network}/pools/${poolAddress}`;
+        const response = await axios.get(url);
+        const price = Math.round(response.data.data.attributes.base_token_price_usd);
+        return price ? parseFloat(price) : null;
+    } catch (error) {
+        console.error("GeckoTerminal API Error:", error.response?.status, error.message);
+        return null;
     }
 }
