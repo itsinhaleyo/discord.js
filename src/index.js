@@ -2528,6 +2528,72 @@ web.get('/portfolio', checkAuth, async (req, res) => {
     }
 });
 
+web.get('/casino', checkAuth, (req, res) => {
+    try {
+        const games = [
+            { name: "Plinko", symbol: "plinko", icon: `${process.env.DOMAIN}/games/plinko/favicon.ico` },
+        ];
+        let html = fs.readFileSync(path.join(__dirname, 'public', 'casino.html'), 'utf8');
+        const marketButtons = games.map(game => `
+            <div class="market-card" onclick="location.href='/casino/${game.symbol.toLowerCase()}'">
+                <div class="market-icon">
+                    <img src="${game.icon}" style="width: 32px; height: 32px; object-fit: contain;">
+                </div>
+                <div class="market-info">
+                    <h3>${game.name}</h3>
+                </div>
+                <div class="market-arrow">➜</div>
+            </div>
+        `).join('');
+        html = html.replace('{{marketButtons}}', marketButtons)
+                   .replaceAll('{{avatarurl}}', getAvatar(req.user.userid, req.user.avatar));
+        res.send(html);
+    } catch (err) {
+        res.status(500).send("Trading Hub Error: " + err.message);
+    }
+});
+
+web.get('/casino/plinko', checkAuth, (req, res) => {
+    try {
+        let html = fs.readFileSync(path.join(__dirname, 'public', 'plinko.html'), 'utf8');
+        html = html.replaceAll('{{userid}}', req.user.userid)
+                   .replaceAll('{{avatarurl}}', getAvatar(req.user.userid, req.user.avatar));
+        res.send(html);
+    } catch (err) {
+        res.status(500).send("Plinko Error: " + err.message);
+    }
+});
+
+web.post('/callback/gameinit', async (req, res, next) => {
+    const user = await db.query(`SELECT * FROM users WHERE userid = ?`, [req.body.userid]);
+    res.json({ amount: Number(user.balance), egg: 39 });
+});
+
+web.post('/callback/playercheck', async (req, res, next) => {
+    const user = await db.query(`SELECT * FROM playercheck WHERE userid = ?`, [req.body.userid]);
+    const nonce = getnonce();
+    if (!user) { await db.query(`INSERT INTO playercheck (userid, nonce) VALUES (?, ?)`, [req.body.userid, nonce]); }
+    await db.query(`UPDATE playercheck SET nonce = ? WHERE userid = ?`, [nonce, req.body.userid]);
+    res.json({ Data: nonce });
+});
+
+web.post('/callback/plinko/win', async (req, res, next) => {
+    const user = await db.query(`SELECT * FROM playercheck WHERE userid = ?`, [req.body.userid]);
+    const nonce = await db.query('SELECT * FROM nonce WHERE userid = ?', [req.body.userid]);
+    if (req.body.nonce !== nonce.nonce) { return res.status(400).json({ message: "Invalid nonce" }); }
+    db.query(`UPDATE users SET balance = balance + ? WHERE userid = ?`, [req.body.win, req.body.userid]);
+    res.json({ Data: newNonce });
+});
+
+web.get('/casino/slots', checkAuth, (req, res) => {
+    try {
+        let html = fs.readFileSync(path.join(__dirname, 'public', 'game.html'), 'utf8');
+        res.send(html);
+    } catch (err) {
+        res.status(500).send("Slots Error: " + err.message);
+    }
+});
+
 web.get('/trading', checkAuth, (req, res) => {
     try {
         const markets = [
@@ -2780,4 +2846,8 @@ async function getContract(network, poolAddress) {
         console.error("GeckoTerminal API Error:", error.message);
         return priceCache[cacheKey] ? priceCache[cacheKey].price : null;
     }
+}
+
+function getnonce() {
+    return Math.floor(Math.random() * (10000000000 - 999999999999) + 999999999999);
 }

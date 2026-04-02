@@ -53,3 +53,8 @@ CREATE TABLE stock_logs (
     total_cost BIGINT NOT NULL,
     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE playercheck (
+    id VARCHAR(100) NOT NULL PRIMARY KEY,
+    nonce BIGINT NOT NULL
+);

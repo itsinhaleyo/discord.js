@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Plinko</title>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <link rel="stylesheet" href="https://itsinhaleyo.online/games/plinko/css/reset.css" type="text/css">
+        <link rel="stylesheet" href="https://itsinhaleyo.online/games/plinko/css/main.css" type="text/css">
+        <link rel="stylesheet" href="https://itsinhaleyo.online/games/plinko/css/orientation_utils.css" type="text/css">
+        <link rel='shortcut icon' type='image/x-icon' href='https://itsinhaleyo.online/games/plinko/favicon.ico' />
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+        <meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, minimal-ui" />
+        <meta name="msapplication-tap-highlight" content="no"/>
+        <script type="text/javascript" src="https://itsinhaleyo.online/games/plinko/js/jquery-3.2.1.min.js"></script>
+        <script type="text/javascript" src="https://itsinhaleyo.online/games/plinko/js/createjs.min.js"></script>
+        <script type="text/javascript" src="https://itsinhaleyo.online/games/plinko/js/howler.min.js"></script>
+        <script type="text/javascript" src="https://itsinhaleyo.online/games/plinko/js/platform.js"></script>
+        <script type="text/javascript" src="https://itsinhaleyo.online/games/plinko/js/screenfull.js"></script>
+        <script type="text/javascript" src="https://itsinhaleyo.online/games/plinko/js/sprintf.js"></script>
+        <script type="text/javascript" src="https://itsinhaleyo.online/games/plinko/js/ctl_utils.js"></script>
+        <script type="text/javascript" src="https://itsinhaleyo.online/games/plinko/js/sprite_lib.js"></script>
+        <script type="text/javascript" src="https://itsinhaleyo.online/games/plinko/js/settings.js"></script>
+        <script type="text/javascript" src="https://itsinhaleyo.online/games/plinko/js/CLang.js"></script>
+        <script type="text/javascript" src="https://itsinhaleyo.online/games/plinko/js/CPreloader.js"></script>
+        <script type="text/javascript" src="https://itsinhaleyo.online/games/plinko/js/CMain.js"></script>
+        <script type="text/javascript" src="https://itsinhaleyo.online/games/plinko/js/CTextButton.js"></script>
+        <script type="text/javascript" src="https://itsinhaleyo.online/games/plinko/js/CToggle.js"></script>
+        <script type="text/javascript" src="https://itsinhaleyo.online/games/plinko/js/CGfxButton.js"></script>
+        <script type="text/javascript" src="https://itsinhaleyo.online/games/plinko/js/CMenu.js"></script>
+        <script type="text/javascript" src="https://itsinhaleyo.online/games/plinko/js/CCreditsPanel.js"></script>
+        <script type="text/javascript" src="https://itsinhaleyo.online/games/plinko/js/CAreYouSurePanel.js"></script>
+        <script type="text/javascript" src="https://itsinhaleyo.online/games/plinko/js/CEndPanel.js"></script>
+        <script type="text/javascript" src="https://itsinhaleyo.online/games/plinko/js/CGridMapping.js"></script>
+        <script type="text/javascript" src="https://itsinhaleyo.online/games/plinko/js/CCell.js"></script>
+        <script type="text/javascript" src="https://itsinhaleyo.online/games/plinko/js/CBall.js"></script>
+        <script type="text/javascript" src="https://itsinhaleyo.online/games/plinko/js/CBallGenerator.js"></script>
+        <script type="text/javascript" src="https://itsinhaleyo.online/games/plinko/js/CInsertTubeController.js"></script>
+        <script type="text/javascript" src="https://itsinhaleyo.online/games/plinko/js/CSlot.js"></script>
+        <script type="text/javascript" src="https://itsinhaleyo.online/games/plinko/js/CScoreBasketController.js"></script>
+        <script type="text/javascript" src="https://itsinhaleyo.online/games/plinko/js/CBasket.js"></script>
+        <script type="text/javascript" src="https://itsinhaleyo.online/games/plinko/js/CGUIExpandible.js"></script>
+        <script type="text/javascript" src="https://itsinhaleyo.online/games/plinko/js/CCTLText.js"></script>
+        <script type="text/javascript">
+            function CGame(oData){
+                var _bStartGame;
+
+                var _iColToLaunchBall;
+                var _iMultiply;
+                var _iCurBet;
+                var _iBankCash;
+
+                var _aProbability;
+
+                var _oInterface;
+                var _oEndPanel = null;
+                var _oParent;
+                var _oBallGenerator;
+                var _oInsertTubeController;
+                var _oScoreBasketController;
+                var _oBgContainer;
+                var _oBoardContainer;
+                var _oMidContainer;
+                var _oForegroundContainer;
+                var _aBoard;
+                var _oCurBall = null;
+
+                this._iCurCredit = 100;
+                var xhttp = new XMLHttpRequest();
+                xhttp.open("POST", "https://itsinhaleyo.online/callback/gameinit", true);
+                xhttp.setRequestHeader('Content-Type', 'application/json');
+                xhttp.onload = () => {
+                    const userbal = JSON.parse(xhttp.responseText.replace(/{/g, "[").replace(/}/g, "]").replace(/:/g, ","));
+                    this._iCurCredit = userbal[1].toFixed(2)/1;
+                };
+                xhttp.send(JSON.stringify({'userid':"{{userid}}"}));
+                
+                this._init = function(){
+                    
+                    setVolume("soundtrack", SOUNDTRACK_VOLUME_IN_GAME);
+                    
+                    _bStartGame=true;
+
+                    _iMultiply = 1;
+                    _iCurBet = START_BET.toFixed(2)/1;
+                    _iBankCash = BANK_CASH;
+                    
+                    var oBg = createBitmap(s_oSpriteLibrary.getSprite('bg_game'));
+                    s_oStage.addChild(oBg);
+
+                    var oSprite = s_oSpriteLibrary.getSprite('logo_game');
+                    var oLogo = createBitmap(oSprite);
+                    oLogo.regX = oSprite.width/2;
+                    oLogo.regY = oSprite.height/2;
+                    oLogo.x = CANVAS_WIDTH/2;
+                    oLogo.y = 250;
+
+                    _oBgContainer = new createjs.Container();
+                    s_oStage.addChild(_oBgContainer);
+
+                    _oBoardContainer = new createjs.Container();
+                    s_oStage.addChild(_oBoardContainer);
+
+                    _oMidContainer = new createjs.Container();
+                    s_oStage.addChild(_oMidContainer);
+
+                    _oForegroundContainer = new createjs.Container();
+                    s_oStage.addChild(_oForegroundContainer);
+
+                    this._setBoard();
+                    NUM_INSERT_TUBE = _aBoard[0].length;
+
+                    var oSprite = s_oSpriteLibrary.getSprite('side_left');
+                    var oSideLeft = createBitmap(oSprite);
+                    oSideLeft.x = 100;
+                    _oForegroundContainer.addChild(oSideLeft);
+
+                    var oSprite = s_oSpriteLibrary.getSprite('side_right');
+                    var oSideRight = createBitmap(oSprite);
+                    oSideRight.regX = oSprite.width;
+                    oSideRight.x = CANVAS_WIDTH-100;
+                    _oForegroundContainer.addChild(oSideRight);
+
+                    BALL_RADIUS = s_oSpriteLibrary.getSprite('ball').height/2;
+                    _oBallGenerator = new CBallGenerator(_oMidContainer);
+                    
+                    _oInsertTubeController = new CInsertTubeController(_oMidContainer);
+
+                    _oScoreBasketController = new CScoreBasketController(_oBgContainer);
+                    
+                    this._initProbability();
+
+                    _oInterface = new CInterface(_oBgContainer);
+
+                    _oInsertTubeController.showSlots();
+
+                    $(s_oMain).trigger("start_level",1);
+
+                    this.checkEndGame();
+
+                };
+                
+                this._setBoard = function(){
+                    var iRow = BOARD_ROW;
+                    var iCol = BOARD_COL;
+                    _aBoard = new Array();
+                    for(var i=0; i<iRow; i++){
+                        _aBoard[i] = new Array();
+                        for(var j=0; j<iCol-((i+1)%2); j++){
+                            var iX;
+                            if(i%2 === 0){
+                                iX = j*CELL_SIZE;
+                            } else {
+                                iX = -CELL_SIZE/2 +j*CELL_SIZE;
+                            }
+                            var iY = i*CELL_SIZE/2;
+                            _aBoard[i][j] = new CCell(iX, iY, _oBoardContainer, i, j/*, _oActionContainer*/);
+                            
+                            ////REMOVE STAKE
+                            if(i === BOARD_ROW-1 || (i%2 === 1 && (j===0 || j === BOARD_COL-1) )){
+                                _aBoard[i][j].removeStake();
+                            }
+                        }
+                    }
+
+                    _oBoardContainer.regX = (_oBoardContainer.getBounds().x) + _oBoardContainer.getBounds().width/2;
+                    _oBoardContainer.regY = (_oBoardContainer.getBounds().y) + _oBoardContainer.getBounds().height/2;
+                    _oBoardContainer.x = CANVAS_WIDTH/2;
+                    _oBoardContainer.y = CANVAS_HEIGHT/2-29;
+
+                    new CGridMapping(_aBoard);
+                };
+                
+                this._initProbability = function(){
+                    _aProbability = new Array();
+                    for(var i=0; i<PRIZE_PROBABILITY.length; i++){
+                        for(var j=0; j<PRIZE_PROBABILITY[i]; j++){
+                            _aProbability.push(i);
+                        }            
+                    }            
+                };
+                
+                this.launch = function(iStartCol){
+                    _iColToLaunchBall = iStartCol;
+                    
+                    this._placeBet();
+                    
+                    this.setBall();
+                    
+                    _oInsertTubeController.hideSlots();
+                    _oBallGenerator.shiftBallAnimation();
+
+                    var oDestBall = s_oGame.getBallPivotCellPos(0, iStartCol);
+                    _oCurBall.launchAnim(oDestBall);
+                    
+                };
+                
+                this._placeBet = function(){
+                    this._iCurCredit -= _iCurBet;
+                    _iBankCash += _iCurBet;
+
+                    _oInterface.hideControls();
+                    _oInterface.refreshCredit(this._iCurCredit.toFixed(2)/1);
+                    
+                    $(s_oMain).trigger("bet_placed",[_iCurBet]);
+                };
+                
+                this.setBall = function(){
+                    _oCurBall = _oBallGenerator.getNextBall();
+
+                    var oCurBallPos = _oCurBall.getPos();
+                    var oNewPos = _oBoardContainer.globalToLocal(oCurBallPos.x*s_iScaleFactor, oCurBallPos.y*s_iScaleFactor);
+
+                    _oBoardContainer.addChild(_oCurBall.getSprite());
+                    _oCurBall.setPos(oNewPos);
+                };
+                
+                this.getFallPath = function(){
+                    var iEndCol = this._setEndCol();
+                    var aPath = s_oGridMapping.getRandomPathFromColToCol(_iColToLaunchBall,iEndCol);
+                    
+                    for(var i=0; i<aPath.length; i++){
+                        _aBoard[aPath[i].row][aPath[i].col].highlight(true);
+                    }
+                    
+                    var aNewPath = this.getPathCopy(aPath);
+                    
+                    _oCurBall.startPathAnim(aNewPath, 500);
+
+                    _oCurBall = null;
+                };
+                
+                this.ballArrived = function(iDestCol){
+
+                    if(PRIZE[iDestCol] * _iMultiply >= _iCurBet){
+                        var winamount = PRIZE[iDestCol] * _iMultiply;
+                        new XMLHttpRequest();
+                        xhttp.open("POST", "https://itsinhaleyo.online/callback/playercheck", true);
+                        xhttp.setRequestHeader('Content-Type', 'application/json');
+                        xhttp.onload = () => {
+                            const userdata = JSON.parse(xhttp.responseText.replace(/{/g, "[").replace(/}/g, "]").replace(/:/g, ","));
+                            var xhr = new XMLHttpRequest();
+                            xhr.open("POST", "https://itsinhaleyo.online/callback/plinko/win", true);
+                           xhr.setRequestHeader('Content-Type', 'application/json');
+                            xhr.send(JSON.stringify({'nonce':userdata[1], 'bet':_iCurBet, 'win':winamount, userid:"{{userid}}"}));
+                        };
+                        xhttp.send(JSON.stringify({'Game':'SystemCheck'}));
+                        playSound('ball_in_basket', 1, false);
+                    } else {
+                        var winamount = PRIZE[iDestCol] * _iMultiply;
+                        var xhttp = new XMLHttpRequest();
+                        xhttp.open("POST", "https://itsinhaleyo.online/callback/playercheck", true);
+                        xhttp.setRequestHeader('Content-Type', 'application/json');
+                        xhttp.onload = () => {
+                            const userdata = JSON.parse(xhttp.responseText.replace(/{/g, "[").replace(/}/g, "]").replace(/:/g, ","));
+                            var xhr = new XMLHttpRequest();
+                            xhr.open("POST", "https://itsinhaleyo.online/callback/plinko/lose", true);
+                            xhr.setRequestHeader('Content-Type', 'application/json');
+                            xhr.send(JSON.stringify({'nonce':userdata[1], 'bet':_iCurBet, 'win':winamount, userid:"{{userid}}"}));
+                        };
+                        xhttp.send(JSON.stringify({'Game':'SystemCheck'}));
+                        playSound('ball_in_basket_negative', 1, false);
+                    }
+
+                    var iProfit = PRIZE[iDestCol] * _iMultiply/_iCurBet;
+                    _oScoreBasketController.litBasket(iDestCol, iProfit);
+                
+                    this._iCurCredit += PRIZE[iDestCol] * _iMultiply;
+                    _iBankCash -= PRIZE[iDestCol] * _iMultiply;
+
+                    $(s_oMain).trigger("save_score",[this._iCurCredit]);
+
+                    _oInsertTubeController.showSlots();
+                    
+                    _oInterface.showControls();
+                    _oInterface.refreshCredit(this._iCurCredit.toFixed(2)/1);
+                    
+                    this.checkEndGame();
+                    
+                };
+                
+                this.checkEndGame = function(){
+                    if(this._iCurCredit < START_BET){
+                        this.gameOver();
+                        return;
+                    }        
+                    
+                    if(_iMultiply > this._iCurCredit/START_BET ){
+                        _iMultiply = Math.floor(this._iCurCredit/START_BET);
+                        _iCurBet = (_iMultiply * START_BET).toFixed(2)/1;
+                        _oInterface.refreshBet(_iCurBet);  
+                        
+                        _oScoreBasketController.refreshText(_iMultiply);
+                    }
+                };
+                
+                this.modifyBonus = function(szType){
+                    if(szType === "plus"){
+                        _iMultiply++;
+                    } else {
+                        _iMultiply--;
+                    }
+                    
+                    if(_iMultiply > MAX_MULTIPLIER){
+                        _iMultiply = MAX_MULTIPLIER;
+                    } else if(_iMultiply < 1) {
+                        _iMultiply = 1;
+                    } else if(_iMultiply > this._iCurCredit/START_BET){
+                        _iMultiply = Math.floor(this._iCurCredit/START_BET);
+                    }
+                    
+                    
+                    _iCurBet = (START_BET*_iMultiply).toFixed(2)/1;
+                
+                    _oInterface.refreshBet(_iCurBet);
+                    _oScoreBasketController.refreshText(_iMultiply);
+
+                };
+            
+                this._setEndCol = function(){
+                    //DETECT ALL POSSIBLE PRIZE LOWER THEN BANK
+                    var iCurPrize;
+                    var aAllPossiblePrize = new Array();
+                    for(var i=0; i<_aProbability.length; i++){
+                        iCurPrize = PRIZE[_aProbability[i]]*_iMultiply;
+
+                        if(iCurPrize <= _iBankCash){
+                            aAllPossiblePrize.push({prize:iCurPrize,index:i});
+                        } 
+                    }
+                    
+                    var iPrizeToChoose = aAllPossiblePrize[Math.floor(Math.random()*aAllPossiblePrize.length)].index;      
+
+                    return _aProbability[iPrizeToChoose];
+                };
+                
+                this.getBall = function(){
+                    return _oCurBall;
+                };
+                
+                this.getBoard = function(){
+                    return _aBoard;
+                };
+                
+                this.getBallPivotCellPos = function(iRow, iCol){
+                    return _aBoard[iRow][iCol].getCenterOfBallOnPivot();
+                };
+                
+                this.getPathCopy = function(aPath){
+                    var aNewPath = new Array();
+                    for(var i=0; i<aPath.length; i++){
+                        aNewPath.push(aPath[i])
+                    }
+                    
+                    return aNewPath;
+                };
+            
+                this.restartGame = function () {
+                    $(s_oMain).trigger("show_interlevel_ad");
+                    
+                    _iMultiply = 1;
+                    _iCurBet = START_BET.toFixed(2)/1;
+                    _iBankCash = BANK_CASH;
+                    
+                    _oScoreBasketController.refreshText(_iMultiply);
+                    _oInterface.refreshCredit(this._iCurCredit);
+                    _oInterface.refreshBet(_iCurBet);
+                    _oInterface.showControls();
+                };        
+                
+                this.addNewCredits = function(iCreditsToAdd){
+                    this._iCurCredit += iCreditsToAdd.toFixed(2)/1;
+                    _oInterface.refreshCredit(this._iCurCredit);
+                };
+                
+                this.unload = function(){
+                    _bStartGame = false;
+                    
+                    _oInterface.unload();
+                    if(_oEndPanel !== null){
+                        _oEndPanel.unload();
+                    }
+                    
+                    _oScoreBasketController.unload();
+                    
+                    createjs.Tween.removeAllTweens();
+                    s_oStage.removeAllChildren();
+                };
+            
+                this.onExit = function(){
+                    setVolume("soundtrack", 1);
+                    
+                    $(s_oMain).trigger("end_session");
+                    $(s_oMain).trigger("end_level",1);
+                    
+                    s_oGame.unload();
+                    s_oMain.gotoMenu();
+                };
+                
+                this._onExitHelp = function () {
+                    _bStartGame = true;
+                    
+                };
+                
+                this.gameOver = function(){
+                    _oInterface.hideControls();
+                    _oEndPanel = new CEndPanel(this._iCurCredit);
+                };
+
+                this.getSlotPosition = function(iIndex){
+                    return _oInsertTubeController.getSlotPos(iIndex);
+                };
+                
+                
+                this.sortChildren = function(obj1, obj2, options) {
+                if (obj1.y < obj2.y) { return 1; }
+                if (obj1.y > obj2.y) { return -1; }
+                return 0;
+            };
+                
+                this.update = function(){
+                    _oBoardContainer.sortChildren(this.sortChildren);
+                };
+
+                s_oGame=this;
+
+                START_BET = oData.start_bet;
+                MAX_MULTIPLIER = oData.max_multiplier;
+
+                BANK_CASH = oData.bank_cash;
+
+                PRIZE = oData.prize;
+                PRIZE_PROBABILITY = oData.prize_probability;
+                
+                AD_SHOW_COUNTER = oData.ad_show_counter;
+                
+                _oParent=this;
+                this._init();
+            }
+
+            var s_oGame;
+        </script>
+        <script type="text/javascript">
+            function CInterface(oBgContainer){
+                var _oAudioToggle;
+                var _oButExit;
+                var _oButFullscreen;
+                var _oGUIExpandible;
+                
+                var _iCurHandPos;
+                
+                var _oBetToken;
+                var _oBetNum;
+                var _oButPlus;
+                var _oButMin;
+                var _oCreditNum;
+                var _oHandAnim;
+
+                var _fRequestFullScreen = null;
+                var _fCancelFullScreen = null;
+                
+                var _pStartPosExit;
+                var _pStartPosAudio;
+                var _pStartPosFullscreen;
+                
+                this._init = function(oBgContainer){      
+                    
+                    var oSprite = s_oSpriteLibrary.getSprite('hand_anim');
+                    var iWidth = oSprite.width/6;
+                    var iHeight = oSprite.height/4;
+                    var oData = {   framerate: 20,
+                                    images: [oSprite], 
+                                    // width, height & registration point of each sprite
+                                    "frames": [
+                                            [1, 1, 256, 230, 0, 0, 0],
+                                            [259, 1, 256, 230, 0, 0, 0],
+                                            [517, 1, 256, 230, 0, 0, 0],
+                                            [775, 1, 256, 230, 0, 0, 0],
+                                            [1033, 1, 256, 230, 0, 0, 0],
+                                            [1291, 1, 256, 230, 0, 0, 0],
+                                            [1, 233, 256, 230, 0, 0, 0],
+                                            [259, 233, 256, 230, 0, 0, 0],
+                                            [517, 233, 256, 230, 0, 0, 0],
+                                            [775, 233, 256, 230, 0, 0, 0],
+                                            [1033, 233, 256, 230, 0, 0, 0],
+                                            [1291, 233, 256, 230, 0, 0, 0],
+                                            [1, 465, 256, 230, 0, 0, 0],
+                                            [259, 465, 256, 230, 0, 0, 0],
+                                            [517, 465, 256, 230, 0, 0, 0],
+                                            [775, 465, 256, 230, 0, 0, 0],
+                                            [1033, 465, 256, 230, 0, 0, 0],
+                                            [1291, 465, 256, 230, 0, 0, 0],
+                                            [1, 697, 256, 230, 0, 0, 0],
+                                            [259, 697, 256, 230, 0, 0, 0],
+                                            [517, 697, 256, 230, 0, 0, 0],
+                                            [775, 697, 256, 230, 0, 0, 0]
+                                        ],
+                                    animations:{"idle": [0,21]}
+                            };
+                            
+                    var oSpriteSheet = new createjs.SpriteSheet(oData);
+                    _iCurHandPos = 0;
+                    _oHandAnim = createSprite(oSpriteSheet, "idle",iWidth/2,iHeight/2,iWidth,iHeight);
+                    var oPos = s_oGame.getSlotPosition(_iCurHandPos);
+                    _oHandAnim.x = oPos.x;
+                    _oHandAnim.y = oPos.y;
+                    _oHandAnim.regX = iWidth/2 - 30;
+                    _oHandAnim.regY = iHeight/2;
+                    _oHandAnim.on("animationend", this._moveHand);
+                    s_oStage.addChild(_oHandAnim);
+                        
+                        
+                    var oExitX;        
+                    
+                    var oSprite = s_oSpriteLibrary.getSprite('but_exit');
+                    _pStartPosExit = {x: CANVAS_WIDTH - (oSprite.width/2)- 10, y: (oSprite.height/2) + 10};
+                    _oButExit = new CGfxButton(_pStartPosExit.x, _pStartPosExit.y, oSprite,s_oStage);
+                    _oButExit.addEventListener(ON_MOUSE_UP, this._onExit, this);
+                    
+                    oExitX = _pStartPosExit.x - (oSprite.width) - 10;
+                    _pStartPosAudio = {x: oExitX, y: (oSprite.height/2) + 10};
+                    
+                    if(DISABLE_SOUND_MOBILE === false || s_bMobile === false){
+                        var oSprite = s_oSpriteLibrary.getSprite('audio_icon');
+                        _oAudioToggle = new CToggle(_pStartPosAudio.x,_pStartPosAudio.y,oSprite,s_bAudioActive, s_oStage);
+                        _oAudioToggle.addEventListener(ON_MOUSE_UP, this._onAudioToggle, this);          
+                        
+                        oExitX = _pStartPosAudio.x - (oSprite.width/2) - 10;
+                    }
+
+                    var doc = window.document;
+                    var docEl = doc.documentElement;
+                    _fRequestFullScreen = docEl.requestFullscreen || docEl.mozRequestFullScreen || docEl.webkitRequestFullScreen || docEl.msRequestFullscreen;
+                    _fCancelFullScreen = doc.exitFullscreen || doc.mozCancelFullScreen || doc.webkitExitFullscreen || doc.msExitFullscreen;
+                    
+                    if(ENABLE_FULLSCREEN === false){
+                        _fRequestFullScreen = false;
+                    }
+                    
+                    if (_fRequestFullScreen && screenfull.isEnabled){
+                        oSprite = s_oSpriteLibrary.getSprite("but_fullscreen")
+                        _pStartPosFullscreen = {x:oExitX,y:oSprite.height/2+10};
+                        _oButFullscreen = new CToggle(_pStartPosFullscreen.x,_pStartPosFullscreen.y,oSprite,s_bFullscreen,s_oStage);
+                        _oButFullscreen.addEventListener(ON_MOUSE_UP,this._onFullscreenRelease,this);
+                    }
+                    
+                    //////////////////////// BET CONTROLLER /////////////////////////
+                    var oControllerContainer = new createjs.Container();
+                    oControllerContainer.x = 854;
+                    oControllerContainer.y = 1650;
+                    oBgContainer.addChild(oControllerContainer);
+
+                    var oSprite = s_oSpriteLibrary.getSprite('bet_panel');
+                    var oBetBg = createBitmap(oSprite);
+                    oBetBg.regX = oSprite.width/2;
+                    oBetBg.regY = oSprite.height/2;
+                    oControllerContainer.addChild(oBetBg);
+
+                    var iX = oBetBg.x;
+                    var iY = oBetBg.y;
+                    var iWidth = oSprite.width - 100;
+                    var iHeight = 36;
+                    _oBetNum = new CTLText(oControllerContainer, 
+                        iX - iWidth/2, iY - iHeight/2, iWidth, iHeight, 
+                        iHeight, "center", "#fff", PRIMARY_FONT, 1,
+                        0, 0,
+                        sprintf(TEXT_CURRENCY, START_BET.toFixed(2)),
+                        true, true, false,
+                        false );
+
+                    var oSprite = s_oSpriteLibrary.getSprite('but_plus');
+                    _oBetToken = new CTextButton(-325, 0, oSprite,TEXT_TOKEN,PRIMARY_FONT,"#0083ea",50, false, oControllerContainer);
+                    _oBetToken.enable();
+                    _oBetToken.addEventListener(ON_MOUSE_UP, this._onButTokenRelease, this);
+                    _oBetToken.setTextPosition(1,17);
+                    _oBetToken.hideShadow();
+
+                    var oSprite = s_oSpriteLibrary.getSprite('but_plus');
+                    _oButPlus = new CTextButton(160, 0, oSprite,TEXT_PLUS,PRIMARY_FONT,"#0083ea",80, false, oControllerContainer);
+                    _oButPlus.enable();
+                    _oButPlus.addEventListener(ON_MOUSE_UP, this._onButPlusRelease, this);
+                    _oButPlus.setTextPosition(1,26);
+                    _oButPlus.hideShadow();
+
+                    var oSprite = s_oSpriteLibrary.getSprite('but_plus');
+                    _oButMin = new CTextButton(-160,0, oSprite,TEXT_MIN,PRIMARY_FONT,"#0083ea",80, false, oControllerContainer);
+                    _oButMin.enable();
+                    _oButMin.addEventListener(ON_MOUSE_UP, this._onButMinRelease, this);
+                    _oButMin.setTextPosition(2,26);
+                    _oButMin.hideShadow();
+                    
+                    ///////////////////////CREDITS PANEL///////////////////////
+                    var oSprite = s_oSpriteLibrary.getSprite('credits_panel');
+                    var oCreditsBg = createBitmap(oSprite);
+                    oCreditsBg.regX = oSprite.width/2;
+                    oCreditsBg.regY = oSprite.height/2;
+                    oCreditsBg.x = 332;
+                    oCreditsBg.y = oControllerContainer.y;
+                    oBgContainer.addChild(oCreditsBg);
+
+                    var iX = oCreditsBg.x+10;
+                    var iY = oCreditsBg.y;
+                    var iWidth = oSprite.width - 90;
+                    var iHeight = 36;
+
+                    var xhttp = new XMLHttpRequest();
+                    xhttp.open("POST", "https://itsinhaleyo.online/callback/gameinit", true);
+                    http.setRequestHeader('Content-Type', 'application/json');
+                    xhttp.onload = () => {
+                        const userbal = JSON.parse(xhttp.responseText.replace(/{/g, "[").replace(/}/g, "]").replace(/:/g, ","));
+                        this._iCurCredit = 100;
+                        _oCreditNum = new CTLText(oBgContainer, 
+                        iX - iWidth/2, iY - iHeight/2, iWidth, iHeight, 
+                        iHeight, "center", "#fff", PRIMARY_FONT, 1,
+                        0, 0,
+                        sprintf(TEXT_CURRENCY, this._iCurCredit),
+                        true, true, false,
+                        false );
+                    };
+                    xhttp.send(JSON.stringify({'userid':"{{userid}}"}));
+
+                    var oSprite = s_oSpriteLibrary.getSprite('but_settings');
+                    _oGUIExpandible = new CGUIExpandible(_pStartPosExit.x, _pStartPosExit.y, oSprite, s_oStage);
+                    _oGUIExpandible.addButton(_oButExit);
+                    _oGUIExpandible.addButton(_oAudioToggle);
+                    if (_fRequestFullScreen && screenfull.isEnabled){
+                        _oGUIExpandible.addButton(_oButFullscreen);
+                    }
+                    
+                    this.refreshButtonPos(s_iOffsetX,s_iOffsetY);
+                };
+                
+                this.unload = function(){
+                    if(DISABLE_SOUND_MOBILE === false || s_bMobile === false){
+                        _oAudioToggle.unload();
+                        _oAudioToggle = null;
+                    }
+
+                    _oButExit.unload();
+
+                    if (_fRequestFullScreen && screenfull.isEnabled) {
+                        _oButFullscreen.unload();
+                    }        
+
+                    _oButMin.unload();
+                    _oButPlus.unload();
+                    _oBetToken.unload();
+
+                    _oGUIExpandible.unload();
+
+                    s_oInterface = null;
+                    
+                };
+                
+                this.refreshButtonPos = function(iNewX,iNewY){
+                    _oGUIExpandible.refreshPos(iNewX,iNewY);
+                };
+
+                this.refreshBet = function(iValue){
+                    _oBetNum.refreshText( sprintf(TEXT_CURRENCY, iValue.toFixed(2)) );
+                };
+                
+                this.refreshCredit = function(iValue){        
+                    _oCreditNum.refreshText( sprintf(TEXT_CURRENCY, iValue.toFixed(2)) );
+                };
+            
+                this._onButPlusRelease = function(){
+                    s_oGame.modifyBonus("plus");
+                };
+
+                this._onButTokenRelease = function(){
+                    //var xhr = new XMLHttpRequest();
+                    //xhr.open("POST", "https://flarecasino.ca/callback/bet2", true);
+                    //xhr.setRequestHeader('Content-Type', 'application/json');
+                    //xhr.send(JSON.stringify({'user':'{{profilename}}'}));
+                    //setTimeout(function returnurl() {
+                    //    window.location.href = "https://flarecasino.ca/game/plinko";
+                    //},1500);
+                };
+
+                this._onButMinRelease = function(){
+                    s_oGame.modifyBonus("min");
+                };
+                
+                this.hideControls = function(){
+                    _oButMin.setVisible(false);
+                    _oButPlus.setVisible(false);
+                    _oBetToken.setVisible(false);
+                    
+                    this.setHelpVisible(false);
+                };
+                
+                this.showControls = function(){
+                    _oButMin.setVisible(true);
+                    _oButPlus.setVisible(true);
+                    _oBetToken.setVisible(false);
+                    
+                    this.setHelpVisible(true);
+                };
+                
+                this.setHelpVisible = function(bVal){
+                _oHandAnim.visible = bVal;
+                if(bVal){
+                    _oHandAnim.gotoAndPlay("idle");
+                }
+                };
+                
+                this._moveHand = function(){
+                    _iCurHandPos++;
+                    if(_iCurHandPos === NUM_INSERT_TUBE){
+                        _iCurHandPos = 0;
+                    }
+                    var oPos = s_oGame.getSlotPosition(_iCurHandPos);
+                    _oHandAnim.x = oPos.x;
+                    _oHandAnim.y = oPos.y;
+
+                };  
+                
+                this._onAudioToggle = function(){
+                    Howler.mute(s_bAudioActive);
+                    s_bAudioActive = !s_bAudioActive;
+                };
+                
+                this._onExit = function(){
+                    new CAreYouSurePanel(s_oGame.onExit);
+                };
+                
+                this.resetFullscreenBut = function(){
+                    if (_fRequestFullScreen && screenfull.isEnabled){
+                        _oButFullscreen.setActive(s_bFullscreen);
+                    }
+                };
+                    
+                this._onFullscreenRelease = function(){
+                if(s_bFullscreen) { 
+                    _fCancelFullScreen.call(window.document);
+                }else{
+                    _fRequestFullScreen.call(window.document.documentElement);
+                }
+                
+                sizeHandler();
+                };
+                
+                s_oInterface = this;
+                
+                this._init(oBgContainer);
+                
+                return this;
+            }
+
+            var s_oInterface = null;
+        </script>
+        
+            <script type="application/ld+json">{
+                "@context": "http://schema.org",
+                "@type": "Organization",
+                "name": "FlareCasino",
+                "url": "https://itsinhaleyo.online/casino/plinko",
+        }</script>
+        <meta name="theme-color" content="#478ac9">
+        <meta property="og:title" content="Plinko">
+        <meta property="og:description" content="">
+        <meta property="og:type" content="website">
+    </head>
+    <body ondragstart="return false;" ondrop="return false;" >
+        <div style="position: fixed; background-color: transparent; top: 0px; left: 0px; width: 100%; height: 100%"></div>
+        <script>
+            $(document).ready(function(){
+                var oMain = new CMain({     //Starting credits value
+                    start_bet: 10,          //Base starting bet. Will increment with multiplier in game
+                    max_multiplier: 100,      //Max multiplier value
+                    
+                    bank_cash : 999999,       //Starting credits owned by the bank. When a player win, founds will be subtract from here. When a player lose or bet, founds will be added here. If bank is 0, players always lose, in order to fill the bank.
+                    
+                    prize: [0,20,200,50,0,10],  //THE AMOUNT WON BY THE PLAYER;
+                    prize_probability: [50,14,1,7,50,40], //THE OCCURENCY WIN OF THAT PRIZE. THE RATIO IS CALCULATED BY THE FORMULA: (single win occurrence/sum of all occurrence). For instance, in this case, prize 100 have 1/43 chance. Prize 50 have 4/43 chance.
+                    
+                    audio_enable_on_startup:false, //ENABLE/DISABLE AUDIO WHEN GAME STARTS 
+                    show_credits:true,          //SET THIS VALUE TO FALSE IF YOU DON'T WANT TO SHOW CREDITS BUTTON
+                    fullscreen:true,            //SET THIS TO FALSE IF YOU DON'T WANT TO SHOW FULLSCREEN BUTTON
+                    check_orientation:true,     //SET TO FALSE IF YOU DON'T WANT TO SHOW ORIENTATION ALERT ON MOBILE DEVICES   
+                    
+                    //////////////////////////////////////////////////////////////////////////////////////////
+                    ad_show_counter: 5     //NUMBER OF BALL PLAYED BEFORE AD SHOWN
+                    //
+                    //// THIS FUNCTIONALITY IS ACTIVATED ONLY WITH CTL ARCADE PLUGIN.///////////////////////////
+                    /////////////////// YOU CAN GET IT AT: /////////////////////////////////////////////////////////
+                    // http://codecanyon.net/item/ctl-arcade-wordpress-plugin/13856421?s_phrase=&s_rank=27 ///////////
+                    
+                });
+                                        
+                $(oMain).on("recharge", function (evt) {
+                    //INSERT HERE YOUR RECHARGE SCRIPT THAT RETURNS MONEY TO RECHARGE
+                    var iMoney = 0;
+                    if(s_oGame !== null){
+                        s_oGame.addNewCredits(iMoney);
+                    }
+                });                       
+                                        
+                $(oMain).on("start_session", function(evt) {
+                    if(getParamValue('ctl-arcade') === "true"){
+                        parent.__ctlArcadeStartSession();
+                    }
+                    //...ADD YOUR CODE HERE EVENTUALLY
+                });
+                    
+                $(oMain).on("end_session", function(evt) {
+                    if(getParamValue('ctl-arcade') === "true"){
+                        parent.__ctlArcadeEndSession();
+                    }
+                    //...ADD YOUR CODE HERE EVENTUALLY
+                });
+
+                $(oMain).on("restart_level", function(evt, iLevel) {
+                    if(getParamValue('ctl-arcade') === "true"){
+                        parent.__ctlArcadeRestartLevel({level:iLevel});
+                    }
+                    //...ADD YOUR CODE HERE EVENTUALLY
+                });
+
+                $(oMain).on("save_score", function(evt,iScore, szMode) {
+                    if(getParamValue('ctl-arcade') === "true"){
+                        parent.__ctlArcadeSaveScore({score:iScore, mode: szMode});
+                    }
+                    //...ADD YOUR CODE HERE EVENTUALLY
+                });
+
+                $(oMain).on("start_level", function(evt, iLevel) {
+                    if(getParamValue('ctl-arcade') === "true"){
+                        parent.__ctlArcadeStartLevel({level:iLevel});
+                    }
+                    //...ADD YOUR CODE HERE EVENTUALLY
+                });
+
+                $(oMain).on("end_level", function(evt,iLevel) {
+                    if(getParamValue('ctl-arcade') === "true"){
+                        parent.__ctlArcadeEndLevel({level:iLevel});
+                    }
+                    //...ADD YOUR CODE HERE EVENTUALLY
+                });
+
+                $(oMain).on("show_interlevel_ad", function(evt) {
+                    if(getParamValue('ctl-arcade') === "true"){
+                        parent.__ctlArcadeShowInterlevelAD();
+                    }
+                    //...ADD YOUR CODE HERE EVENTUALLY
+                });
+                
+                $(oMain).on("share_event", function(evt, iScore) {
+                    if(getParamValue('ctl-arcade') === "true"){
+                        parent.__ctlArcadeShareEvent({   img: TEXT_SHARE_IMAGE,
+                            title: TEXT_SHARE_TITLE,
+                            msg: TEXT_SHARE_MSG1 + iScore + TEXT_SHARE_MSG2,
+                            msg_share: TEXT_SHARE_SHARE1 + iScore + TEXT_SHARE_SHARE1
+                        });
+                    }
+                    //...ADD YOUR CODE HERE EVENTUALLY
+                });
+        
+                $(oMain).on("bet_placed", function (evt, iTotBet) {
+                    //...ADD YOUR CODE HERE EVENTUALLY
+                });
+    
+                if(isIOS()){ 
+                    setTimeout(function(){sizeHandler();},200); 
+                }else{ sizeHandler(); } 
+                                        
+            });
+
+        </script>
+
+        <div class="check-fonts">
+            <p class="check-font-1">impact</p>
+        </div> 
+    
+        <canvas id="canvas" class='ani_hack' width="1280" height="1920"> </canvas>
+        <div data-orientation="portrait" class="orientation-msg-container"><p class="orientation-msg-text">Please rotate your device</p></div>
+        <div id="block_game" style="position: fixed; background-color: transparent; top: 0px; left: 0px; width: 100%; height: 100%; display:none"></div>
+        <br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br>
+        <br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br>
+        <br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br>
+        <br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br>
+    </body>
+</html>
+<html>
+    <body>
+    </body>
+</html>
