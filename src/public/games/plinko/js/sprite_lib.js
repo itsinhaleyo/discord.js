@@ -41,31 +41,35 @@ function CSpriteLibrary(){
     };
 
     this._onSpriteLoaded = function(){
-        _cbCompleted.call(_cbOwner);
-        if (++_iCntSprites === _iNumSprites) {
-            this._onSpritesLoaded();
+        _iCntSprites++;
+        if(_cbCompleted){
+            _cbCompleted.call(_cbOwner);
         }
         
+        if (_iCntSprites === _iNumSprites) {
+            _oSpritesToLoad = {}; // Clear loading queue
+            _cbTotalCompleted.call(_cbOwner);
+        }
     };    
 
     this.loadSprites = function(){
-        
+        var _oParent = this; // Capture the correct 'this'
         for (var szKey in _oSpritesToLoad) {
-            
-            _oSpritesToLoad[szKey].oSprite["oSpriteLibrary"] = this;
-            _oSpritesToLoad[szKey].oSprite["szKey"] = szKey;
-            _oSpritesToLoad[szKey].oSprite.onload = function(){
-                this.oSpriteLibrary.setLoaded(this.szKey);
-                this.oSpriteLibrary._onSpriteLoaded(this.szKey);
-            };
-            _oSpritesToLoad[szKey].oSprite.onerror  = function(evt){
-                var oSpriteToRestore = evt.currentTarget;
-                
-                setTimeout(function(){
-                        _oSpritesToLoad[oSpriteToRestore.szKey].oSprite.src = _oSpritesToLoad[oSpriteToRestore.szKey].szPath;
-                },500);
-            };
-            _oSpritesToLoad[szKey].oSprite.src = _oSpritesToLoad[szKey].szPath;
+            (function(key){ // Create a closure to keep the key stable
+                var oImage = _oSpritesToLoad[key].oSprite;
+                oImage.onload = function(){
+                    _oParent.setLoaded(key);
+                    _oParent._onSpriteLoaded();
+                };
+                oImage.onerror = function(){
+                    console.error("Failed to load sprite: " + _oSpritesToLoad[key].szPath);
+                    // Retry logic
+                    setTimeout(function(){
+                        oImage.src = _oSpritesToLoad[key].szPath;
+                    }, 500);
+                };
+                oImage.src = _oSpritesToLoad[key].szPath;
+            })(szKey);
         } 
     };
     

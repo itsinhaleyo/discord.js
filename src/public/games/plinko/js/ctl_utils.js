@@ -681,11 +681,13 @@ onTouchEnd: function(e) {
         }else{        
             document.body.className = this[hidden] ? "hidden" : "visible";
 
-			if(document.body.className === "hidden"){
-				s_oMain.stopUpdate();
-			}else{
-				s_oMain.startUpdate();
-			}
+			if(typeof s_oMain !== "undefined" && s_oMain !== null){
+                if(document.body.className === "hidden"){
+                    s_oMain.stopUpdate();
+                }else{
+                    s_oMain.startUpdate();
+                }
+            }
 		}
     }
 })();

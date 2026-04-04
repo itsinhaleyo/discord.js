@@ -1,4 +1,6 @@
 function CMain(oData){
+    
+    s_oMain = this;
     var _bUpdate;
     var _iCurResource = 0;
     var RESOURCE_TO_LOAD = 0;
@@ -25,7 +27,7 @@ function CMain(oData){
 		
         s_iPrevTime = new Date().getTime();
 
-	createjs.Ticker.addEventListener("tick", this._update);
+	createjs.Ticker.on("tick", this._update, this);
         createjs.Ticker.framerate = FPS;
         
         if(navigator.userAgent.match(/Windows Phone/i)){
@@ -168,7 +170,8 @@ function CMain(oData){
     };
     
     this._onAllImagesLoaded = function(){
-        
+        _oPreloader.unload();
+        this.gotoMenu();
     };
     
     this._onRemovePreloader = function(){
@@ -199,6 +202,7 @@ function CMain(oData){
     };
 	
     this.stopUpdate = function(){
+        if(!s_oMain){ return; } 
         _bUpdate = false;
         createjs.Ticker.paused = true;
         $("#block_game").css("display","block");
@@ -206,6 +210,7 @@ function CMain(oData){
      };
 
     this.startUpdate = function(){
+        if(!s_oMain){ return; }
         s_iPrevTime = new Date().getTime();
         _bUpdate = true;
         createjs.Ticker.paused = false;
@@ -217,9 +222,10 @@ function CMain(oData){
     };
     
     this._update = function(event){
-		if(_bUpdate === false){
-			return;
-		}
+        if(_bUpdate === false){
+            return;
+        }
+        
         var iCurTime = new Date().getTime();
         s_iTimeElaps = iCurTime - s_iPrevTime;
         s_iCntTime += s_iTimeElaps;
@@ -228,19 +234,17 @@ function CMain(oData){
         
         if ( s_iCntTime >= 1000 ){
             s_iCurFps = s_iCntFps;
-            s_iCntTime-=1000;
+            s_iCntTime -= 1000;
             s_iCntFps = 0;
         }
                 
-        if(_iState === STATE_GAME){
+        // ADD THIS SAFETY CHECK
+        if(_iState === STATE_GAME && _oGame){
             _oGame.update();
         }
         
         s_oStage.update(event);
-
     };
-    
-    s_oMain = this;
     
     _oData = oData;
     

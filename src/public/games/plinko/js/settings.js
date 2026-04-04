@@ -4,6 +4,9 @@ var CANVAS_HEIGHT = 1920;
 var EDGEBOARD_X = 150;
 var EDGEBOARD_Y = 200;
 
+var PRIMARY_FONT = "impact"; // Or whatever font you prefer
+var TEXT_PRELOADER_CONTINUE = "START";
+
 var GAME_NAME = "plinko";
 
 var PRIMARY_FONT = "impact";

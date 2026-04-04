@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>Trade Crypto</title>
+    <link rel="stylesheet" href="https://itsinhaleyo.online/css/header.css">
     <style>
         :root { 
             --discord-blue: #5865F2; 
@@ -11,7 +12,6 @@
             --text-main: #f8fafc; 
             --text-muted: #94a3b8; 
         }
-        
         body { 
             font-family: 'Segoe UI', sans-serif; 
             background: radial-gradient(circle at top right, #1e293b, var(--bg-dark)); 
@@ -23,76 +23,19 @@
             align-items: center; 
             min-height: 100vh; 
         }
-
-        .main-header {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            background: rgba(15, 23, 42, 0.8);
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-            z-index: 1000;
-        }
-
-        .nav-container {
-            max-width: 1000px;
-            margin: 0 auto;
-            padding: 0.75rem 2rem;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .logo {
-            font-size: 1.25rem;
-            font-weight: bold;
-            text-decoration: none;
-            color: white;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .nav-logo {
-            height: 40px;
-            width: 40px;
-            border-radius: 50%;
-            object-fit: cover;
-            border: 2px solid rgba(255, 255, 255, 0.1);
-        }
-
-        .nav-links {
-            display: flex;
-            align-items: center;
-            gap: 1.5rem;
-        }
-
-        .dropdown { position: relative; display: inline-block; }
-        .dropbtn { background: none; border: none; color: #94a3b8; font-size: 0.9rem; font-weight: 500; cursor: pointer; }
-        .dropdown-content { display: none; position: absolute; background: #1e293b; min-width: 180px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.1); top: 100%; }
-        .dropdown-content a { color: #94a3b8; padding: 12px 16px; text-decoration: none; display: block; font-size: 0.85rem; }
-        .dropdown-content a:hover { background: rgba(88, 101, 242, 0.1); color: #5865F2; }
-        .dropdown:hover .dropdown-content { display: block; }
-        .nav-user-avatar { width: 32px; height: 32px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.1); }
-
         .container { 
             width: 90%; 
             max-width: 900px; 
             text-align: center; 
         }
-
         h1 { margin-bottom: 10px; }
         .subtitle { color: var(--text-muted); margin-bottom: 40px; }
-
         .market-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
             gap: 20px;
             width: 100%;
         }
-
         .market-card {
             background: var(--card-bg);
             backdrop-filter: blur(12px);
@@ -105,14 +48,12 @@
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             text-align: left;
         }
-
         .market-card:hover {
             transform: translateY(-5px);
             background: rgba(88, 101, 242, 0.1);
             border-color: var(--discord-blue);
             box-shadow: 0 20px 40px -12px rgba(0, 0, 0, 0.5);
         }
-
         .market-icon {
             background: rgba(15, 23, 42, 0.5);
             width: 54px;
@@ -125,23 +66,19 @@
             border: 1px solid rgba(255, 255, 255, 0.05);
             overflow: hidden;
         }
-
         .market-icon img {
             width: 32px;
             height: 32px;
             filter: drop-shadow(0 0 5px rgba(0,0,0,0.5));
         }
-
         .market-info h3 { margin: 0; font-size: 1.1rem; color: #fff; }
         .market-info p { margin: 4px 0 0; font-size: 0.8rem; color: var(--text-muted); }
-
         .market-arrow {
             margin-left: auto;
             color: var(--text-muted);
             font-size: 1.2rem;
             transition: transform 0.3s;
         }
-
         .market-card:hover .market-arrow {
             color: var(--discord-blue);
             transform: translateX(5px);

@@ -3,150 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <title>My Portfolio</title>
+    <link rel="stylesheet" href="https://itsinhaleyo.online/css/header.css">
     <style>
         :root { --discord-blue: #5865F2; --bg-dark: #0f172a; --card-bg: rgba(30, 41, 59, 0.7); --text-main: #f8fafc; --text-muted: #94a3b8; }
         body { font-family: 'Segoe UI', sans-serif; background: radial-gradient(circle at top right, #1e293b, var(--bg-dark)); color: var(--text-main); margin: 0; padding-top: 100px; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
-        
-
-        .main-header {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            background: rgba(15, 23, 42, 0.8);
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-            z-index: 1000;
-        }
-
-        .nav-container {
-            max-width: 1000px;
-            margin: 0 auto;
-            padding: 0.75rem 2rem;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .dropdown {
-            position: relative;
-            display: inline-block;
-        }
-
-        .dropbtn {
-            background: none;
-            border: none;
-            color: #94a3b8;
-            font-size: 0.9rem;
-            font-weight: 500;
-            cursor: pointer;
-            padding: 0;
-            transition: color 0.2s;
-        }
-
-        .dropdown:hover .dropbtn {
-            color: #5865F2;
-        }
-
-        .dropdown-content {
-            display: none;
-            position: absolute;
-            background: #1e293b;
-            min-width: 180px;
-            box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.5);
-            z-index: 10;
-            border-radius: 12px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            top: 100%; 
-            margin-top: 0; 
-        }
-
-        .dropdown::after {
-            content: "";
-            position: absolute;
-            width: 100%;
-            height: 20px;
-            bottom: -20px;
-            left: 0;
-        }
-
-        .dropdown-content a {
-            color: #94a3b8;
-            padding: 12px 16px;
-            text-decoration: none;
-            display: block;
-            font-size: 0.85rem;
-            transition: background 0.2s, color 0.2s;
-        }
-
-        .dropdown-content a:hover {
-            background-color: rgba(88, 101, 242, 0.1);
-            color: #5865F2;
-        }
-
-        .dropdown:hover .dropdown-content {
-            display: block;
-        }
-
-        .logo {
-            font-size: 1.25rem;
-            font-weight: bold;
-            text-decoration: none;
-            color: white;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .nav-logo {
-            height: 40px;
-            width: 40px;
-            border-radius: 50%;
-            object-fit: cover;
-            border: 2px solid rgba(255, 255, 255, 0.1);
-            transition: transform 0.2s ease;
-            box-shadow: 0 0 10px rgba(88, 101, 242, 0.2);
-        }
-
-        .nav-logo:hover {
-            transform: scale(1.1);
-            border-color: var(--discord-blue);
-        }
-
-        .nav-links {
-            display: flex;
-            align-items: center;
-            gap: 1.5rem;
-        }
-
-        .nav-item {
-            text-decoration: none;
-            color: #94a3b8;
-            font-size: 0.9rem;
-            font-weight: 500;
-            transition: color 0.2s;
-        }
-
-        .nav-item:hover {
-            color: #5865F2;
-        }
-
-        .nav-user-avatar {
-            width: 32px;
-            height: 32px;
-            border-radius: 50%;
-            border: 2px solid rgba(255, 255, 255, 0.1);
-            transition: border-color 0.2s, transform 0.2s;
-            display: block;
-        }
-
-        .nav-user-avatar:hover {
-            border-color: #5865F2;
-            transform: scale(1.1);
-        }
-        .nav-links a { text-decoration: none; color: #94a3b8; font-size: 0.9rem; font-weight: 500; transition: color 0.2s; background: none; border: none; cursor: pointer; padding: 0; }
-        .nav-links a:hover { color: #5865F2; }
         .container { background: var(--card-bg); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); padding: 2rem; border-radius: 24px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); width: 90%; max-width: 800px; text-align: center; }
         .portfolio-header { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-bottom: 2rem; }
         .p-stat { background: rgba(15, 23, 42, 0.5); padding: 1rem; border-radius: 16px; border: 1px solid rgba(255, 255, 255, 0.05); }
@@ -189,9 +49,9 @@
     <div class="container">
         <h1>Your Portfolio</h1>
         <div class="portfolio-header">
-            <div class="p-stat"><div class="p-label">Cash</div><div class="p-value">💰 {{cash}}</div></div>
-            <div class="p-stat"><div class="p-label">Assets</div><div class="p-value">📊 {{assetValue}}</div></div>
-            <div class="p-stat"><div class="p-label">Total P/L</div><div class="p-value">{{totalPnl}}</div></div>
+            <div class="p-stat"><div class="p-label">Cash</div><div class="p-value" id="top-cash">💰 {{cash}}</div></div>
+            <div class="p-stat"><div class="p-label">Assets</div><div class="p-value" id="top-assets">📊 {{assetValue}}</div></div>
+            <div class="p-stat"><div class="p-label">Total P/L</div><div class="p-value" id="top-pnl">{{totalPnl}}</div></div>
         </div>
         <table>
             <thead>
@@ -206,5 +66,59 @@
             </tbody>
         </table>
     </div>
+<script>
+    async function updateAllPrices() {
+        const rows = document.querySelectorAll('.portfolio-row');
+        const cashDisplay = document.getElementById('top-cash');
+        const assetsDisplay = document.getElementById('top-assets');
+        const totalPnlDisplay = document.getElementById('top-pnl');
+        let totalCurrentValue = 0;
+        let totalInitialCost = 0;
+        for (const row of rows) {
+            const network = row.dataset.network;
+            const contract = row.dataset.contract;
+            const shares = parseFloat(row.dataset.shares);
+            const entryPrice = parseFloat(row.dataset.entry);
+            const pnlCell = row.querySelector('.pnl-cell');
+            const pnlPercentDiv = row.querySelector('.pnl-percent');
+            try {
+                const response = await fetch(`/callback/update/${network}/${contract}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const data = await response.json();
+                const currentPrice = data.Price;
+                if (data.Balance !== undefined && cashDisplay) {
+                    cashDisplay.innerText = `💰 ${Number(data.Balance).toLocaleString()}`;
+                }
+                if (currentPrice) {
+                    const currentValue = currentPrice * shares;
+                    const totalCostBasis = entryPrice * shares;
+                    const pnl = currentValue - totalCostBasis;
+                    const pnlPercent = ((pnl / totalCostBasis) * 100).toFixed(2);
+                    const sign = pnl >= 0 ? '+' : '';
+                    const color = pnl >= 0 ? '#10b981' : '#ef4444';
+                    totalCurrentValue += currentValue;
+                    totalInitialCost += totalCostBasis;
+                    if (pnlCell && pnlPercentDiv) {
+                        pnlCell.style.color = color;
+                        pnlCell.firstChild.textContent = `${sign}💰${Math.round(pnl).toLocaleString()} `;
+                        pnlPercentDiv.innerText = `(${sign}${pnlPercent}%)`;
+                    }
+                }
+            } catch (err) { console.error(`Update failed for ${contract}:`, err);  }
+        }
+        if (assetsDisplay) { assetsDisplay.innerText = `📊 ${Math.round(totalCurrentValue).toLocaleString()}`; }
+        if (totalPnlDisplay && totalInitialCost > 0) {
+            const totalPnl = totalCurrentValue - totalInitialCost;
+            const totalPnlPercent = ((totalPnl / totalInitialCost) * 100).toFixed(2);
+            const totalSign = totalPnl >= 0 ? '+' : '';
+            const totalColor = totalPnl >= 0 ? '#10b981' : '#ef4444';
+            totalPnlDisplay.innerHTML = `<span style="color: ${totalColor}">${totalSign}${Math.round(totalPnl).toLocaleString()} (${totalSign}${totalPnlPercent}%)</span>`;
+        }
+    }
+    updateAllPrices();
+    setInterval(updateAllPrices, 10000);
+</script>
 </body>
 </html>

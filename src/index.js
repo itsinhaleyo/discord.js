@@ -2475,10 +2475,7 @@ web.get('/profile', checkAuth, async (req, res) => {
 web.get('/portfolio', checkAuth, async (req, res) => {
     try {
         const user = req.user;
-        const [holdings] = await db.query(
-            'SELECT symbol, shares, average_price, network, contract FROM portfolios WHERE userid = ?', 
-            [user.userid]
-        );
+        const [holdings] = await db.query( 'SELECT * FROM portfolios WHERE userid = ?', [user.userid] );
         let totalValue = 0;
         let totalCostBasis = 0;
         const list = await Promise.all(holdings.map(async (stock) => {
@@ -2502,15 +2499,20 @@ web.get('/portfolio', checkAuth, async (req, res) => {
         const totalPnlPercent = totalCostBasis > 0 ? ((totalPnlAmount / totalCostBasis) * 100).toFixed(2) : "0.00";
         const pnlColor = totalPnlAmount >= 0 ? '#10b981' : '#ef4444';
         const pnlSign = totalPnlAmount >= 0 ? '+' : '';
-        const tableRows = list.map(item => {
+        const tableRows = list.map((item, index) => {
+            const stock = holdings[index]; 
             const itemSign = item.pnl >= 0 ? '+' : '';
             return `
-                <tr>
+                <tr class="portfolio-row" 
+                    data-network="${stock.network}" 
+                    data-contract="${stock.contract}" 
+                    data-shares="${stock.shares}" 
+                    data-entry="${stock.average_price}">
                     <td>${item.symbol}</td>
                     <td>${Number(item.shares).toLocaleString()}</td>
-                    <td style="color: ${item.isUp ? '#10b981' : '#ef4444'}">
+                    <td class="pnl-cell" style="color: ${item.pnl >= 0 ? '#10b981' : '#ef4444'}">
                         ${itemSign}💰${Math.round(item.pnl).toLocaleString()}
-                        <div style="font-size: 0.7rem; opacity: 0.8;">(${item.pnlPercent}%)</div>
+                        <div class="pnl-percent" style="font-size: 0.7rem; opacity: 0.8;">(${item.pnlPercent}%)</div>
                     </td>
                 </tr>
             `;
@@ -2564,9 +2566,9 @@ web.get('/casino/plinko', checkAuth, (req, res) => {
     }
 });
 
-web.post('/callback/gameinit', async (req, res, next) => {
-    const user = await db.query(`SELECT * FROM users WHERE userid = ?`, [req.body.userid]);
-    res.json({ amount: Number(user.balance), egg: 39 });
+web.post('/callback/init', checkAuth, async (req, res, next) => {
+    const [[user]] = await db.query(`SELECT * FROM users WHERE userid = ?`, [req.user.userid]);
+    res.json({ Balance: user.balance });
 });
 
 web.post('/callback/playercheck', async (req, res, next) => {
@@ -2632,19 +2634,34 @@ web.get('/trading/:symbol', checkAuth, async (req, res) => {
         const coin = coinConfig[requestedSymbol];
         if (!coin) return res.redirect('/trading');
         const contractAddress = `https://geckoterminal.com/${coin.network}/pools/${coin.contract}`;
-        const [holding] = await db.query(
-            'SELECT shares FROM portfolios WHERE userid = ? AND symbol = ?', 
-            [user.userid, requestedSymbol]
-        );
+        const [holding] = await db.query( 'SELECT shares FROM portfolios WHERE userid = ? AND symbol = ?', [user.userid, requestedSymbol] );
+        const [allHoldings] = await db.query( 'SELECT * FROM portfolios WHERE userid = ?', [user.userid] );
         const userShares = holding.length > 0 ? holding[0].shares : 0;
+        const positionRows = allHoldings.map(pos => {
+            return `
+            <tr class="position-row" data-symbol="${pos.symbol}" data-entry="${pos.average_price}" data-shares="${pos.shares}">
+                <td style="padding: 15px 20px;">${pos.symbol.toUpperCase()}</td>
+                <td>${Number(pos.shares).toLocaleString()}</td>
+                <td>$${Number(pos.average_price).toLocaleString()}</td>
+                <td>${pos.leverage}x</td>
+                <td class="pos-pnl">Calculating...</td>
+                <td style="text-align: right; padding-right: 20px;">
+                    <button onclick="closePosition('${pos.symbol}', '${pos.network}', '${pos.contract}', ${pos.shares}, ${pos.leverage})" class="btn-close-pos">
+                        Close
+                    </button>
+                </td>
+            </tr>`;
+        }).join('');
         let html = fs.readFileSync(path.join(__dirname, 'public', 'trading.html'), 'utf8');
-        html = html.replace('{{balance}}', user.balance.toLocaleString())
-                   .replace('{{ownedshares}}', userShares.toLocaleString())
-                   .replace('{{contractlink}}', contractAddress)
-                   .replace('{{network}}', coin.network)
-                   .replace('{{contract}}', coin.contract)
-                   .replace('{{coinid}}', requestedSymbol)
+        html = html.replace('{{positionRows}}', positionRows || '<tr><td colspan="6" style="text-align:center; padding:20px;">No open positions</td></tr>')
+                   .replaceAll('{{balance}}', user.balance.toLocaleString())
+                   .replaceAll('{{ownedshares}}', userShares.toLocaleString())
+                   .replaceAll('{{contractlink}}', contractAddress)
+                   .replaceAll('{{network}}', coin.network)
+                   .replaceAll('{{contract}}', coin.contract)
+                   .replaceAll('{{coinid}}', requestedSymbol)
                    .replaceAll('{{share}}', requestedSymbol)
+                   .replaceAll('{{userid}}', user.userid)
                    .replaceAll('{{avatarurl}}', getAvatar(user.userid, user.avatar));
         res.send(html);
     } catch (err) {
@@ -2655,42 +2672,32 @@ web.get('/trading/:symbol', checkAuth, async (req, res) => {
 
 web.post('/trade/buy', checkAuth, async (req, res) => {
     try {
-        const { coinId, network, contract, amount } = req.body;
+        const { coinId, network, contract, amount, leverage } = req.body;
         const amountToBuy = parseFloat(amount);
         const userid = req.user.userid;
-        if (!network || !contract || isNaN(amountToBuy) || amountToBuy <= 0) {
-            return res.json({ success: false, message: "Invalid trade parameters or amount." });
-        }
         const price = await getContract(network, contract);
-        if (!price) {
-            return res.json({ success: false, message: "Could not fetch current market price from pool." });
-        }
-        const totalCost = Math.round(price * amountToBuy);
+        const totalPositionValue = Math.round(price * amountToBuy);
+        const marginRequired = Math.round(totalPositionValue / leverage);
         const [userRows] = await db.query('SELECT balance FROM users WHERE userid = ?', [userid]);
         const currentBalance = userRows[0].balance;
-        if (currentBalance < totalCost) {
+        if (currentBalance < marginRequired) {
             return res.json({ 
                 success: false, 
-                message: `Insufficient Funds! Cost: 💰${totalCost.toLocaleString()} | Balance: 💰${currentBalance.toLocaleString()}` 
+                message: `Insufficient Margin! Required: 💰${marginRequired.toLocaleString()}` 
             });
         }
-        await db.query('UPDATE users SET balance = balance - ? WHERE userid = ?', [totalCost, userid]);
+        await db.query('UPDATE users SET balance = balance - ? WHERE userid = ?', [marginRequired, userid]);
         await db.query(`
-            INSERT INTO portfolios (userid, symbol, shares, average_price, network, contract) 
-            VALUES (?, ?, ?, ?, ?, ?) 
+            INSERT INTO portfolios (userid, symbol, shares, average_price, network, contract, leverage, margin_used) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?) 
             ON DUPLICATE KEY UPDATE 
                 average_price = (average_price * shares + VALUES(average_price) * VALUES(shares)) / (shares + VALUES(shares)),
                 shares = shares + VALUES(shares),
-                network = VALUES(network),
-                contract = VALUES(contract)`, 
-            [userid, coinId, amountToBuy, price, network, contract]
+                margin_used = margin_used + VALUES(margin_used)`, 
+            [userid, coinId, amountToBuy, price, network, contract, leverage, marginRequired]
         );
-        await db.query('INSERT INTO stock_logs (userid, symbol, action, amount, price_per_share, total_cost) VALUES (?, ?, ?, ?, ?, ?)', 
-            [userid, coinId, 'BUY', amountToBuy, price, totalCost]);
-        res.json({ 
-            success: true, 
-            message: `Successfully purchased ${amountToBuy} ${coinId.toUpperCase()} for 💰${totalCost.toLocaleString()}!` 
-        });
+        await db.query( 'INSERT INTO stock_logs (userid, symbol, action, amount, price_per_share, total_cost, leverage) VALUES (?, ?, ?, ?, ?, ?, ?)', [userid, coinId, 'BUY', amountToBuy, price, marginRequired, leverage] );
+        res.json({ success: true, message: `Opened ${leverage}x position!`,  });
     } catch (err) {
         console.error("Web Trade Error:", err);
         res.status(500).json({ success: false, message: "A server error occurred during the trade." });
@@ -2699,48 +2706,70 @@ web.post('/trade/buy', checkAuth, async (req, res) => {
 
 web.post('/trade/sell', checkAuth, async (req, res) => {
     try {
-        const { coinId,network, contract, amount } = req.body;
+        const { coinId, network, contract, amount, leverage } = req.body;
         const amountToSell = parseFloat(amount);
         const userid = req.user.userid;
-        if (!network || !contract || isNaN(amountToSell) || amountToSell <= 0) {
-            return res.json({ success: false, message: "Invalid trade parameters or amount." });
-        }
         const [holdings] = await db.query(
-            'SELECT shares FROM portfolios WHERE userid = ? AND symbol = ?', 
+            'SELECT shares, average_price, margin_used, leverage FROM portfolios WHERE userid = ? AND symbol = ?', 
             [userid, coinId]
         );
         if (holdings.length === 0 || holdings[0].shares < amountToSell) {
-            const owned = holdings.length > 0 ? holdings[0].shares : 0;
-            return res.json({ 
-                success: false, 
-                message: `You don't have enough shares! Owned: ${owned}` 
-            });
+            return res.json({ success: false, message: "Not enough shares/position size!" });
         }
-        const price = await getContract(network, contract);
-        if (!price) {
-            return res.json({ success: false, message: "Could not fetch current market price from pool." });
-        }
-        const totalReturn = Math.round(price * amountToSell);
+        const position = holdings[0];
+        const currentPrice = await getContract(network, contract);
+        if (!currentPrice) return res.json({ success: false, message: "Price fetch failed." });
+        const marginRatio = amountToSell / position.shares;
+        const marginToRelease = position.margin_used * marginRatio;
+        const pnl = (currentPrice - position.average_price) * amountToSell;
+        let totalReturn = Math.round(marginToRelease + pnl);
+        if (totalReturn < 0) totalReturn = 0;
         await db.query('UPDATE users SET balance = balance + ? WHERE userid = ?', [totalReturn, userid]);
-        if (holdings[0].shares === amountToSell) {
+        if (position.shares === amountToSell) {
             await db.query('DELETE FROM portfolios WHERE userid = ? AND symbol = ?', [userid, coinId]);
         } else {
             await db.query(
-                'UPDATE portfolios SET shares = shares - ? WHERE userid = ? AND symbol = ?', 
-                [amountToSell, userid, coinId]
+                'UPDATE portfolios SET shares = shares - ?, margin_used = margin_used - ? WHERE userid = ? AND symbol = ?', 
+                [amountToSell, marginToRelease, userid, coinId]
             );
         }
-        await db.query(
-            'INSERT INTO stock_logs (userid, symbol, action, amount, price_per_share, total_cost) VALUES (?, ?, ?, ?, ?, ?)', 
-            [userid, coinId, 'SELL', amountToSell, price, totalReturn]
-        );
+        await db.query('INSERT INTO stock_logs (userid, symbol, action, amount, price_per_share, total_cost, leverage) VALUES (?, ?, ?, ?, ?, ?, ?)', 
+            [userid, coinId, 'SELL', amountToSell, currentPrice, totalReturn, leverage]);
         res.json({ 
             success: true, 
-            message: `Successfully sold ${amountToSell} ${coinId.toUpperCase()} for 💰${totalReturn.toLocaleString()}!` 
+            message: `Closed position! Return: 💰${totalReturn.toLocaleString()} (PnL: ${pnl >= 0 ? '+' : ''}${Math.round(pnl).toLocaleString()})` 
         });
     } catch (err) {
-        console.error("Web Sell Error:", err);
-        res.status(500).json({ success: false, message: "A server error occurred during the sale." });
+        console.error("Sell Error:", err);
+        res.status(500).json({ success: false, message: "Server error during sale." });
+    }
+});
+
+web.get('/api/trade-history', checkAuth, async (req, res) => {
+    const [logs] = await db.query(
+        'SELECT * FROM stock_logs WHERE userid = ? ORDER BY timestamp DESC LIMIT 50', 
+        [req.user.userid]
+    );
+    res.json(logs);
+});
+
+web.post('/callback/update/:network/:contract', async (req, res) => {
+    const { network, contract } = req.params;
+    try {
+        const newprice = await getContract(network, contract);
+        const leverage = await getPosition(req.user.userid, contract);
+        const [userRows] = await db.query('SELECT balance FROM users WHERE userid = ?', [req.user.userid]);
+        const currentBalance = userRows.length > 0 ? userRows[0].balance : 0;
+        res.json({ 
+            Price: newprice, 
+            Balance: currentBalance,
+            Shares: leverage.shares,
+            Leverage: leverage.leverage,
+            Margin_used: leverage.margin_used
+        });
+    } catch (err) {
+        console.error("Update Route Error:", err);
+        res.status(500).json({ error: "Internal Server Error" });
     }
 });
 
@@ -2827,7 +2856,7 @@ async function handleLeaderboard(req, res, sortColumn, title, user) {
 async function getContract(network, poolAddress) {
     const cacheKey = `${network}_${poolAddress}`.toLowerCase();
     const now = Date.now();
-    if (priceCache[cacheKey] && (now - priceCache[cacheKey].timestamp < 60 * 1000)) { return priceCache[cacheKey].price; }
+    if (priceCache[cacheKey] && (now - priceCache[cacheKey].timestamp < 15 * 1000)) { return priceCache[cacheKey].price; }
     try {
         const url = `https://api.geckoterminal.com/api/v2/networks/${network}/pools/${poolAddress}`;
         const response = await axios.get(url, {
@@ -2850,4 +2879,15 @@ async function getContract(network, poolAddress) {
 
 function getnonce() {
     return Math.floor(Math.random() * (10000000000 - 999999999999) + 999999999999);
+}
+
+async function getPosition(userid, contract) {
+    try {
+        resp = await db.query(`SELECT * FROM portfolios WHERE userid = ? AND contract = ?`, [userid, contract]);
+        if (!resp[0] || resp[0].length === 0) { return { leverage: 0, shares: 0, margin_used: 0 }; }
+        return { leverage: resp[0][0].leverage || 0, shares: resp[0][0].shares || 0, margin_used: resp[0][0].margin_used || 0 };
+    } catch (error) {
+        console.error("Position Fetch Error:", error);
+        throw error;
+    }
 }

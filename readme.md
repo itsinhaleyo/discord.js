@@ -35,3 +35,7 @@ to run the bot open terminal in the bot folder and enter "nodemon index.js"
 and if nodemon doesnt work use this line "npx nodemon index.js"
 
 this will restart the bot everytime you save a change to the code!
+
+to connect to db in mysql shell type: "\connect root@localhost"
+
+then enter "\use discordjs"

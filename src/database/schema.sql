@@ -40,21 +40,24 @@ CREATE TABLE portfolios (
     userid VARCHAR(100) NOT NULL,
     symbol VARCHAR(20) NOT NULL,
     shares BIGINT NOT NULL DEFAULT 0,
+    leverage VARCHAR(10) DEFAULT 1,
+    margin_used DOUBLE DEFAULT 0,
     PRIMARY KEY (userid, symbol)
-);
-
-CREATE TABLE stock_logs (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    userid VARCHAR(100) NOT NULL,
-    symbol VARCHAR(20) NOT NULL,
-    action VARCHAR(10) NOT NULL,
-    amount BIGINT NOT NULL,
-    price_per_share BIGINT NOT NULL,
-    total_cost BIGINT NOT NULL,
-    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE playercheck (
     id VARCHAR(100) NOT NULL PRIMARY KEY,
     nonce BIGINT NOT NULL
+);
+
+CREATE TABLE stock_logs (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    userid VARCHAR(255) NOT NULL,
+    symbol VARCHAR(20) NOT NULL,
+    action ENUM('BUY', 'SELL') NOT NULL,
+    amount DECIMAL(18, 8) NOT NULL,
+    price_per_share DECIMAL(18, 8) NOT NULL,
+    total_cost DECIMAL(18, 2) NOT NULL,
+    leverage INT DEFAULT 1,
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
