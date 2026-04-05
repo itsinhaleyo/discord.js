@@ -47,7 +47,7 @@ CREATE TABLE portfolios (
 );
 
 CREATE TABLE playercheck (
-    id VARCHAR(100) NOT NULL PRIMARY KEY,
+    userid VARCHAR(100) NOT NULL PRIMARY KEY,
     nonce BIGINT NOT NULL
 );
 
