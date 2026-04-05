@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<!--[if lt IE 7]>      <html class="no-js lt-ie9 lt-ie8 lt-ie7"> <![endif]-->
+<!--[if IE 7]>         <html class="no-js lt-ie9 lt-ie8"> <![endif]-->
+<!--[if IE 8]>         <html class="no-js lt-ie9"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js"> <!--<![endif]-->
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <title>Super Plinko</title>
+        
+        <meta name="Title" content="Super Plinko" />
+        <meta name="description" content="Super Plinko is a HTML5 game where you can chips down the Plinko board and try to land them in the pockets at the bottom of the board.">		
+		<meta name="keywords" content="chips, disc, move, plinko, price is right, gamble, jackpot, lose, lucky, coin, drop, board, wins">
+        
+        <!-- for Facebook -->
+        <meta property="og:title" content="Super Plinko"/>
+        <meta property="og:site_name" content="Super Plinko"/>
+        <meta property="og:image" content="http://demonisblack.com/code/2021/superplinko/game/share.jpg" />
+        <meta property="og:url" content="http://demonisblack.com/code/2020/superplinko/game/" />
+        <meta property="og:description" content="Super Plinko is a HTML5 game where you can chips down the Plinko board and try to land them in the pockets at the bottom of the board.">
+        
+        <!-- for Twitter -->
+        <meta name="twitter:card" content="summary" />
+        <meta name="twitter:title" content="Super Plinko" />
+        <meta name="twitter:description" content="Super Plinko is a HTML5 game where you can chips down the Plinko board and try to land them in the pockets at the bottom of the board." />
+        <meta name="twitter:image" content="http://demonisblack.com/code/2020/superplinko/game/share.jpg" />
+        
+        <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+		<script>
+        if (navigator.userAgent.match(/IEMobile\/10\.0/)) {
+            var msViewportStyle = document.createElement("style");
+            msViewportStyle.appendChild(
+                document.createTextNode(
+                    "@-ms-viewport{width:device-width}"
+                )
+            );
+            document.getElementsByTagName("head")[0].
+                appendChild(msViewportStyle);
+        }
+        </script>
+
+        <link rel="shortcut icon" href="https://itsinhaleyo.online/games/superplinko/icon.ico" type="image/x-icon">
+        <link rel="stylesheet" href="https://itsinhaleyo.online/games/superplinko/css/normalize.css">
+        <link rel="stylesheet" href="https://itsinhaleyo.online/games/superplinko/css/main.css">
+        <script src="https://itsinhaleyo.online/games/superplinko/js/vendor/modernizr-2.6.2.min.js"></script>
+    </head>
+    <body>
+        <!-- PERCENT LOADER START-->
+    	<div id="mainLoader"><img src="https://itsinhaleyo.online/games/superplinko/assets/loader.png" /><br/><span>0</span></div>
+        <!-- PERCENT LOADER END-->
+        
+        <!-- CONTENT START-->
+        <div id="mainHolder">
+        
+        	<!-- BROWSER NOT SUPPORT START-->
+        	<div id="notSupportHolder">
+                <div class="notSupport">YOUR BROWSER ISN'T SUPPORTED.<br/>PLEASE UPDATE YOUR BROWSER IN ORDER TO RUN THE GAME</div>
+            </div>
+            <!-- BROWSER NOT SUPPORT END-->
+            
+            <!-- ROTATE INSTRUCTION START-->
+            <div id="rotateHolder">
+                <div class="mobileRotate">
+                	<div class="rotateImg"><img src="https://itsinhaleyo.online/games/superplinko/assets/rotate.png" /></div>
+                    <div class="rotateDesc">Rotate your device <br/>to portrait</div>
+                </div>
+            </div>
+            <!-- ROTATE INSTRUCTION END-->
+            
+            <!-- CANVAS START-->
+            <div id="canvasHolder">
+                <canvas id="gameCanvas" width="768" height="1024"></canvas>
+                <canvas id="p2Canvas" width="768" height="1024" style="pointer-events:none; display:none;"></canvas>
+            </div>
+            <!-- CANVAS END-->
+            
+        </div>
+        <!-- CONTENT END-->
+        
+        <script src="//ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+        <script>window.jQuery || document.write('<script src="js/vendor/jquery.min.js"><\/script>')</script>
+        
+        <script src="https://itsinhaleyo.online/games/superplinko/js/vendor/detectmobilebrowser.js"></script>
+        <script src="https://itsinhaleyo.online/games/superplinko/js/vendor/createjs.min.js"></script>
+		<script src="https://itsinhaleyo.online/games/superplinko/js/vendor/TweenMax.min.js"></script>
+        <script src="https://itsinhaleyo.online/games/superplinko/js/vendor/p2.min.js"></script>
+        
+        <script src="https://itsinhaleyo.online/games/superplinko/js/plugins.js"></script>
+        <script src="https://itsinhaleyo.online/games/superplinko/js/sound.js"></script>
+		<script src="https://itsinhaleyo.online/games/superplinko/js/canvas.js"></script>
+        <script src="https://itsinhaleyo.online/games/superplinko/js/p2.js"></script>
+        <script src="https://itsinhaleyo.online/games/superplinko/js/game.js"></script>
+        <script src="https://itsinhaleyo.online/games/superplinko/js/mobile.js"></script>
+        <script src="https://itsinhaleyo.online/games/superplinko/js/main.js"></script>
+        <script src="https://itsinhaleyo.online/games/superplinko/js/loader.js"></script>
+        <script src="https://itsinhaleyo.online/games/superplinko/js/init.js"></script>
+    </body>
+    
+    <!-- Global site tag (gtag.js) - Google Analytics -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-NTSP3ZL7EC"></script>
+    <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+
+    gtag('config', 'G-NTSP3ZL7EC');
+    </script>
+
+
+</html>

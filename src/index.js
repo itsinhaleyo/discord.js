@@ -2534,6 +2534,7 @@ web.get('/casino', checkAuth, (req, res) => {
     try {
         const games = [
             { name: "Plinko", symbol: "plinko", icon: `${process.env.DOMAIN}/games/plinko/favicon.ico` },
+            { name: "Super Plinko", symbol: "superplinko", icon: `${process.env.DOMAIN}/games/superplinko/icon.ico` }
         ];
         let html = fs.readFileSync(path.join(__dirname, 'public', 'casino.html'), 'utf8');
         const marketButtons = games.map(game => `
@@ -2566,6 +2567,17 @@ web.get('/casino/plinko', checkAuth, (req, res) => {
     }
 });
 
+web.get('/casino/superplinko', checkAuth, (req, res) => {
+    try {
+        let html = fs.readFileSync(path.join(__dirname, 'public', 'games', 'superplinko', 'index.html'), 'utf8');
+        html = html.replaceAll('{{userid}}', req.user.userid)
+                   .replaceAll('{{avatarurl}}', getAvatar(req.user.userid, req.user.avatar));
+        res.send(html);
+    } catch (err) {
+        res.status(500).send("Super Plinko Error: " + err.message);
+    }
+});
+
 web.post('/callback/init', checkAuth, async (req, res, next) => {
     const [[user]] = await db.query(`SELECT * FROM users WHERE userid = ?`, [req.user.userid]);
     res.json({ Balance: user.balance });
@@ -2585,15 +2597,6 @@ web.post('/callback/plinko/win', async (req, res, next) => {
     if (req.body.nonce !== nonce.nonce) { return res.status(400).json({ message: "Invalid nonce" }); }
     db.query(`UPDATE users SET balance = balance + ? WHERE userid = ?`, [req.body.win, req.body.userid]);
     res.json({ Data: newNonce });
-});
-
-web.get('/casino/slots', checkAuth, (req, res) => {
-    try {
-        let html = fs.readFileSync(path.join(__dirname, 'public', 'game.html'), 'utf8');
-        res.send(html);
-    } catch (err) {
-        res.status(500).send("Slots Error: " + err.message);
-    }
 });
 
 web.get('/trading', checkAuth, (req, res) => {
@@ -2641,21 +2644,21 @@ web.get('/trading/:symbol', checkAuth, async (req, res) => {
         const user = req.user;
         const requestedSymbol = req.params.symbol.toUpperCase();
         const coinConfig = {
-            'BTC': { network: "avax", contract: "0x8fef4fe4970a5d6bfa7c65871a2ebfd0f42aa822" },
-            'ETH': { network: "bsc",  contract: "0xd0e226f674bbf064f54ab47f42473ff80db98cba" },
-            'ETC': { network: "solana", contract: "Sx3ec3k2tef4Gs2iaozgfx16jPMPBdcaWamePY3BZLp" },
-            'SOL': { network: "base", contract: "0xb30540172f1b37d1ee1d109e49f883e935e69219" },
-            'ZEC': { network: "near", contract: "refv1-6065" },
-            'DOGE': { network: "bsc", contract: "0xce6160bb594fc055c943f59de92cee30b8c6b32c" },
-            'TRX': { network: "solana", contract: "DNspJcdhQzaptzbRR2yx1QxbUJV5JdcqJL65xrkkxx9Y" },
-            'ADA': { network: "bsc", contract: "0x29c5ba7dbb67a4af999a28cc380ad234fe7c1b86" },
-            'LTC': { network: "bsc", contract: "0xe3cbe4dd1bd2f7101f17d586f44bab944091d383" },
-            'WBNB': { network: "bsc", contract: "0x58f876857a02d6762e0101bb5c46a8c1ed44dc16" },
-            'AVAX': { network: "avax", contract: "0xf01449c0ba930b6e2caca3def3ccbd7a3e589534" },
-            'LINK': { network: "eth", contract: "0xa6cc3c2531fdaa6ae1a3ca84c2855806728693e8" },
-            'UNI': { network: "eth", contract: "0x1d42064fc4beb5f8aaf85f4617ae8b3b5b8bd801" },
-            'AAVE': { network: "eth", contract: "0x5ab53ee1d50eef2c1dd3d5402789cd27bb52c1bb" },
-            'XMR': { network: "solana", contract: "CDJtzEhhd3K6Exv9ssw3ZafbmVwEDF6QhNGbYrShyTUc" },
+            'BTC': { name: "Bitcoin", network: "avax", icon: `${process.env.DOMAIN}/images/btcicon.png`, contract: "0x8fef4fe4970a5d6bfa7c65871a2ebfd0f42aa822" },
+            'ETH': { name: "Ethereum", network: "bsc", icon: `${process.env.DOMAIN}/images/ethicon.png`, contract: "0xd0e226f674bbf064f54ab47f42473ff80db98cba" },
+            'ETC': { name: "Ethereum Classic", network: "solana", icon: `${process.env.DOMAIN}/images/etcicon.png`, contract: "Sx3ec3k2tef4Gs2iaozgfx16jPMPBdcaWamePY3BZLp" },
+            'SOL': { name: "Solana", network: "base", icon: `${process.env.DOMAIN}/images/solicon.png`, contract: "0xb30540172f1b37d1ee1d109e49f883e935e69219" },
+            'ZEC': { name: "Zcash", network: "near", icon: `${process.env.DOMAIN}/images/zecicon.png`, contract: "refv1-6065" },
+            'DOGE': { name: "Dogecoin", network: "bsc", icon: `${process.env.DOMAIN}/images/dogeicon.png`, contract: "0xce6160bb594fc055c943f59de92cee30b8c6b32c" },
+            'TRX': { name: "TRON", network: "solana", icon: `${process.env.DOMAIN}/images/trxicon.png`, contract: "DNspJcdhQzaptzbRR2yx1QxbUJV5JdcqJL65xrkkxx9Y" },
+            'ADA': { name: "Cardano", network: "bsc", icon: `${process.env.DOMAIN}/images/adaicon.png`, contract: "0x29c5ba7dbb67a4af999a28cc380ad234fe7c1b86" },
+            'LTC': { name: "Litecoin", network: "bsc", icon: `${process.env.DOMAIN}/images/ltcicon.png`, contract: "0xe3cbe4dd1bd2f7101f17d586f44bab944091d383" },
+            'WBNB': { name: "Wrapped BNB", network: "bsc", icon: `${process.env.DOMAIN}/images/wbnbicon.png`, contract: "0x58f876857a02d6762e0101bb5c46a8c1ed44dc16" },
+            'AVAX': { name: "Avalanche", network: "avax", icon: `${process.env.DOMAIN}/images/avaxicon.png`, contract: "0xf01449c0ba930b6e2caca3def3ccbd7a3e589534" },
+            'LINK': { name: "Chainlink", network: "eth", icon: `${process.env.DOMAIN}/images/linkicon.png`, contract: "0xa6cc3c2531fdaa6ae1a3ca84c2855806728693e8" },
+            'UNI': { name: "Uniswap", network: "eth", icon: `${process.env.DOMAIN}/images/uniicon.png`, contract: "0x1d42064fc4beb5f8aaf85f4617ae8b3b5b8bd801" },
+            'AAVE': { name: "Aave", network: "eth", icon: `${process.env.DOMAIN}/images/aaveicon.png`, contract: "0x5ab53ee1d50eef2c1dd3d5402789cd27bb52c1bb" },
+            'XMR': { name: "Monero", network: "solana", icon: `${process.env.DOMAIN}/images/xmricon.png`, contract: "CDJtzEhhd3K6Exv9ssw3ZafbmVwEDF6QhNGbYrShyTUc" },
         };
         const coin = coinConfig[requestedSymbol];
         if (!coin) return res.redirect('/trading');
@@ -2665,16 +2668,16 @@ web.get('/trading/:symbol', checkAuth, async (req, res) => {
         const userShares = holding.length > 0 ? holding[0].shares : 0;
         const positionRows = allHoldings.map(pos => {
             return `
-            <tr class="position-row" data-symbol="${pos.symbol}" data-entry="${pos.average_price}" data-shares="${pos.shares}" data-side="${pos.side}" data-margin="${pos.margin_used}">
+            <tr class="position-row" data-symbol="${pos.symbol}" data-entry="${pos.average_price}" data-shares="${pos.shares}" data-side="${pos.side}" data-margin="${pos.margin_used}" data-icon="${coin.icon}" style="--coin-icon: url('${coin.icon}');">
                 <td style="padding: 15px 20px;">
                     ${pos.symbol.toUpperCase()} <br>
                     <small style="color: ${pos.side === 'LONG' ? '#10b981' : '#ef4444'}">${pos.side}</small>
                 </td>
-                <td>${Number(pos.shares).toLocaleString()}</td>
-                <td>$${Number(pos.average_price).toLocaleString()}</td>
-                <td>${pos.leverage}x</td>
-                <td class="pos-pnl">Calculating...</td>
-                <td style="text-align: right; padding-right: 20px;">
+                <td data-label="Amount">${Number(pos.shares).toLocaleString()}</td>
+                <td data-label="Entry Price">$${Number(pos.average_price).toLocaleString()}</td>
+                <td data-label="Leverage">${pos.leverage}x</td>
+                <td class="pos-pnl" data-label="PnL">Calculating...</td>
+                <td data-label="" style="text-align: right; padding-right: 20px;">
                     <button onclick="closePosition('${pos.symbol}', '${pos.network}', '${pos.contract}', ${pos.shares})" class="btn-close-pos">
                         Close
                     </button>

@@ -121,6 +121,92 @@
             .sidebar { width: 100%; min-width: 100%; }
             .chart-wrapper { height: 400px; }
         }
+        @media (max-width: 768px) {
+            .trading-layout {
+                flex-direction: column;
+                width: 100%;
+                padding: 0 10px;
+                gap: 15px;
+            }
+            .chart-container, .chart-wrapper {
+                width: 100% !important;
+                height: 450px !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                border-radius: 12px;
+            }
+            .sidebar {
+                width: 100%;
+                min-width: 100%;
+                padding-top: 0;
+            }
+            .orders-container {
+                width: 100%;
+                overflow-x: auto;
+            }
+            .orders-container thead {
+                display: none;
+            }
+            .position-row {
+                display: block;
+                position: relative;
+                background: var(--card-bg);
+                margin: 15px;
+                padding: 20px;
+                border-radius: 18px;
+                border: 1px solid rgba(255, 255, 255, 0.1);
+                overflow: hidden;
+                z-index: 1;
+            }
+            .position-row td {
+                display: flex;
+                justify-content: space-between;
+                border: none !important;
+                padding: 8px 0 !important;
+                background: transparent !important;
+            }
+            .position-row td::before {
+                content: attr(data-label);
+                font-weight: 600;
+                color: var(--text-muted);
+                text-transform: uppercase;
+                font-size: 0.7rem;
+                text-align: left;
+            }
+            .position-row::after {
+                content: "";
+                position: absolute;
+                top: 50%;
+                right: -20px;
+                transform: translateY(-50%);
+                width: 120px;
+                height: 120px;
+                background-image: var(--coin-icon);
+                background-size: contain;
+                background-repeat: no-repeat;
+                opacity: 0.1;
+                z-index: -1;
+                pointer-events: none;
+            }
+            .position-row td:first-child {
+                font-size: 1.1rem;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+                margin-bottom: 5px;
+                padding-bottom: 12px !important;
+            }
+            .pos-pnl {
+                font-size: 1.1rem;
+                font-weight: bold;
+            }
+            .position-row td:last-child {
+                justify-content: center;
+                padding-top: 15px !important;
+            }
+            .btn-close-pos {
+                width: 100%;
+                padding: 12px !important;
+            }
+        }
     </style>
 </head>
 <body>
@@ -131,6 +217,9 @@
                 Jew
             </a>
             <nav class="nav-links">
+                <div class = "casino">
+                    <a href="/casino">Casino</a>
+                </div>
                 <div class="dropdown">
                     <button class="dropbtn">Crypto ▾</button>
                     <div class="dropdown-content">
@@ -156,7 +245,7 @@
             <div class="stat-card chart-wrapper">
                 <iframe id="geckoterminal-embed" title="GeckoTerminal Embed"
                     src="{{contractlink}}?embed=1&info=0&swaps=0&light_chart=0&chart_type=price&resolution=1s&bg_color=111827" 
-                    frameborder="0" allow="clipboard-write" allowfullscreen style="width: 100%; height: 100%;">
+                    frameborder="0" allow="clipboard-write" allowfullscreen style="width: 100%; height: 100%; border: none;">
                 </iframe>
             </div>
         </div>
@@ -294,8 +383,8 @@
                 const pnlElement = document.getElementById('live-value');
                 valueDisplay.innerText = `PnL: ${Math.round(pnl.toLocaleString())} (${pnlPercent}%)`;
                 valueDisplay.style.color = pnl >= 0 ? '#00ff00' : '#ff0000';
-                window.currentMarketPrice = price;
             }
+            window.currentMarketPrice = price;
             updatePositionsPnL(price);
         } catch (err) {
             console.error("Price update failed:", err);
