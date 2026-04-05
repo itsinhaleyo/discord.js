@@ -87,8 +87,7 @@
                     }
                     this._init();
                 };
-                xhttp.send(JSON.stringify({'userid':"{{userid}}"}));
-                console.log("Plinko Game initialized with user ID: {{userid}}");
+                xhttp.send(JSON.stringify({'Balance':"SystemCheck"}));
                 this._init = function(){
                     
                     setVolume("soundtrack", SOUNDTRACK_VOLUME_IN_GAME);
@@ -252,11 +251,11 @@
                         xhttp.open("POST", "https://itsinhaleyo.online/callback/playercheck", true);
                         xhttp.setRequestHeader('Content-Type', 'application/json');
                         xhttp.onload = () => {
-                            const userdata = JSON.parse(xhttp.responseText.replace(/{/g, "[").replace(/}/g, "]").replace(/:/g, ","));
+                            const userdata = JSON.parse(xhttp.responseText);
                             var xhr = new XMLHttpRequest();
                             xhr.open("POST", "https://itsinhaleyo.online/callback/plinko/win", true);
                            xhr.setRequestHeader('Content-Type', 'application/json');
-                            xhr.send(JSON.stringify({'nonce':userdata[1], 'bet':_iCurBet, 'win':winamount, userid:"{{userid}}"}));
+                            xhr.send(JSON.stringify({'nonce':userdata.Data, 'bet':_iCurBet, 'win':winamount}));
                         };
                         xhttp.send(JSON.stringify({'Game':'SystemCheck'}));
                         playSound('ball_in_basket', 1, false);
@@ -266,11 +265,11 @@
                         xhttp.open("POST", "https://itsinhaleyo.online/callback/playercheck", true);
                         xhttp.setRequestHeader('Content-Type', 'application/json');
                         xhttp.onload = () => {
-                            const userdata = JSON.parse(xhttp.responseText.replace(/{/g, "[").replace(/}/g, "]").replace(/:/g, ","));
+                            const userdata = JSON.parse(xhttp.responseText);
                             var xhr = new XMLHttpRequest();
                             xhr.open("POST", "https://itsinhaleyo.online/callback/plinko/lose", true);
                             xhr.setRequestHeader('Content-Type', 'application/json');
-                            xhr.send(JSON.stringify({'nonce':userdata[1], 'bet':_iCurBet, 'win':winamount, userid:"{{userid}}"}));
+                            xhr.send(JSON.stringify({'nonce':userdata.Data, 'bet':_iCurBet, 'win':winamount}));
                         };
                         xhttp.send(JSON.stringify({'Game':'SystemCheck'}));
                         playSound('ball_in_basket_negative', 1, false);
@@ -631,7 +630,7 @@
                         true, true, false,
                         false );
                     };
-                    xhttp.send(JSON.stringify({'userid':"{{userid}}"}));
+                    xhttp.send(JSON.stringify({'Balance': "SystemCheck"}));
 
                     var oSprite = s_oSpriteLibrary.getSprite('but_settings');
                     _oGUIExpandible = new CGUIExpandible(_pStartPosExit.x, _pStartPosExit.y, oSprite, s_oStage);

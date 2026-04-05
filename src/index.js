@@ -2534,7 +2534,8 @@ web.get('/casino', checkAuth, (req, res) => {
     try {
         const games = [
             { name: "Plinko", symbol: "plinko", icon: `${process.env.DOMAIN}/games/plinko/favicon.ico` },
-            { name: "Super Plinko Coming Soon", symbol: "superplinko", icon: `${process.env.DOMAIN}/games/superplinko/icon.ico` }
+            { name: "Mini Roulette", symbol: "miniroulette", icon: `${process.env.DOMAIN}/images/miniroulette.png`},
+            { name: "Super Plinko Coming Soon", symbol: "superplinko", icon: `${process.env.DOMAIN}/games/superplinko/icon.ico` },
         ];
         let html = fs.readFileSync(path.join(__dirname, 'public', 'casino.html'), 'utf8');
         const marketButtons = games.map(game => `
@@ -2578,6 +2579,17 @@ web.get('/casino/superplinko', checkAuth, (req, res) => {
     }
 });
 
+web.get('/casino/miniroulette', checkAuth, (req, res) => {
+    try {
+        let html = fs.readFileSync(path.join(__dirname, 'public', 'miniroulette.html'), 'utf8');
+        html = html.replaceAll('{{userid}}', req.user.userid)
+                   .replaceAll('{{avatarurl}}', getAvatar(req.user.userid, req.user.avatar));
+        res.send(html);
+    } catch (err) {
+        res.status(500).send("Super Plinko Error: " + err.message);
+    }
+});
+
 web.post('/callback/gameinit', checkAuth, async (req, res, next) => {
     const [[user]] = await db.query(`SELECT * FROM users WHERE userid = ?`, [req.user.userid]);
     res.json({ Balance: user.balance });
@@ -2585,25 +2597,44 @@ web.post('/callback/gameinit', checkAuth, async (req, res, next) => {
 
 web.post('/callback/playercheck', async (req, res, next) => {
     const user = await db.query(`SELECT * FROM playercheck WHERE userid = ?`, [req.body.userid]);
-    const nonce = getnonce();
+    const nonce = await getnonce();
     if (!user) { await db.query(`INSERT INTO playercheck (userid, nonce) VALUES (?, ?)`, [req.body.userid, nonce]); }
     await db.query(`UPDATE playercheck SET nonce = ? WHERE userid = ?`, [nonce, req.body.userid]);
     res.json({ Data: nonce });
 });
 
 web.post('/callback/plinko/win', async (req, res, next) => {
-    //const nonce = await db.query('SELECT * FROM playercheck WHERE userid = ?', [req.body.userid]);
+    //const nonce = await db.query('SELECT * FROM playercheck WHERE userid = ?', [req.user.userid]);
     //if (req.body.nonce !== nonce.nonce) { return res.status(400).json({ message: "Invalid nonce" }); }
     const reward = req.body.win - req.body.bet;
-    db.query(`UPDATE users SET balance = balance + ? WHERE userid = ?`, [reward, req.body.userid]);
+    db.query(`UPDATE users SET balance = balance + ? WHERE userid = ?`, [reward, req.user.userid]);
     res.json({ Status: "success" });
 });
 
 web.post('/callback/plinko/lose', async (req, res, next) => {
-    //const nonce = await db.query('SELECT * FROM playercheck WHERE userid = ?', [req.body.userid]);
+    //const nonce = await db.query('SELECT * FROM playercheck WHERE userid = ?', [req.user.userid]);
     //if (req.body.nonce !== nonce.nonce) { return res.status(400).json({ message: "Invalid nonce" }); }
-    db.query(`UPDATE users SET balance = balance - ? WHERE userid = ?`, [req.body.bet, req.body.userid]);
+    db.query(`UPDATE users SET balance = balance - ? WHERE userid = ?`, [req.body.bet, req.user.userid]);
     res.json({ Status: "success" });
+});
+
+web.post('/callback/miniroulette/bet', async (req, res, next) => {
+    const nonce = await db.query('SELECT * FROM playercheck WHERE userid = ?', [req.user.userid]);
+    if (req.body.nonce !== nonce.nonce) { return res.status(400).json({ message: "Invalid nonce" }); }
+    const [user] = await db.query("SELECT * FROM users WHERE userid = ?", [req.user.userid]);
+    if (user[0].balance >= req.body.bet) {
+        await db.query(`UPDATE users SET balance = balance - ? WHERE userid = ?`, [req.body.bet, req.user.userid]);
+        return res.json({ Status: "success" });
+    }
+    res.json({ Status: "fail" });
+});
+
+web.post('/callback/miniroulette/win', async (req, res, next) => {
+    const nonce = await db.query('SELECT * FROM playercheck WHERE userid = ?', [req.user.userid]);
+    if (req.body.nonce !== nonce.nonce) { return res.status(400).json({ message: "Invalid nonce" }); }
+    const reward = req.body.bet * req.body.win;
+    await db.query(`UPDATE users SET balance = balance + ? WHERE userid = ?`, [reward, req.user.userid]);
+    return res.json({ Status: "success" });
 });
 
 web.get('/trading', checkAuth, (req, res) => {
@@ -2947,7 +2978,7 @@ async function getContract(network, poolAddress) {
     }
 }
 
-function getnonce() {
+async function getnonce() {
     return Math.floor(Math.random() * (10000000000 - 999999999999) + 999999999999);
 }
 
