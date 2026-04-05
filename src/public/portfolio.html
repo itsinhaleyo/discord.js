@@ -84,6 +84,8 @@
             const contract = row.dataset.contract;
             const shares = parseFloat(row.dataset.shares);
             const entryPrice = parseFloat(row.dataset.entry);
+            const marginUsed = parseFloat(row.dataset.margin);
+            const side = row.dataset.side;
             const pnlCell = row.querySelector('.pnl-cell');
             const pnlPercentDiv = row.querySelector('.pnl-percent');
             try {
@@ -97,14 +99,17 @@
                     cashDisplay.innerText = `💰 ${Number(data.Balance).toLocaleString()}`;
                 }
                 if (currentPrice) {
-                    const currentValue = currentPrice * shares;
-                    const totalCostBasis = entryPrice * shares;
-                    const pnl = currentValue - totalCostBasis;
-                    const pnlPercent = ((pnl / totalCostBasis) * 100).toFixed(2);
+                    let pnl;
+                    if (side === 'SHORT') {
+                        pnl = (entryPrice - currentPrice) * shares;
+                    } else {
+                        pnl = (currentPrice - entryPrice) * shares;
+                    }
+                    const pnlPercent = ((pnl / marginUsed) * 100).toFixed(2);
                     const sign = pnl >= 0 ? '+' : '';
                     const color = pnl >= 0 ? '#10b981' : '#ef4444';
-                    totalCurrentValue += currentValue;
-                    totalInitialCost += totalCostBasis;
+                    totalCurrentValue += (marginUsed + pnl);
+                    totalInitialCost += marginUsed;
                     if (pnlCell && pnlPercentDiv) {
                         pnlCell.style.color = color;
                         pnlCell.firstChild.textContent = `${sign}💰${Math.round(pnl).toLocaleString()} `;

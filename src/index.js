@@ -1149,27 +1149,25 @@ client.on('interactionCreate', async (interaction) => {
             await interaction.deferReply();
             const targetUser = interaction.options.getUser('user') || interaction.user;
             let user = await getuser(targetUser.id);
-            const [holdings] = await db.query('SELECT symbol, shares FROM portfolios WHERE userid = ?', [targetUser.id]);
-            let totalAssetValue = 0;
+            const [holdings] = await db.query( 'SELECT symbol, shares, average_price, margin_used, side, network, contract FROM portfolios WHERE userid = ?', [targetUser.id] );
+            let totalEquity = 0;
             if (holdings.length > 0) {
-                const coinIds = holdings.map(h => h.symbol.toLowerCase()).join(',');
-                const response = await axios.get('https://api.coingecko.com/api/v3/simple/price', {
-                    params: {
-                        ids: coinIds,
-                        vs_currencies: 'usd'
-                    },
-                    headers: { 'x-cg-demo-api-key': process.env.CG_API_KEY }
-                });
-                for (const stock of holdings) {
-                    const currentPrice = response.data[stock.symbol.toLowerCase()]?.usd || 0;
-                    totalAssetValue += (currentPrice * stock.shares);
-                }
+                await Promise.all(holdings.map(async (pos) => {
+                    let currentPrice = await getContract(pos.network, pos.contract);
+                    if (!currentPrice) currentPrice = Number(pos.average_price);
+                    const entry = Number(pos.average_price);
+                    const shares = Number(pos.shares);
+                    const margin = Number(pos.margin_used);
+                    let pnl;
+                    if (pos.side === 'SHORT') { pnl = (entry - currentPrice) * shares; } else { pnl = (currentPrice - entry) * shares; }
+                    totalEquity += (margin + pnl);
+                }));
             }
             const card = new BalanceCard()
                 .setUsername(targetUser.username)
                 .setAvatar(targetUser.displayAvatarURL({ extension: 'png', size: 256 }))
                 .setBalance(user.balance.toLocaleString())
-                .setAssetValue(Math.round(totalAssetValue).toLocaleString());
+                .setAssetValue(Math.round(totalEquity).toLocaleString());
             const image = await card.build();
             const attachment = new AttachmentBuilder(image, { name: 'balance.png' });
             await interaction.editReply({ files: [attachment] });
@@ -2481,19 +2479,15 @@ web.get('/portfolio', checkAuth, async (req, res) => {
         const list = await Promise.all(holdings.map(async (stock) => {
             let currentPrice = await getContract(stock.network, stock.contract);
             if (!currentPrice || currentPrice === 0) { currentPrice = Number(stock.average_price); }
-            const costBasis = Number(stock.average_price) * Number(stock.shares);
-            const currentValue = currentPrice * Number(stock.shares);
-            totalCostBasis += costBasis;
-            totalValue += currentValue;
-            const pnl = currentValue - costBasis;
-            const pnlPercent = costBasis > 0 ? ((pnl / costBasis) * 100).toFixed(2) : "0.00";
-            return {
-                symbol: stock.symbol.toUpperCase(),
-                shares: stock.shares,
-                pnl,
-                pnlPercent,
-                isUp: pnl >= 0
-            };
+            const margin = Number(stock.margin_used);
+            const shares = Number(stock.shares);
+            const entryPrice = Number(stock.average_price);
+            let pnl;
+            if (stock.side === 'SHORT') { pnl = (entryPrice - currentPrice) * shares; } else { pnl = (currentPrice - entryPrice) * shares; }
+            totalCostBasis += margin;
+            totalValue += (margin + pnl);
+            const pnlPercent = margin > 0 ? ((pnl / margin) * 100).toFixed(2) : "0.00";
+            return { symbol: stock.symbol.toUpperCase(), shares: stock.shares, side: stock.side, pnl, pnlPercent, isUp: pnl >= 0 };
         }));
         const totalPnlAmount = totalValue - totalCostBasis;
         const totalPnlPercent = totalCostBasis > 0 ? ((totalPnlAmount / totalCostBasis) * 100).toFixed(2) : "0.00";
@@ -2502,18 +2496,24 @@ web.get('/portfolio', checkAuth, async (req, res) => {
         const tableRows = list.map((item, index) => {
             const stock = holdings[index]; 
             const itemSign = item.pnl >= 0 ? '+' : '';
+            const sideColor = stock.side === 'LONG' ? '#10b981' : '#ef4444';
             return `
                 <tr class="portfolio-row" 
                     data-network="${stock.network}" 
                     data-contract="${stock.contract}" 
                     data-shares="${stock.shares}" 
-                    data-entry="${stock.average_price}">
-                    <td>${item.symbol}</td>
+                    data-entry="${stock.average_price}"
+                    data-margin="${stock.margin_used}"
+                    data-side="${stock.side}">
+                    <td>
+                        ${item.symbol}<br>
+                        <small style="color: ${sideColor}; font-size: 0.7rem;">${stock.side}</small>
+                    </td>
                     <td>${Number(item.shares).toLocaleString()}</td>
-                    <td class="pnl-cell" style="color: ${item.pnl >= 0 ? '#10b981' : '#ef4444'}">
+                    <td class="pos-pnl" style="color: ${item.pnl >= 0 ? '#10b981' : '#ef4444'}"> <!-- Changed to pos-pnl -->
                         ${itemSign}💰${Math.round(item.pnl).toLocaleString()}
                         <div class="pnl-percent" style="font-size: 0.7rem; opacity: 0.8;">(${item.pnlPercent}%)</div>
-                    </td>
+                        </td>
                 </tr>
             `;
         }).join('');
@@ -2665,14 +2665,17 @@ web.get('/trading/:symbol', checkAuth, async (req, res) => {
         const userShares = holding.length > 0 ? holding[0].shares : 0;
         const positionRows = allHoldings.map(pos => {
             return `
-            <tr class="position-row" data-symbol="${pos.symbol}" data-entry="${pos.average_price}" data-shares="${pos.shares}">
-                <td style="padding: 15px 20px;">${pos.symbol.toUpperCase()}</td>
+            <tr class="position-row" data-symbol="${pos.symbol}" data-entry="${pos.average_price}" data-shares="${pos.shares}" data-side="${pos.side}" data-margin="${pos.margin_used}">
+                <td style="padding: 15px 20px;">
+                    ${pos.symbol.toUpperCase()} <br>
+                    <small style="color: ${pos.side === 'LONG' ? '#10b981' : '#ef4444'}">${pos.side}</small>
+                </td>
                 <td>${Number(pos.shares).toLocaleString()}</td>
                 <td>$${Number(pos.average_price).toLocaleString()}</td>
                 <td>${pos.leverage}x</td>
                 <td class="pos-pnl">Calculating...</td>
                 <td style="text-align: right; padding-right: 20px;">
-                    <button onclick="closePosition('${pos.symbol}', '${pos.network}', '${pos.contract}', ${pos.shares}, ${pos.leverage})" class="btn-close-pos">
+                    <button onclick="closePosition('${pos.symbol}', '${pos.network}', '${pos.contract}', ${pos.shares})" class="btn-close-pos">
                         Close
                     </button>
                 </td>
@@ -2698,91 +2701,116 @@ web.get('/trading/:symbol', checkAuth, async (req, res) => {
 
 web.post('/trade/buy', checkAuth, async (req, res) => {
     try {
-        const { coinId, network, contract, amount, leverage } = req.body;
+        const { coinId, network, contract, amount, leverage, side = 'LONG' } = req.body;
         const amountToBuy = parseFloat(amount);
         const userid = req.user.userid;
         const price = await getContract(network, contract);
         const totalPositionValue = Math.round(price * amountToBuy);
         const marginRequired = Math.round(totalPositionValue / leverage);
         const [userRows] = await db.query('SELECT balance FROM users WHERE userid = ?', [userid]);
-        const currentBalance = userRows[0].balance;
-        if (currentBalance < marginRequired) {
-            return res.json({ 
-                success: false, 
-                message: `Insufficient Margin! Required: 💰${marginRequired.toLocaleString()}` 
-            });
-        }
-        if (leverage < 0 || leverage > 50) {
-            return res.json({ 
-                success: false, 
-                message: `Invalid Leverage! Please choose a value between 1 and 50.` 
-            });
+        if (userRows[0].balance < marginRequired) {
+            return res.json({ success: false, message: "Insufficient Balance!" });
         }
         await db.query('UPDATE users SET balance = balance - ? WHERE userid = ?', [marginRequired, userid]);
         await db.query(`
-            INSERT INTO portfolios (userid, symbol, shares, average_price, network, contract, leverage, margin_used) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?) 
+            INSERT INTO portfolios (userid, symbol, shares, average_price, network, contract, leverage, margin_used, side) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) 
             ON DUPLICATE KEY UPDATE 
                 average_price = (average_price * shares + VALUES(average_price) * VALUES(shares)) / (shares + VALUES(shares)),
                 shares = shares + VALUES(shares),
                 margin_used = margin_used + VALUES(margin_used)`, 
-            [userid, coinId, amountToBuy, price, network, contract, leverage, marginRequired]
+            [userid, coinId, amountToBuy, price, network, contract, leverage, marginRequired, side]
         );
-        await db.query( 'INSERT INTO stock_logs (userid, symbol, action, amount, price_per_share, total_cost, leverage) VALUES (?, ?, ?, ?, ?, ?, ?)', [userid, coinId, 'BUY', amountToBuy, price, marginRequired, leverage] );
-        res.json({ success: true, message: `Opened ${leverage}x position!`,  });
+        await db.query('INSERT INTO stock_logs (userid, symbol, action, amount, price_per_share, total_cost, leverage, side) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', 
+            [userid, coinId, 'BUY', amountToBuy, price, marginRequired, leverage, side]);
+        res.json({ success: true, message: `Opened ${leverage}x ${side} position!` });
     } catch (err) {
-        console.error("Web Trade Error:", err);
-        res.status(500).json({ success: false, message: "A server error occurred during the trade." });
+        res.status(500).json({ success: false, message: "Server error" });
     }
 });
 
 web.post('/trade/sell', checkAuth, async (req, res) => {
     try {
-        const { coinId, network, contract, amount, leverage } = req.body;
+        const { coinId, network, contract, amount } = req.body;
         const amountToSell = parseFloat(amount);
         const userid = req.user.userid;
         const [holdings] = await db.query(
-            'SELECT shares, average_price, margin_used, leverage FROM portfolios WHERE userid = ? AND symbol = ?', 
+            'SELECT shares, average_price, margin_used, side FROM portfolios WHERE userid = ? AND symbol = ?', 
             [userid, coinId]
         );
-        if (holdings.length === 0 || holdings[0].shares < amountToSell) {
-            return res.json({ success: false, message: "Not enough shares/position size!" });
-        }
-        const position = holdings[0];
+        if (holdings.length === 0) return res.json({ success: false, message: "No position found." });
+        const pos = holdings[0];
         const currentPrice = await getContract(network, contract);
-        if (!currentPrice) return res.json({ success: false, message: "Price fetch failed." });
-        const marginRatio = amountToSell / position.shares;
-        const marginToRelease = position.margin_used * marginRatio;
-        const pnl = (currentPrice - position.average_price) * amountToSell;
+        let pnl;
+        if (pos.side === 'SHORT') { pnl = (pos.average_price - currentPrice) * amountToSell; } else {  pnl = (currentPrice - pos.average_price) * amountToSell; }
+        const marginToRelease = pos.margin_used * (amountToSell / pos.shares);
         let totalReturn = Math.round(marginToRelease + pnl);
         if (totalReturn < 0) totalReturn = 0;
         await db.query('UPDATE users SET balance = balance + ? WHERE userid = ?', [totalReturn, userid]);
-        if (position.shares === amountToSell) {
+        if (pos.shares === amountToSell) {
             await db.query('DELETE FROM portfolios WHERE userid = ? AND symbol = ?', [userid, coinId]);
         } else {
-            await db.query(
-                'UPDATE portfolios SET shares = shares - ?, margin_used = margin_used - ? WHERE userid = ? AND symbol = ?', 
-                [amountToSell, marginToRelease, userid, coinId]
-            );
+            await db.query('UPDATE portfolios SET shares = shares - ?, margin_used = margin_used - ? WHERE userid = ? AND symbol = ?', [amountToSell, marginToRelease, userid, coinId]);
         }
-        await db.query('INSERT INTO stock_logs (userid, symbol, action, amount, price_per_share, total_cost, leverage) VALUES (?, ?, ?, ?, ?, ?, ?)', 
-            [userid, coinId, 'SELL', amountToSell, currentPrice, totalReturn, leverage]);
-        res.json({ 
-            success: true, 
-            message: `Closed position! Return: 💰${totalReturn.toLocaleString()} (PnL: ${pnl >= 0 ? '+' : ''}${Math.round(pnl).toLocaleString()})` 
-        });
+        await db.query(
+            'INSERT INTO stock_logs (userid, symbol, action, amount, price_per_share, total_cost, leverage, side, pnl) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)', 
+            [userid, coinId, 'SELL', amountToSell, currentPrice, totalReturn, pos.leverage, pos.side, pnl]
+        );
+        res.json({ success: true, message: `Position Closed! Return: 💰${totalReturn.toLocaleString()}` });
     } catch (err) {
-        console.error("Sell Error:", err);
-        res.status(500).json({ success: false, message: "Server error during sale." });
+        res.status(500).json({ success: false, message: "Server error" });
     }
 });
 
-web.get('/api/trade-history', checkAuth, async (req, res) => {
-    const [logs] = await db.query(
-        'SELECT * FROM stock_logs WHERE userid = ? ORDER BY timestamp DESC LIMIT 50', 
-        [req.user.userid]
-    );
-    res.json(logs);
+web.get('/trade/history', checkAuth, async (req, res) => {
+    try {
+        const user = req.user;
+        const [logs] = await db.query(
+            'SELECT * FROM stock_logs WHERE userid = ? ORDER BY timestamp DESC LIMIT 50', 
+            [user.userid]
+        );
+        const uniqueSymbols = [...new Set(logs.map(log => log.symbol.toUpperCase()))];
+        const symbolOptions = uniqueSymbols.map(sym => `<option value="${sym}">${sym}</option>`).join('');
+        const logRows = logs.map(log => {
+            const isBuy = log.action === 'BUY' || log.action === 'OPEN';
+            const actionColor = isBuy ? '#10b981' : '#ef4444';
+            const sideColor = log.side === 'LONG' ? '#10b981' : '#ef4444';
+            let pnlDisplay = '';
+            if (log.action === 'SELL' || log.action === 'CLOSE') {
+                const pnlValue = Number(log.pnl);
+                const pnlColor = pnlValue >= 0 ? '#10b981' : '#ef4444';
+                const sign = pnlValue >= 0 ? '+' : '';
+                pnlDisplay = `
+                    <div style="color: ${pnlColor}; font-size: 0.7rem; font-weight: 600; margin-top: 2px;">
+                        ${sign}💰${Math.round(pnlValue).toLocaleString()}
+                    </div>`;
+            }
+            return `
+                <tr class="log-row" data-symbol="${log.symbol.toUpperCase()}">
+                    <td style="color: var(--text-muted); font-size: 0.8rem;">
+                        ${new Date(log.timestamp).toLocaleString()}
+                    </td>
+                    <td><strong>${log.symbol.toUpperCase()}</strong></td>
+                    <td style="color: ${actionColor}; font-weight: bold;">${log.action}</td>
+                    <td style="color: ${sideColor}; font-size: 0.75rem;">${log.side}</td>
+                    <td>${Number(log.amount).toLocaleString()}</td>
+                    <td>$${Number(log.price_per_share).toLocaleString()}</td>
+                    <td>
+                        💰${Number(log.total_cost).toLocaleString()}
+                        ${pnlDisplay} 
+                    </td>
+                </tr>
+            `;
+        }).join('');
+        let html = fs.readFileSync(path.join(__dirname, 'public', 'tradehistory.html'), 'utf8');
+        html = html.replace('{{symbolOptions}}', symbolOptions)
+                   .replace('{{logRows}}', logRows || '<tr><td colspan="7" style="text-align:center; padding:20px;">No trade history found.</td></tr>')
+                   .replaceAll('{{avatarurl}}', getAvatar(user.userid, user.avatar));
+        res.send(html);
+    } catch (err) {
+        console.error("History Error:", err);
+        res.status(500).send("Error loading trade history.");
+    }
 });
 
 web.post('/callback/update/:network/:contract', async (req, res) => {

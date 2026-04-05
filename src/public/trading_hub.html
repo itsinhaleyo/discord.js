@@ -88,6 +88,11 @@
             color: var(--discord-blue);
             transform: translateX(5px);
         }
+        .history-link {
+            margin-bottom: 30px;
+            width: 100%;
+            box-sizing: border-box;
+        }
     </style>
 </head>
 <body>
@@ -119,7 +124,16 @@
         </div>
     </header>
     <div class="container">
-        <p class="subtitle">Select a market to open the real-time trading terminal</p>
+        <div class="market-card history-link" onclick="window.location.href='/trade/history'">
+            <div class="market-info">
+                <h3>View Trade History</h3>
+                <p>See your past trades and performance.</p>
+            </div>
+            <div class="market-arrow">➔</div>
+        </div>
+        <h2 style="text-align: left; font-size: 1rem; color: var(--text-muted); margin-bottom: 15px; text-transform: uppercase; letter-spacing: 1px;">
+            Available Markets
+        </h2>
         <div class="market-grid">
             {{marketButtons}}
         </div>

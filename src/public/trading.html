@@ -60,7 +60,6 @@
             border: 1px solid rgba(255, 255, 255, 0.1);
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
         }
-
         .chart-wrapper {
             height: 600px;
             padding: 0 !important;
@@ -83,6 +82,7 @@
         .leverage-slider { width: 100%; accent-color: var(--discord-blue); cursor: pointer; }
         .btn-group { display: flex; gap: 10px; margin-top: 15px; }
         .btn-buy { background: var(--up-green); border: none; color: white; padding: 12px; border-radius: 8px; flex: 1; cursor: pointer; font-weight: bold; }
+        .btn-sell { background: var(--down-red); border: none; color: white; padding: 12px; border-radius: 8px; flex: 1; cursor: pointer; font-weight: bold; }
         .orders-container {
             width: 95%;
             max-width: 1400px;
@@ -179,11 +179,12 @@
                         <span>Leverage</span>
                         <span id="lev-display">1x (Spot)</span>
                     </div>
-                    <input type="range" id="leverage" class="leverage-slider" min="1" max="50" value="1" 
+                    <input type="range" id="leverage" class="leverage-slider" min="1" max="100" value="1" 
                         oninput="document.getElementById('lev-display').innerText = this.value + 'x'">
                 </div>
                 <div class="btn-group">
-                    <button onclick="trade()" class="btn-buy">Buy</button>
+                    <button onclick="trade('LONG')" class="btn-buy">Long</button>
+                    <button onclick="trade('SHORT')" class="btn-sell">Short</button>
                 </div>
                 <p id="trade-status" style="margin-top: 10px; font-size: 0.8rem;"></p>
             </div>
@@ -242,41 +243,34 @@
             status.innerText = "❌ Connection error.";
         }
     }
-    async function trade() {
+    async function trade(side) {
         const network = document.getElementById('network').value;
         const coinid = document.getElementById('coinid').value;
         const contract = document.getElementById('contract').value;
         const amount = document.getElementById('amount').value;
-        const leverageInput = document.getElementById('leverage');
-        const leverage = leverageInput ? parseInt(leverageInput.value) : 1;
+        const leverage = parseInt(document.getElementById('leverage').value) || 1;
         const status = document.getElementById('trade-status');
         if(!amount || amount <= 0) return alert("Please enter a valid amount");
-        status.innerText = "⏳ Processing transaction...";
-        status.style.color = "var(--text-muted)";
+        status.innerText = `⏳ Opening ${side}...`;
         try {
             const response = await fetch(`/trade/buy`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
-                    coinId: coinid, 
-                    network: network, 
-                    contract: contract, 
-                    amount: parseFloat(amount),
-                    leverage: leverage 
+                    coinId: coinid, network, contract, 
+                    amount: parseFloat(amount), leverage, side 
                 })
             });
             const result = await response.json();
             if (result.success) {
                 status.style.color = "#10b981";
                 status.innerText = `✅ ${result.message}`;
-                setTimeout(() => location.reload(), 2000);
+                setTimeout(() => location.reload(), 1500);
             } else {
                 status.style.color = "#ef4444";
                 status.innerText = `❌ ${result.message}`;
             }
-        } catch (err) {
-            status.innerText = "❌ Connection error.";
-        }
+        } catch (err) { status.innerText = "❌ Connection error."; }
     }
     async function updateLivePrice() {
         const network = document.getElementById('network').value;
@@ -302,22 +296,24 @@
                 valueDisplay.style.color = pnl >= 0 ? '#00ff00' : '#ff0000';
                 window.currentMarketPrice = price;
             }
-            updatePositionsPnL();
+            updatePositionsPnL(price);
         } catch (err) {
             console.error("Price update failed:", err);
             valueDisplay.innerText = "💰 Price Sync Error";
         }
     }
-    async function updatePositionsPnL() {
+    function updatePositionsPnL(currentPrice) {
         const rows = document.querySelectorAll('.position-row');
         const marketPrice = window.currentMarketPrice;
         if (!marketPrice) return;
         rows.forEach(row => {
             const entry = parseFloat(row.dataset.entry);
             const shares = parseFloat(row.dataset.shares);
+            const margin = parseFloat(row.dataset.margin);
+            const side = row.dataset.side;
             const pnlCell = row.querySelector('.pos-pnl');
-            const pnl = (marketPrice - entry) * shares;
-            const pnlPercent = (((marketPrice - entry) / entry) * 100).toFixed(2);
+            const pnl = (side === 'SHORT') ? (entry - currentPrice) * shares : (currentPrice - entry) * shares;
+            const pnlPercent = ((pnl / margin) * 100).toFixed(2);
             const color = pnl >= 0 ? '#10b981' : '#ef4444';
             const sign = pnl >= 0 ? '+' : '';
             pnlCell.innerHTML = `<span style="color: ${color}">${sign}$${Math.round(pnl).toLocaleString()} (${sign}${pnlPercent}%)</span>`;

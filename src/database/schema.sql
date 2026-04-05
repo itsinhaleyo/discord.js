@@ -42,6 +42,7 @@ CREATE TABLE portfolios (
     shares BIGINT NOT NULL DEFAULT 0,
     leverage VARCHAR(10) DEFAULT 1,
     margin_used DOUBLE DEFAULT 0,
+    side ENUM('LONG', 'SHORT') DEFAULT 'LONG',
     PRIMARY KEY (userid, symbol)
 );
 
@@ -55,9 +56,11 @@ CREATE TABLE stock_logs (
     userid VARCHAR(255) NOT NULL,
     symbol VARCHAR(20) NOT NULL,
     action ENUM('BUY', 'SELL') NOT NULL,
-    amount DECIMAL(18, 8) NOT NULL,
+    side ENUM('LONG', 'SHORT') DEFAULT 'LONG',
+    amount BIGINT NOT NULL,
     price_per_share DECIMAL(18, 8) NOT NULL,
-    total_cost DECIMAL(18, 2) NOT NULL,
+    total_cost BIGINT NOT NULL,
+    pnl BIGINT DEFAULT 0,
     leverage INT DEFAULT 1,
     timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
