@@ -2600,7 +2600,20 @@ web.get('/trading', checkAuth, (req, res) => {
     try {
         const markets = [
             { name: "Bitcoin", symbol: "btc", icon: `${process.env.DOMAIN}/images/btcicon.png` },
-            { name: "Ethereum", symbol: "eth", icon: `${process.env.DOMAIN}/images/ethicon.png` }
+            { name: "Ethereum", symbol: "eth", icon: `${process.env.DOMAIN}/images/ethicon.png` },
+            { name: "Ethereum Classic", symbol: "etc", icon: `${process.env.DOMAIN}/images/etcicon.png` },
+            { name: "Solana", symbol: "sol", icon: `${process.env.DOMAIN}/images/solicon.png` },
+            { name: "Zcash", symbol: "zec", icon: `${process.env.DOMAIN}/images/zecicon.png` },
+            { name: "Dogecoin", symbol: "doge", icon: `${process.env.DOMAIN}/images/dogeicon.png` },
+            { name: "Tron", symbol: "trx", icon: `${process.env.DOMAIN}/images/trxicon.png` },
+            { name: "Cardano", symbol: "ada", icon: `${process.env.DOMAIN}/images/adaicon.png` },
+            { name: "Litecoin", symbol: "ltc", icon: `${process.env.DOMAIN}/images/ltcicon.png` },
+            { name: "Wrapped BNB", symbol: "wbnb", icon: `${process.env.DOMAIN}/images/wbnbicon.png` },
+            { name: "Avalanche", symbol: "avax", icon: `${process.env.DOMAIN}/images/avaxicon.png` },
+            { name: "Chainlink", symbol: "link", icon: `${process.env.DOMAIN}/images/linkicon.png` },
+            { name: "Uniswap", symbol: "uni", icon: `${process.env.DOMAIN}/images/uniicon.png` },
+            { name: "Aave", symbol: "aave", icon: `${process.env.DOMAIN}/images/aaveicon.png` },
+            { name: "Monero", symbol: "xmr", icon: `${process.env.DOMAIN}/images/xmricon.png` },
         ];
         let html = fs.readFileSync(path.join(__dirname, 'public', 'trading_hub.html'), 'utf8');
         const marketButtons = markets.map(coin => `
@@ -2629,7 +2642,20 @@ web.get('/trading/:symbol', checkAuth, async (req, res) => {
         const requestedSymbol = req.params.symbol.toUpperCase();
         const coinConfig = {
             'BTC': { network: "avax", contract: "0x8fef4fe4970a5d6bfa7c65871a2ebfd0f42aa822" },
-            'ETH': { network: "bsc",  contract: "0xd0e226f674bbf064f54ab47f42473ff80db98cba" }
+            'ETH': { network: "bsc",  contract: "0xd0e226f674bbf064f54ab47f42473ff80db98cba" },
+            'ETC': { network: "solana", contract: "Sx3ec3k2tef4Gs2iaozgfx16jPMPBdcaWamePY3BZLp" },
+            'SOL': { network: "base", contract: "0xb30540172f1b37d1ee1d109e49f883e935e69219" },
+            'ZEC': { network: "near", contract: "refv1-6065" },
+            'DOGE': { network: "bsc", contract: "0xce6160bb594fc055c943f59de92cee30b8c6b32c" },
+            'TRX': { network: "solana", contract: "DNspJcdhQzaptzbRR2yx1QxbUJV5JdcqJL65xrkkxx9Y" },
+            'ADA': { network: "bsc", contract: "0x29c5ba7dbb67a4af999a28cc380ad234fe7c1b86" },
+            'LTC': { network: "bsc", contract: "0xe3cbe4dd1bd2f7101f17d586f44bab944091d383" },
+            'WBNB': { network: "bsc", contract: "0x58f876857a02d6762e0101bb5c46a8c1ed44dc16" },
+            'AVAX': { network: "avax", contract: "0xf01449c0ba930b6e2caca3def3ccbd7a3e589534" },
+            'LINK': { network: "eth", contract: "0xa6cc3c2531fdaa6ae1a3ca84c2855806728693e8" },
+            'UNI': { network: "eth", contract: "0x1d42064fc4beb5f8aaf85f4617ae8b3b5b8bd801" },
+            'AAVE': { network: "eth", contract: "0x5ab53ee1d50eef2c1dd3d5402789cd27bb52c1bb" },
+            'XMR': { network: "solana", contract: "CDJtzEhhd3K6Exv9ssw3ZafbmVwEDF6QhNGbYrShyTUc" },
         };
         const coin = coinConfig[requestedSymbol];
         if (!coin) return res.redirect('/trading');
@@ -2684,6 +2710,12 @@ web.post('/trade/buy', checkAuth, async (req, res) => {
             return res.json({ 
                 success: false, 
                 message: `Insufficient Margin! Required: 💰${marginRequired.toLocaleString()}` 
+            });
+        }
+        if (leverage < 0 || leverage > 50) {
+            return res.json({ 
+                success: false, 
+                message: `Invalid Leverage! Please choose a value between 1 and 50.` 
             });
         }
         await db.query('UPDATE users SET balance = balance - ? WHERE userid = ?', [marginRequired, userid]);
