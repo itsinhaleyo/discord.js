@@ -2618,24 +2618,32 @@ web.post('/callback/playercheck', async (req, res, next) => {
 web.post('/callback/luckyslot', async (req, res, next) => {
     //const nonce = await db.query('SELECT * FROM playercheck WHERE userid = ?', [req.user.userid]);
     //if (req.body.nonce !== nonce.nonce) { return res.status(400).json({ message: "Invalid nonce" }); }
-    if (req.body.value === 0) {
-        const reward = req.body.bet * req.body.payline;
-        console.log(req.body.bet+" * "+req.body.payline);
-        db.query(`UPDATE users SET balance = balance - ? WHERE userid = ?`, [reward, req.user.userid]);
-        return res.json({ Status: "success" });
+    const [status] = await db.query(`SELECT * FROM gamestatus WHERE userid = ?`, [req.user.userid]);
+    if (!status[0]) { await db.query(`INSERT INTO gamestatus (userid) VALUES (?)`, [req.user.userid])}
+    if (status[0].luckyslot === 1) {
+        await db.query(`UPDATE gamestatus SET luckyslot = ? WHERE userid = ?`, [0, req.user.userid]);
+        res.json({ Status: "success" });
+    } else {
+        if (req.body.value === 0) {
+            const bet = req.body.bet * req.body.payline;
+            await db.query(`UPDATE users SET balance = balance - ? WHERE userid = ?`, [bet, req.user.userid]);
+            await db.query(`UPDATE gamestatus SET luckyslot = ? WHERE userid = ?`, [1, req.user.userid]);
+            res.json({ Status: "success" });
+        } else {
+            const bet = req.body.bet * req.body.payline;
+            const reward = req.body.value - bet;
+            await db.query(`UPDATE users SET balance = balance + ? WHERE userid = ?`, [reward, req.user.userid]);
+            await db.query(`UPDATE gamestatus SET luckyslot = ? WHERE userid = ?`, [1, req.user.userid]);
+            res.json({ Status: "success" });
+        }
     }
-    const bxp = req.body.bet * req.body.payline;
-    const reward = req.body.value - bxp;
-    console.log(req.body.value+" - "+req.body.bet+" * "+req.body.payline);
-    db.query(`UPDATE users SET balance = balance + ? WHERE userid = ?`, [reward, req.user.userid]);
-    res.json({ Status: "success" });
 });
 
 web.post('/callback/luckyslot/bw', async (req, res, next) => {
     //const nonce = await db.query('SELECT * FROM playercheck WHERE userid = ?', [req.user.userid]);
     //if (req.body.nonce !== nonce.nonce) { return res.status(400).json({ message: "Invalid nonce" }); }
-    console.log(req.body.value);
-    db.query(`UPDATE users SET balance = balance + ? WHERE userid = ?`, [req.body.value, req.user.userid]);
+    db.query(`UPDATE users SET balance = ? WHERE userid = ?`, [req.body.value, req.user.userid]);
+    db.query(`UPDATE gamestatus SET luckyslot = ? WHERE userid = ?`, [1, req.user.userid]);
     res.json({ Status: "success" });
 });
 
@@ -2741,29 +2749,57 @@ web.get('/trading/:symbol', checkAuth, async (req, res) => {
         const [allHoldings] = await db.query( 'SELECT * FROM portfolios WHERE userid = ?', [user.userid] );
         const userShares = holding.length > 0 ? holding[0].shares : 0;
         const positionRows = allHoldings.map(pos => {
-        return `
-            <tr class="position-row" 
-                data-symbol="${pos.symbol}" 
-                data-entry="${pos.average_price}" 
-                data-shares="${pos.shares}" 
-                data-side="${pos.side}" 
-                data-margin="${pos.margin_used}" 
-                data-leverage="${pos.leverage}">
-                <td style="padding: 15px 20px;">
-                    ${pos.symbol.toUpperCase()} <br>
-                    <small style="color: ${pos.side === 'LONG' ? '#10b981' : '#ef4444'}">${pos.side}</small>
-                </td>
-                <td data-label="Amount">${Number(pos.shares).toLocaleString()}</td>
-                <td data-label="Entry Price">$${Number(pos.average_price).toLocaleString()}</td>
-                <td class="pos-liq" data-label="Liq. Price" style="color: #f59e0b;">Calculating...</td> <!-- NEW CELL -->
-                <td data-label="Leverage">${pos.leverage}x</td>
-                <td class="pos-pnl" data-label="PnL">Calculating...</td>
-                <td data-label="" style="text-align: right; padding-right: 20px;">
-                    <button onclick="closePosition('${pos.symbol}', '${pos.network}', '${pos.contract}', ${pos.shares})" class="btn-close-pos">
-                        Close
-                    </button>
-                </td>
-            </tr>`;
+            return `
+                <tr class="position-row" 
+                    data-symbol="${pos.symbol}" 
+                    data-entry="${pos.average_price}" 
+                    data-shares="${pos.shares}" 
+                    data-side="${pos.side}" 
+                    data-margin="${pos.margin_used}" 
+                    data-leverage="${pos.leverage}"
+                    data-network="${pos.network}"
+                    data-contract="${pos.contract}">
+                    <td style="padding: 15px 20px;">
+                        ${pos.symbol.toUpperCase()} <br>
+                        <small style="color: ${pos.side === 'LONG' ? '#10b981' : '#ef4444'}">${pos.side}</small>
+                    </td>
+                    <td data-label="Amount">${Number(pos.shares).toLocaleString()}</td>
+                    <td data-label="Entry Price">$${Number(pos.average_price).toLocaleString()}</td>
+                    <td data-label="Take Profit">
+                        <div class="limit-group" style="display: flex; flex-direction: column; align-items: center;">
+                            <div class="input-action-row">
+                                <input type="number" step="any" placeholder="TP" 
+                                    id="tp-${pos.symbol}" 
+                                    class="limit-input-small tp-style" 
+                                    value="${pos.take_profit || ''}">
+                                <button class="btn-set-limit tp-btn" onclick="updateLimits('${pos.symbol}', document.getElementById('tp-${pos.symbol}').value, 'tp', this)">
+                                    SET
+                                </button>
+                            </div>
+                        </div>
+                    </td>
+                    <td data-label="Stop Loss">
+                        <div class="limit-group" style="display: flex; flex-direction: column; align-items: center;">
+                            <div class="input-action-row">
+                                <input type="number" step="any" placeholder="SL" 
+                                    id="sl-${pos.symbol}" 
+                                    class="limit-input-small sl-style" 
+                                    value="${pos.stop_loss || ''}">
+                                <button class="btn-set-limit sl-btn" onclick="updateLimits('${pos.symbol}', document.getElementById('sl-${pos.symbol}').value, 'sl', this)">
+                                    SET
+                                </button>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="pos-liq" data-label="Liq. Price" style="color: #f59e0b;">Calculating...</td>
+                    <td data-label="Leverage">${pos.leverage}x</td>
+                    <td class="pos-pnl" data-label="PnL">Calculating...</td>
+                    <td data-label="" style="text-align: right; padding-right: 20px;">
+                        <button onclick="closePosition('${pos.symbol}', '${pos.network}', '${pos.contract}', ${pos.shares})" class="btn-close-pos">
+                            Close
+                        </button>
+                    </td>
+                </tr>`;
         }).join('');
         let html = fs.readFileSync(path.join(__dirname, 'public', 'trading.html'), 'utf8');
         html = html.replace('{{positionRows}}', positionRows || '<tr><td colspan="6" style="text-align:center; padding:20px;">No open positions</td></tr>')
@@ -2846,21 +2882,75 @@ web.post('/trade/sell', checkAuth, async (req, res) => {
     }
 });
 
+web.post('/trade/update-limits', checkAuth, async (req, res) => {
+    const { symbol, value, type } = req.body;
+    const column = type === 'tp' ? 'take_profit' : 'stop_loss';
+    try {
+        await db.query( `UPDATE portfolios SET ${column} = ? WHERE userid = ? AND symbol = ?`, [value ? parseFloat(value) : null, req.user.userid, symbol] );
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ success: false });
+    }
+});
+
 web.get('/trade/history', checkAuth, async (req, res) => {
     try {
         const user = req.user;
         const [logs] = await db.query(
-            'SELECT * FROM stock_logs WHERE userid = ? ORDER BY timestamp DESC LIMIT 50', 
+            'SELECT * FROM stock_logs WHERE userid = ? ORDER BY timestamp DESC LIMIT 100', 
             [user.userid]
         );
+        const closingTrades = logs.filter(log => {
+            const act = log.action.toUpperCase();
+            return act.includes('SELL') || act.includes('CLOSE') || act.includes('STOP') || act.includes('PROFIT');
+        });
+        const totalPnL = closingTrades.reduce((sum, log) => sum + Number(log.pnl), 0);
+        const wins = closingTrades.filter(log => Number(log.pnl) > 0).length;
+        const winRate = closingTrades.length > 0 ? ((wins / closingTrades.length) * 100).toFixed(1) : 0;
+        const totalTrades = closingTrades.length;
+        const summaryHtml = `
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-bottom: 25px;">
+                <div class="stat-card" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); padding: 15px; border-radius: 12px; text-align: center;">
+                    <div style="color: var(--text-muted); font-size: 0.75rem; text-transform: uppercase;">Total Profit</div>
+                    <div style="font-size: 1.2rem; font-weight: 800; color: ${totalPnL >= 0 ? '#10b981' : '#ef4444'};">
+                        ${totalPnL >= 0 ? '+' : ''}💰${Math.round(totalPnL).toLocaleString()}
+                    </div>
+                </div>
+                <div class="stat-card" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); padding: 15px; border-radius: 12px; text-align: center;">
+                    <div style="color: var(--text-muted); font-size: 0.75rem; text-transform: uppercase;">Win Rate</div>
+                    <div style="font-size: 1.2rem; font-weight: 800; color: #6366f1;">${winRate}%</div>
+                </div>
+                <div class="stat-card" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); padding: 15px; border-radius: 12px; text-align: center;">
+                    <div style="color: var(--text-muted); font-size: 0.75rem; text-transform: uppercase;">Closed Trades</div>
+                    <div style="font-size: 1.2rem; font-weight: 800; color: white;">${totalTrades}</div>
+                </div>
+            </div>
+        `;
         const uniqueSymbols = [...new Set(logs.map(log => log.symbol.toUpperCase()))];
         const symbolOptions = uniqueSymbols.map(sym => `<option value="${sym}">${sym}</option>`).join('');
         const logRows = logs.map(log => {
-            const isBuy = log.action === 'BUY' || log.action === 'OPEN';
-            const actionColor = isBuy ? '#10b981' : '#ef4444';
+            const action = log.action.toUpperCase();
+            const isClose = action.includes('SELL') || action.includes('CLOSE') || action.includes('STOP') || action.includes('PROFIT') || action.includes('AUTO');
+            const isBuy = action === 'BUY' || action === 'OPEN';
+            let actionColor = '#94a3b8';
+            let displayAction = action;
+            if (isBuy) {
+                actionColor = '#10b981';
+            } else if (action.includes('TP')) {
+                actionColor = '#10b981';
+                displayAction = '🎯 TP-CLOSE';
+            } else if (action.includes('SL')) {
+                actionColor = '#ef4444';
+                displayAction = '🛑 SL-CLOSE';
+            } else if (action.includes('LIQ')) {
+                actionColor = '#f59e0b';
+                displayAction = '💀 LIQUIDATED';
+            } else if (isClose) {
+                actionColor = '#ef4444';
+            }
             const sideColor = log.side === 'LONG' ? '#10b981' : '#ef4444';
             let pnlDisplay = '';
-            if (log.action === 'SELL' || log.action === 'CLOSE') {
+            if (isClose) {
                 const pnlValue = Number(log.pnl);
                 const pnlColor = pnlValue >= 0 ? '#10b981' : '#ef4444';
                 const sign = pnlValue >= 0 ? '+' : '';
@@ -2887,7 +2977,8 @@ web.get('/trade/history', checkAuth, async (req, res) => {
             `;
         }).join('');
         let html = fs.readFileSync(path.join(__dirname, 'public', 'tradehistory.html'), 'utf8');
-        html = html.replace('{{symbolOptions}}', symbolOptions)
+        html = html.replace('{{performanceSummary}}', summaryHtml)
+                   .replace('{{symbolOptions}}', symbolOptions)
                    .replace('{{logRows}}', logRows || '<tr><td colspan="7" style="text-align:center; padding:20px;">No trade history found.</td></tr>')
                    .replaceAll('{{avatarurl}}', getAvatar(user.userid, user.avatar));
         res.send(html);
@@ -3035,3 +3126,40 @@ async function getPosition(userid, contract) {
         throw error;
     }
 }
+
+async function executeAutoClose(pos, currentPrice, reason) {
+    const priceDiff = (pos.side === 'SHORT') 
+        ? (pos.average_price - currentPrice) 
+        : (currentPrice - pos.average_price);
+    const pnl = priceDiff * pos.shares;
+    let totalReturn = Math.round(Number(pos.margin_used) + pnl);
+    if (totalReturn < 0) totalReturn = 0;
+    await db.query('UPDATE users SET balance = balance + ? WHERE userid = ?', [totalReturn, pos.userid]);
+    await db.query('DELETE FROM portfolios WHERE userid = ? AND symbol = ?', [pos.userid, pos.symbol]);
+    const actionLabel = `AUTO-${reason.toUpperCase().replace(' ', '-')}`;
+    await db.query(
+        'INSERT INTO stock_logs (userid, symbol, action, amount, price_per_share, total_cost, leverage, side, pnl) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)', 
+        [pos.userid, pos.symbol, actionLabel, pos.shares, currentPrice, totalReturn, pos.leverage, pos.side, pnl]
+    );
+}
+
+setInterval(async () => {
+    try {
+        const [positions] = await db.query( 'SELECT * FROM portfolios WHERE take_profit IS NOT NULL OR stop_loss IS NOT NULL' );
+        if (positions.length === 0) return;
+        for (const pos of positions) {
+            const currentPrice = await getContract(pos.network, pos.contract);
+            const isLong = pos.side === 'LONG';
+            const isTPHit = isLong ? currentPrice >= pos.take_profit : currentPrice <= pos.take_profit;
+            const isSLHit = isLong ? currentPrice <= pos.stop_loss : currentPrice >= pos.stop_loss;
+            const liqPrice = isLong ? pos.average_price * (1 - (1 / pos.leverage)) : pos.average_price * (1 + (1 / pos.leverage));
+            const isLiqHit = isLong ? currentPrice <= liqPrice : currentPrice >= liqPrice;
+            if ((pos.take_profit && isTPHit) || (pos.stop_loss && isSLHit) || isLiqHit) {
+                const reason = isTPHit ? "Take Profit" : isSLHit ? "Stop Loss" : "Liquidation";
+                await executeAutoClose(pos, currentPrice, reason);
+            }
+        }
+    } catch (err) {
+        console.error("Background Monitor Error:", err);
+    }
+}, 10000);

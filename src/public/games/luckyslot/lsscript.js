@@ -22,7 +22,7 @@ xhttp.open("POST", "https://itsinhaleyo.online/callback/gameinit", true);
 xhttp.setRequestHeader('Content-Type', 'application/json');
 xhttp.onload = () => {
     const userbal = JSON.parse(xhttp.responseText);
-    this.Cash += +userbal.Balance;
+    this.Cash += userbal.Balance;
 };
 xhttp.send(JSON.stringify({'Balance': 'SystemCheck'}));
 game_config.cur_bet=game_config.bet_size[game_config.bet_at];
@@ -53,8 +53,7 @@ this.load.image("btn_menu_music","https://itsinhaleyo.online/games/luckyslot/img
 this.load.image("btn_menu_music_off","https://itsinhaleyo.online/games/luckyslot/img/btn_menu_music_off.png");
 this.load.image("footer","https://itsinhaleyo.online/games/luckyslot/img/footer.png");
 this.load.image("header","https://itsinhaleyo.online/games/luckyslot/img/header.png");
-this.load.image("money_bar","https://itsinhaleyo.online/games/luckyslot/img/fcmoney_bar.png");
-this.load.image("btn_change_bet","https://itsinhaleyo.online/games/luckyslot/img/btn_change_bet.png");
+this.load.image("money_bar","https://itsinhaleyo.online/games/luckyslot/img/money_bar.png");
 this.load.image("btn_payout","https://itsinhaleyo.online/games/luckyslot/img/btn_payout.png");
 this.load.image("btn_spin","https://itsinhaleyo.online/games/luckyslot/img/btn_spin.png");
 this.load.image("btn_max","https://itsinhaleyo.online/games/luckyslot/img/btn_max.png");
@@ -104,14 +103,6 @@ this.load.audio("Bonus Lose","https://itsinhaleyo.online/games/luckyslot/audio/B
 this.load.audio("Slot coins","https://itsinhaleyo.online/games/luckyslot/audio/Slot coins.mp3");
 this.load.audio("Slot Machine Spin Button","https://itsinhaleyo.online/games/luckyslot/audio/Slot Machine Spin Button.mp3");
 this.load.audio("Slot Machine Bonus Lose","https://itsinhaleyo.online/games/luckyslot/audio/Slot Machine Bonus Lose.mp3");
-var xhttp = new XMLHttpRequest();
-xhttp.open("POST", "https://itsinhaleyo.online/callback/gameinit", true);
-xhttp.setRequestHeader('Content-Type', 'application/json');
-xhttp.onload = () => {
-    const userbal = JSON.parse(xhttp.responseText);
-    this.Cash += +userbal.Balance;
-};
-xhttp.send(JSON.stringify({'Balance': 'SystemCheck'}));
 for(var d=1;5>=d;d++)this.load.audio("Slot Machine Stop "+d,"https://itsinhaleyo.online/games/luckyslot/audio/Slot Machine Stop "+d+".mp3")};
 Load.prototype.create=function(){};
 var $jscomp=$jscomp||{};
@@ -274,7 +265,7 @@ Game.prototype.create=function(){
         q="spin",
         S.play("lever_press"),
         play_sound("Slot Arm Start",d),
-        c()):1>=this.Cash?N("refill"):N("nocash"))
+        c()):1>=this.Cash?N("refill"):N("nocash"));
     }function c(){
         T();
         var u=0,
@@ -468,6 +459,7 @@ Game.prototype.create=function(){
             if(a)b(f);
             else for(a=0;a<game_config.cur_payline;a++)b(a)
         }function Q(a){
+            console.log(a);
             var xhttp = new XMLHttpRequest();
             xhttp.open("POST", "https://itsinhaleyo.online/callback/playercheck", true);
             xhttp.setRequestHeader('Content-Type', 'application/json');
@@ -674,7 +666,6 @@ Game.prototype.create=function(){
         draw_button(1110+g,670,"spin",this);
         draw_button(920+g,670,"max",this);
         draw_button(950+g,35,"payout",this);
-        draw_button(610+g,35,"change_bet",this);
         draw_button(561+g,668,"plus_bet",this);
         draw_button(399+g,669,"minus_bet",this);
         draw_button(302+g,668,"plus_lines",this);

@@ -116,6 +116,139 @@
             transition: all 0.2s;
         }
         .btn-close-pos:hover { background: var(--down-red); color: white; }
+        .limits-container {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            justify-content: center;
+            min-width: 90px;
+        }
+        .limit-input {
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 6px;
+            padding: 4px 8px;
+            font-size: 0.75rem;
+            font-family: inherit;
+            transition: all 0.2s ease;
+            width: 100%;
+            outline: none;
+        }
+        .limit-group {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            padding: 5px 0;
+            max-width: 110px;
+        }
+        .input-wrapper {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+        .input-wrapper::before {
+            content: '$';
+            position: absolute;
+            left: 8px;
+            font-size: 0.7rem;
+            opacity: 0.5;
+        }
+        .limit-input {
+            width: 80px !important;
+            text-align: center;
+            background: rgba(255, 255, 255, 0.03) !important;
+            border: 1px solid rgba(255, 255, 255, 0.1) !important;
+            border-radius: 4px;
+            padding: 4px 8px 4px 18px !important;
+            margin: 0 auto;
+            font-size: 0.75rem;
+            font-family: 'Inter', sans-serif;
+            transition: all 0.2s ease;
+            outline: none !important;
+        }
+        .tp-style { color: #10b981 !important; }
+        .tp-style:focus { 
+            border-color: #10b981 !important; 
+            box-shadow: 0 0 8px rgba(16, 185, 129, 0.2); 
+        }
+        .sl-style { color: #ef4444 !important; }
+        .sl-style:focus { 
+            border-color: #ef4444 !important; 
+            box-shadow: 0 0 8px rgba(239, 68, 68, 0.2); 
+        }
+        .tp-input {
+            color: #10b981;
+        }
+        .tp-input:focus {
+            border-color: #10b981;
+            background: rgba(16, 185, 129, 0.05);
+        }
+        .sl-input {
+            color: #ef4444;
+        }
+        .sl-input:focus {
+            border-color: #ef4444;
+            background: rgba(239, 68, 68, 0.05);
+        }
+        .limit-input::-webkit-outer-spin-button,
+        .limit-input::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        .limit-input::placeholder {
+            color: var(--text-muted);
+            opacity: 0.5;
+        }
+        .limit-input[type=number] {
+            -moz-appearance: textfield;
+            appearance: textfield;
+        }
+        .input-action-row {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            margin-bottom: 4px;
+        }
+        .btn-set-limit {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 10px;
+            padding: 4px 6px;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .btn-set-limit:hover {
+            background: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+        }
+        .tp-btn:hover { background: #10b981 !important; border-color: #10b981 !important; }
+        .sl-btn:hover { background: #ef4444 !important; border-color: #ef4444 !important; }
+        .limit-input-small {
+            width: 70px !important;
+            text-align: center;
+            padding: 4px !important;background: rgba(0, 0, 0, 0.25) !important;
+            border: 1px solid rgba(255, 255, 255, 0.1) !important;
+            border-radius: 4px;
+            box-shadow: none !important;
+            color: #ffffff;
+            transition: all 0.2s ease;
+        }
+        .limit-input-small:focus {
+            background: rgba(0, 0, 0, 0.4) !important;
+            outline: none !important;
+        }
+        .limit-input-small::placeholder {
+            color: rgba(255, 255, 255, 0.3);
+            font-size: 0.65rem;
+        }
         @media (max-width: 1000px) {
             .trading-layout { flex-direction: column; }
             .sidebar { width: 100%; min-width: 100%; }
@@ -289,6 +422,8 @@
                     <th style="padding: 12px 20px;">Symbol</th>
                     <th>Size</th>
                     <th>Entry Price</th>
+                    <th>Take Profit</th>
+                    <th>Stop Loss</th>
                     <th>Liq. Price</th>
                     <th>Leverage</th>
                     <th>PnL</th>
@@ -301,7 +436,7 @@
         </table>
     </div>
 <script>
-    async function closePosition(symbol, network, contract, totalShares) {
+    async function closePosition(symbol, network, contract, totalShare, isAuto = false) {
         if (!confirm(`Close your entire ${symbol} position?`)) return;
         const status = document.getElementById('trade-status');
         status.innerText = "⏳ Closing position...";
@@ -401,14 +536,15 @@
             const margin = parseFloat(row.dataset.margin);
             const leverage = parseFloat(row.dataset.leverage);
             const side = row.dataset.side;
-            const liqPrice = (side === 'LONG') 
-                ? entry * (1 - (1 / leverage)) 
-                : entry * (1 + (1 / leverage));
+            const symbol = row.dataset.symbol;
+            const tpValue = parseFloat(row.querySelector('.tp-input')?.value);
+            const slValue = parseFloat(row.querySelector('.sl-input')?.value);
+            const liqPrice = (side === 'LONG') ? entry * (1 - (1 / leverage)) : entry * (1 + (1 / leverage));
             const liqCell = row.querySelector('.pos-liq');
             if (liqCell) liqCell.innerText = `$${liqPrice.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
             const pnlVal = (side === 'SHORT') ? (entry - currentPrice) * shares : (currentPrice - entry) * shares;
             const currentPnlPercent = (pnlVal / margin) * 100;
-            if (currentPnlPercent <= -80) {
+            if (currentPnlPercent <= -75) {
                 row.style.boxShadow = "inset 0 0 15px rgba(239, 68, 68, 0.4)";
                 row.style.background = "rgba(239, 68, 68, 0.1)";
                 if(liqCell) liqCell.style.color = "#ff4d4d";
@@ -418,12 +554,48 @@
                 if(liqCell) liqCell.style.color = "#f59e0b";
             }
             const pnl = (side === 'SHORT') ? (entry - currentPrice) * shares : (currentPrice - entry) * shares;
+            const isTPHit = (side === 'LONG' && tpValue && currentPrice >= tpValue) || (side === 'SHORT' && tpValue && currentPrice <= tpValue);
+            const isSLHit = (side === 'LONG' && slValue && currentPrice <= slValue) || (side === 'SHORT' && slValue && currentPrice >= slValue);
+            if (isTPHit || isSLHit) {
+                const reason = isTPHit ? "Take Profit" : "Stop Loss";
+                console.log(`${reason} triggered for ${symbol}`);
+                closePosition(symbol, document.getElementById('network').value, document.getElementById('contract').value, shares, true);
+            }
             const pnlPercent = ((pnl / margin) * 100).toFixed(2);
             const color = pnl >= 0 ? '#10b981' : '#ef4444';
             const sign = pnl >= 0 ? '+' : '';
             row.querySelector('.pos-pnl').innerHTML = `<span style="color: ${color}">${sign}$${Math.round(pnl).toLocaleString()} (${sign}${pnlPercent}%)</span>`;
             if ((side === 'LONG' && currentPrice <= liqPrice) || (side === 'SHORT' && currentPrice >= liqPrice)) { closePosition(row.dataset.symbol, document.getElementById('network').value, document.getElementById('contract').value, shares);}
         });
+    }
+    async function updateLimits(symbol, value, type, btnElement) {
+        const originalText = btnElement.innerText;
+        btnElement.innerText = "⏳";
+        btnElement.disabled = true;
+        try {
+            const response = await fetch('/trade/update-limits', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    symbol: symbol, 
+                    value: value === "" ? null : parseFloat(value), 
+                    type: type 
+                })
+            });
+            const data = await response.json();
+            if (data.success) {
+                btnElement.innerText = "✅";
+                btnElement.style.borderColor = "#10b981";
+                setTimeout(() => {
+                    btnElement.innerText = originalText;
+                    btnElement.style.borderColor = "rgba(255, 255, 255, 0.1)";
+                    btnElement.disabled = false;
+                }, 1500);
+            }
+        } catch (err) {
+            btnElement.innerText = "❌";
+            setTimeout(() => { btnElement.innerText = originalText; btnElement.disabled = false; }, 2000);
+        }
     }
     updateLivePrice();
     setInterval(() => { updateLivePrice(); }, 5000);

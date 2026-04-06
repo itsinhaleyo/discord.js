@@ -42,8 +42,9 @@ CREATE TABLE portfolios (
     shares BIGINT NOT NULL DEFAULT 0,
     leverage VARCHAR(10) DEFAULT 1,
     margin_used DOUBLE DEFAULT 0,
+    take_profit DOUBLE DEFAULT NULL,
+    stop_loss DOUBLE DEFAULT NULL,  
     side ENUM('LONG', 'SHORT') DEFAULT 'LONG',
-    stop_loss DECIMAL(20, 8) DEFAULT NULL,
     PRIMARY KEY (userid, symbol)
 );
 
@@ -56,12 +57,17 @@ CREATE TABLE stock_logs (
     id INT AUTO_INCREMENT PRIMARY KEY,
     userid VARCHAR(255) NOT NULL,
     symbol VARCHAR(20) NOT NULL,
-    action ENUM('BUY', 'SELL') NOT NULL,
     side ENUM('LONG', 'SHORT') DEFAULT 'LONG',
+    action VARCHAR(50) NOT NULL,
     amount BIGINT NOT NULL,
     price_per_share DECIMAL(18, 8) NOT NULL,
     total_cost BIGINT NOT NULL,
     pnl BIGINT DEFAULT 0,
     leverage INT DEFAULT 1,
     timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE gamestatus (
+    userid VARCHAR(255) NOT NULL PRIMARY KEY,
+    luckyslot INT DEFAULT 1
 );
