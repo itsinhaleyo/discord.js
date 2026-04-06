@@ -43,6 +43,7 @@ CREATE TABLE portfolios (
     leverage VARCHAR(10) DEFAULT 1,
     margin_used DOUBLE DEFAULT 0,
     side ENUM('LONG', 'SHORT') DEFAULT 'LONG',
+    stop_loss DECIMAL(20, 8) DEFAULT NULL,
     PRIMARY KEY (userid, symbol)
 );
 

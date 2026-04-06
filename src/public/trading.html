@@ -289,6 +289,7 @@
                     <th style="padding: 12px 20px;">Symbol</th>
                     <th>Size</th>
                     <th>Entry Price</th>
+                    <th>Liq. Price</th>
                     <th>Leverage</th>
                     <th>PnL</th>
                     <th style="text-align: right; padding-right: 20px;">Action</th>
@@ -393,23 +394,39 @@
     }
     function updatePositionsPnL(currentPrice) {
         const rows = document.querySelectorAll('.position-row');
-        const marketPrice = window.currentMarketPrice;
-        if (!marketPrice) return;
+        if (!currentPrice) return;
         rows.forEach(row => {
             const entry = parseFloat(row.dataset.entry);
             const shares = parseFloat(row.dataset.shares);
             const margin = parseFloat(row.dataset.margin);
+            const leverage = parseFloat(row.dataset.leverage);
             const side = row.dataset.side;
-            const pnlCell = row.querySelector('.pos-pnl');
+            const liqPrice = (side === 'LONG') 
+                ? entry * (1 - (1 / leverage)) 
+                : entry * (1 + (1 / leverage));
+            const liqCell = row.querySelector('.pos-liq');
+            if (liqCell) liqCell.innerText = `$${liqPrice.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
+            const pnlVal = (side === 'SHORT') ? (entry - currentPrice) * shares : (currentPrice - entry) * shares;
+            const currentPnlPercent = (pnlVal / margin) * 100;
+            if (currentPnlPercent <= -80) {
+                row.style.boxShadow = "inset 0 0 15px rgba(239, 68, 68, 0.4)";
+                row.style.background = "rgba(239, 68, 68, 0.1)";
+                if(liqCell) liqCell.style.color = "#ff4d4d";
+            } else {
+                row.style.boxShadow = "none";
+                row.style.background = "transparent";
+                if(liqCell) liqCell.style.color = "#f59e0b";
+            }
             const pnl = (side === 'SHORT') ? (entry - currentPrice) * shares : (currentPrice - entry) * shares;
             const pnlPercent = ((pnl / margin) * 100).toFixed(2);
             const color = pnl >= 0 ? '#10b981' : '#ef4444';
             const sign = pnl >= 0 ? '+' : '';
-            pnlCell.innerHTML = `<span style="color: ${color}">${sign}$${Math.round(pnl).toLocaleString()} (${sign}${pnlPercent}%)</span>`;
+            row.querySelector('.pos-pnl').innerHTML = `<span style="color: ${color}">${sign}$${Math.round(pnl).toLocaleString()} (${sign}${pnlPercent}%)</span>`;
+            if ((side === 'LONG' && currentPrice <= liqPrice) || (side === 'SHORT' && currentPrice >= liqPrice)) { closePosition(row.dataset.symbol, document.getElementById('network').value, document.getElementById('contract').value, shares);}
         });
     }
     updateLivePrice();
-    setInterval(() => { updateLivePrice(); }, 10000);
+    setInterval(() => { updateLivePrice(); }, 5000);
 </script>
 </body>
 </html>

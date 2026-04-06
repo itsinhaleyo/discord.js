@@ -163,7 +163,7 @@ Menu.prototype.create=function(){
     game_config.sound||k.setTexture("btn_menu_sound_off");
     this.input.on("gameobjectdown",function(b,d){
         if ("home"===d.name) setTimeout(function returnurl() {
-            window.location.href = "https://flarecasino.ca/casino";
+            window.location.href = "https://itsinhaleyo.online/casino";
         },100);
         var e=this;
         d.button&&(play_sound("click2",e),

@@ -2620,11 +2620,13 @@ web.post('/callback/luckyslot', async (req, res, next) => {
     //if (req.body.nonce !== nonce.nonce) { return res.status(400).json({ message: "Invalid nonce" }); }
     if (req.body.value === 0) {
         const reward = req.body.bet * req.body.payline;
+        console.log(req.body.bet+" * "+req.body.payline);
         db.query(`UPDATE users SET balance = balance - ? WHERE userid = ?`, [reward, req.user.userid]);
         return res.json({ Status: "success" });
     }
     const bxp = req.body.bet * req.body.payline;
     const reward = req.body.value - bxp;
+    console.log(req.body.value+" - "+req.body.bet+" * "+req.body.payline);
     db.query(`UPDATE users SET balance = balance + ? WHERE userid = ?`, [reward, req.user.userid]);
     res.json({ Status: "success" });
 });
@@ -2632,6 +2634,7 @@ web.post('/callback/luckyslot', async (req, res, next) => {
 web.post('/callback/luckyslot/bw', async (req, res, next) => {
     //const nonce = await db.query('SELECT * FROM playercheck WHERE userid = ?', [req.user.userid]);
     //if (req.body.nonce !== nonce.nonce) { return res.status(400).json({ message: "Invalid nonce" }); }
+    console.log(req.body.value);
     db.query(`UPDATE users SET balance = balance + ? WHERE userid = ?`, [req.body.value, req.user.userid]);
     res.json({ Status: "success" });
 });
@@ -2738,14 +2741,21 @@ web.get('/trading/:symbol', checkAuth, async (req, res) => {
         const [allHoldings] = await db.query( 'SELECT * FROM portfolios WHERE userid = ?', [user.userid] );
         const userShares = holding.length > 0 ? holding[0].shares : 0;
         const positionRows = allHoldings.map(pos => {
-            return `
-            <tr class="position-row" data-symbol="${pos.symbol}" data-entry="${pos.average_price}" data-shares="${pos.shares}" data-side="${pos.side}" data-margin="${pos.margin_used}" data-icon="${coin.icon}" style="--coin-icon: url('${coin.icon}');">
+        return `
+            <tr class="position-row" 
+                data-symbol="${pos.symbol}" 
+                data-entry="${pos.average_price}" 
+                data-shares="${pos.shares}" 
+                data-side="${pos.side}" 
+                data-margin="${pos.margin_used}" 
+                data-leverage="${pos.leverage}">
                 <td style="padding: 15px 20px;">
                     ${pos.symbol.toUpperCase()} <br>
                     <small style="color: ${pos.side === 'LONG' ? '#10b981' : '#ef4444'}">${pos.side}</small>
                 </td>
                 <td data-label="Amount">${Number(pos.shares).toLocaleString()}</td>
                 <td data-label="Entry Price">$${Number(pos.average_price).toLocaleString()}</td>
+                <td class="pos-liq" data-label="Liq. Price" style="color: #f59e0b;">Calculating...</td> <!-- NEW CELL -->
                 <td data-label="Leverage">${pos.leverage}x</td>
                 <td class="pos-pnl" data-label="PnL">Calculating...</td>
                 <td data-label="" style="text-align: right; padding-right: 20px;">
