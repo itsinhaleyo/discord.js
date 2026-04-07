@@ -361,10 +361,11 @@ var Game = {
             }
             else if(name == 'double'){
                 if(Bet*2 <= Cash){
-                    if(250>=Bet*2){
+                    if(1000000>=Bet*2){
                         Bet *= 2;
+                        Game.playSound('chipsHandle');
                     } else {
-                        Bet = 250;
+                        Bet = 1000000;
                     }
                 }
                 else {

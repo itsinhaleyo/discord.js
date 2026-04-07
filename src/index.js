@@ -2420,7 +2420,7 @@ web.post('/claim-daily', checkAuth, async (req, res) => {
     }
 });
 
-web.get('/', async (req, res) => {
+web.get('/', checkAuth, async (req, res) => {
     try {
         const [[{ count: userCount }]] = await db.query('SELECT COUNT(*) as count FROM users');
         const serverCount = client.guilds.cache.size || 0;
@@ -2539,6 +2539,7 @@ web.get('/casino', checkAuth, (req, res) => {
             { name: "BlackJack", symbol: "blackjack", icon: `${process.env.DOMAIN}/games/blackjack/icon-256.png` },
             { name: "High Low", symbol: "hilow", icon: `${process.env.DOMAIN}/games/hilow/icon.png` },
             { name: "Baccarat", symbol: "baccarat", icon: `${process.env.DOMAIN}/games/baccarat/icon-256.png` },
+            { name: "Jungle Scratch", symbol: "junglescratch", icon: `${process.env.DOMAIN}/games/junglescratch/icon.ico`}
         ];
         let html = fs.readFileSync(path.join(__dirname, 'public', 'templates', 'casino.html'), 'utf8');
         const marketButtons = games.map(game => `
@@ -2618,6 +2619,17 @@ web.get('/casino/hilow', checkAuth, (req, res) => {
 web.get('/casino/baccarat', checkAuth, (req, res) => {
     try {
         let html = fs.readFileSync(path.join(__dirname, 'public', 'templates', 'baccarat.html'), 'utf8');
+        html = html.replaceAll('{{userid}}', req.user.userid)
+                   .replaceAll('{{avatarurl}}', getAvatar(req.user.userid, req.user.avatar));
+        res.send(html);
+    } catch (err) {
+        res.status(500).send("Baccarat Error: " + err.message);
+    }
+});
+
+web.get('/casino/junglescratch', checkAuth, (req, res) => {
+    try {
+        let html = fs.readFileSync(path.join(__dirname, 'public', 'templates', 'junglescratch.html'), 'utf8');
         html = html.replaceAll('{{userid}}', req.user.userid)
                    .replaceAll('{{avatarurl}}', getAvatar(req.user.userid, req.user.avatar));
         res.send(html);
@@ -2748,6 +2760,20 @@ web.post('/callback/miniroulette/bet', async (req, res, next) => {
 web.post('/callback/miniroulette/win', async (req, res, next) => {
     const reward = req.body.bet * req.body.win;
     await db.query(`UPDATE users SET balance = balance + ? WHERE userid = ?`, [reward, req.user.userid]);
+    return res.json({ Status: "success" });
+});
+
+web.post('/callback/junglescratch/bet', async (req, res, next) => {
+    const [user] = await db.query("SELECT * FROM users WHERE userid = ?", [req.user.userid]);
+    if (user[0].balance >= req.body.bet) {
+        await db.query(`UPDATE users SET balance = balance - ? WHERE userid = ?`, [req.body.bet, req.user.userid]);
+        return res.json({ Status: "success" });
+    }
+    res.json({ Status: "fail" });
+});
+
+web.post('/callback/junglescratch/win', async (req, res, next) => {
+    await db.query(`UPDATE users SET balance = balance + ? WHERE userid = ?`, [req.body.win, req.user.userid]);
     return res.json({ Status: "success" });
 });
 
@@ -3111,7 +3137,9 @@ web.use(checkAuth, async (req, res, next) => {
 
 web.use((err, req, res, next) => {
     console.error("DEBUG - Server Error:", err.stack);
-    res.status(500).send("Something went wrong on our end!");
+    let html = fs.readFileSync(path.join(__dirname, 'public', 'templates', '404.html'), 'utf8');
+    html = html.replace('{{avatarurl}}', getAvatar(req.user.userid, req.user.avatar));
+    res.send(html);
 });
 
 web.listen(port, () => { 
