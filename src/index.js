@@ -2538,6 +2538,7 @@ web.get('/casino', checkAuth, (req, res) => {
             { name: "Lucky Slots", symbol: "luckyslot", icon: `${process.env.DOMAIN}/games/luckyslot/img/game_title.png` },
             { name: "BlackJack", symbol: "blackjack", icon: `${process.env.DOMAIN}/games/blackjack/icon-256.png` },
             { name: "High Low", symbol: "hilow", icon: `${process.env.DOMAIN}/games/hilow/icon.png` },
+            { name: "Baccarat", symbol: "baccarat", icon: `${process.env.DOMAIN}/games/baccarat/icon-256.png` },
         ];
         let html = fs.readFileSync(path.join(__dirname, 'public', 'casino.html'), 'utf8');
         const marketButtons = games.map(game => `
@@ -2610,7 +2611,18 @@ web.get('/casino/hilow', checkAuth, (req, res) => {
                    .replaceAll('{{avatarurl}}', getAvatar(req.user.userid, req.user.avatar));
         res.send(html);
     } catch (err) {
-        res.status(500).send("Blackjack Error: " + err.message);
+        res.status(500).send("HighLow Error: " + err.message);
+    }
+});
+
+web.get('/casino/baccarat', checkAuth, (req, res) => {
+    try {
+        let html = fs.readFileSync(path.join(__dirname, 'public', 'baccarat.html'), 'utf8');
+        html = html.replaceAll('{{userid}}', req.user.userid)
+                   .replaceAll('{{avatarurl}}', getAvatar(req.user.userid, req.user.avatar));
+        res.send(html);
+    } catch (err) {
+        res.status(500).send("Baccarat Error: " + err.message);
     }
 });
 
@@ -2718,6 +2730,24 @@ web.post('/callback/hilow/win', async (req, res, next) => {
             await db.query(`UPDATE users SET balance = balance + ? WHERE userid = ?`, [req.body.bet, req.user.userid]);
             return res.json({ Status: "success" });
         }
+    }
+    res.json({ Status: "fail" });
+});
+
+web.post('/callback/baccarat/lose', async (req, res, next) => {
+    const [user] = await db.query("SELECT * FROM users WHERE userid = ?", [req.user.userid]);
+    if (user[0].balance >= req.body.bet[0]) {
+        await db.query(`UPDATE users SET balance = balance - ? WHERE userid = ?`, [req.body.bet[0], req.user.userid]);
+        return res.json({ Status: "success" });
+    }
+    res.json({ Status: "fail" });
+});
+
+web.post('/callback/baccarat/win', async (req, res, next) => {
+    const [user] = await db.query("SELECT * FROM users WHERE userid = ?", [req.user.userid]);
+    if (user[0].balance >= req.body.bet[0]) {
+        await db.query(`UPDATE users SET balance = balance + ? WHERE userid = ?`, [req.body.bet[0], req.user.userid]);
+        return res.json({ Status: "success" });
     }
     res.json({ Status: "fail" });
 });
