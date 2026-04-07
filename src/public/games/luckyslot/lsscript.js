@@ -379,18 +379,10 @@ Game.prototype.create=function(){
             X.setText(String(a));
             this.Cash=Math.round(10*this.Cash)/10;
             Y.setText(String(this.Cash));
-            var xhttp = new XMLHttpRequest();
-            xhttp.open("POST", "https://itsinhaleyo.online/callback/playercheck", true);
-            xhttp.setRequestHeader('Content-Type', 'application/json');
-            xhttp.onload = () => {
-                const userdata = JSON.parse(xhttp.responseText);
-                var xhr = new XMLHttpRequest();
-                xhr.open("POST", "https://itsinhaleyo.online/callback/luckyslot", true);
-                xhr.setRequestHeader('Content-Type', 'application/json');
-                xhr.send(JSON.stringify({'nonce':userdata.Data, 'value':a, 'bet':game_config.cur_bet, 'payline':game_config.cur_payline}));
-            };
-            xhttp.send(JSON.stringify({'Game':'SystemCheck'}));
-            
+            var xhr = new XMLHttpRequest();
+            xhr.open("POST", "https://itsinhaleyo.online/callback/luckyslot", true);
+            xhr.setRequestHeader('Content-Type', 'application/json');
+            xhr.send(JSON.stringify({'value':a, 'bet':game_config.cur_bet, 'payline':game_config.cur_payline}));
         }function U(a){
             return a=a.filter(function(a,d,b){
                 return d===b.findIndex(function(d){
@@ -460,17 +452,10 @@ Game.prototype.create=function(){
             else for(a=0;a<game_config.cur_payline;a++)b(a)
         }function Q(a){
             console.log(a);
-            var xhttp = new XMLHttpRequest();
-            xhttp.open("POST", "https://itsinhaleyo.online/callback/playercheck", true);
-            xhttp.setRequestHeader('Content-Type', 'application/json');
-            xhttp.onload = () => {
-                const userdata = JSON.parse(xhttp.responseText);
-                var xhr = new XMLHttpRequest();
-                xhr.open("POST", "https://itsinhaleyo.online/callback/luckyslot/bw", true);
-                xhr.setRequestHeader('Content-Type', 'application/json');
-                xhr.send(JSON.stringify({'nonce':userdata.Data, 'value':this.Cash}));
-            };
-            xhttp.send(JSON.stringify({'Game':'SystemCheck'}));
+            var xhr = new XMLHttpRequest();
+            xhr.open("POST", "https://itsinhaleyo.online/callback/luckyslot/bw", true);
+            xhr.setRequestHeader('Content-Type', 'application/json');
+            xhr.send(JSON.stringify({'value':this.Cash}));
             play_sound("Slot Machine Mega Win",d);
             q="win";
             var b=d.add.group(),

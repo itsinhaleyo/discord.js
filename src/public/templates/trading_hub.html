@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Trade Crypto</title>
+    <link rel='shortcut icon' type='image/x-icon' href='/images/favicon.ico'>
+    <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16.png">
+    <link rel="manifest" href="/site.webmanifest">
+    <link rel="stylesheet" href="https://itsinhaleyo.online/css/header.css">
+    <link rel="stylesheet" href="https://itsinhaleyo.online/css/trading_hub.css">
+</head>
+<body>
+    <header class="main-header">
+        <div class="nav-container">
+            <a href="/" class="logo">
+                <img src="https://cdn.discordapp.com/avatars/1479879290270126263/baa2dc5e6d19d064dba7d62c5a6b0a4f.png" class="nav-logo">
+                Jew
+            </a>
+            <nav class="nav-links">
+                <div class = "casino">
+                    <a href="/casino">Casino</a>
+                </div>
+                <div class="dropdown">
+                    <button class="dropbtn">Crypto ▾</button>
+                    <div class="dropdown-content">
+                        <a href="/portfolio">💰 Portfolio</a>
+                        <a href="/trading">📈 Trade Assets</a>
+                    </div>
+                </div>
+                <div class="dropdown">
+                    <button class="dropbtn">Leaderboards ▾</button>
+                    <div class="dropdown-content">
+                        <a href="/leaderboard/money">💰 Money</a>
+                        <a href="/leaderboard/rank">⭐ Rank</a>
+                    </div>
+                </div>
+                <a href="/profile">
+                    <img src="{{avatarurl}}" class="nav-user-avatar">
+                </a>
+            </nav>
+        </div>
+    </header>
+    <div class="container">
+        <div class="market-card history-link" onclick="window.location.href='/trade/history'">
+            <div class="market-info">
+                <h3>View Trade History</h3>
+                <p>See your past trades and performance.</p>
+            </div>
+            <div class="market-arrow">➔</div>
+        </div>
+        <h2 style="text-align: left; font-size: 1rem; color: var(--text-muted); margin-bottom: 15px; text-transform: uppercase; letter-spacing: 1px;">
+            Available Markets
+        </h2>
+        <div class="market-grid">
+            {{marketButtons}}
+        </div>
+    </div>
+</body>

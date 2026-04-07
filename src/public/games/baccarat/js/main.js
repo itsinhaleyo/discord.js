@@ -93,6 +93,7 @@ function Game(){
 			{src:"img/btn-menu.png", id: "btnMenu"},
 			{src:"img/btn-about.png", id: "btnAbout"},
 			{src:"img/btn-home.png", id: "btnHome"},
+			{src:"img/btn-double.png", id: "btnDouble"},
 			{src:"img/btn-fullscreen.png", id: "btnFullscreen"},
 			{src:"img/btn-sound.png", id: "btnSound"},
 			{src:"img/btn-play.png", id: "btn_play"},
@@ -511,6 +512,12 @@ function Game(){
 		btnAbout.regY = btnAbout.getBounds().height/2;
 		btnAbout.name = "about";
 
+		var btnDouble = new createjs.Bitmap(this.img('btnDouble'));
+		btnDouble.setTransform(148, 500);
+		btnDouble.regX = btnDouble.getBounds().width/2;
+		btnDouble.regY = btnDouble.getBounds().height/2;
+		btnDouble.name = 'btn_double';
+
 		var btnFullscreen = new createjs.Bitmap(this.img("btnFullscreen"));
 		btnFullscreen.setTransform(1216, 60);
 		btnFullscreen.regX = btnFullscreen.getBounds().width/2;
@@ -518,7 +525,7 @@ function Game(){
 		btnFullscreen.name = "fullscreen";
 
 		var btnHome = new createjs.Bitmap(this.img('btnHome'));
-		btnHome.setTransform(970,60);
+		btnHome.setTransform(970, 60);
 		btnHome.regX = btnHome.getBounds().width/2;
 		btnHome.regY = btnHome.getBounds().height/2;
 		btnHome.name = 'btn_home';
@@ -532,7 +539,7 @@ function Game(){
 			this.btn_gui.addChild(btnAbout);
 		}
 
-		this.btn_gui.addChild(btnSound,btnFullscreen,btnHome);
+		this.btn_gui.addChild(btnSound,btnFullscreen,btnHome,btnDouble);
 		this.btn_gui.on("click", this.btn_tween.bind(this));
 
 		var about_c = stage.addChild(new createjs.Container());
@@ -771,8 +778,13 @@ function Game(){
 		//100
 		else if (e == 3){
 			result = 100;
+		}	else { 
+			result = e;
 		}
-
+		const amount = this.bet + result;
+		if (amount >= 1000000) {
+			result = 1000000;
+		}
 		this.bet += result;
 
 		this.update_bet();
@@ -843,8 +855,7 @@ function Game(){
 			this.bet_bar.removeAllChildren();
 			this.txt_history.removeAllChildren();
 			this.to_menu();
-		}
-		else if(name == "sound"){
+		} else if(name == "sound"){
 			//Set sound
 			if(this.sound_enable == true){
 				this.sound_enable = false;
@@ -853,6 +864,12 @@ function Game(){
 			else {
 				this.sound_enable = true;
 				e.target.alpha = 1;
+			}
+		} else if (name =='btn_double') {
+			if (this.bet_value[0] === 0) {}
+			else {
+				this.set_bet(this.bet_value[0]);
+				this.spawn_chips(this.bet_value[0]);
 			}
 		} else if (name == "btn_home") {
             window.location.href = "https://itsinhaleyo.online/casino";

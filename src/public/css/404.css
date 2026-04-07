@@ -1,0 +1,66 @@
+body {
+    font-family: 'Segoe UI', sans-serif;
+    background: radial-gradient(circle at top right, #1e293b, var(--bg-dark));
+    color: var(--text-main);
+    margin: 0;
+}
+.error-container {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    min-height: calc(100vh - 70px); 
+    padding-top: 70px;
+    text-align: center;
+    box-sizing: border-box;
+}
+.error-wrapper {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    min-height: calc(100vh - 70px);
+    text-align: center;
+    padding-top: 70px;
+}
+.error-code {
+    font-size: 8rem;
+    font-weight: 900;
+    margin: 0;
+    background: linear-gradient(to bottom, #fff, var(--discord-blue));
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    line-height: 1;
+}
+h2 { font-size: 1.5rem; margin: 10px 0 30px; color: #94a3b8; }
+.btn-home {
+    background: var(--discord-blue);
+    color: white;
+    text-decoration: none;
+    padding: 12px 24px;
+    border-radius: 12px;
+    font-weight: bold;
+    transition: transform 0.2s;
+}
+.btn-home:hover {
+    transform: scale(1.05);
+    box-shadow: 0 0 20px rgba(88, 101, 242, 0.4);
+}
+.status-badge {
+    font-size: 0.8rem;
+    color: #10b981;
+    background: rgba(16, 185, 129, 0.1);
+    padding: 4px 12px;
+    border-radius: 20px;
+    display: inline-block;
+    margin-bottom: 2rem;
+}
+.main-content-wrapper {
+    flex: 1; 
+}
+footer {
+    padding: 2rem 0;
+    text-align: center;
+    width: 100%;
+}

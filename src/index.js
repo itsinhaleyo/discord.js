@@ -2424,7 +2424,7 @@ web.get('/', async (req, res) => {
     try {
         const [[{ count: userCount }]] = await db.query('SELECT COUNT(*) as count FROM users');
         const serverCount = client.guilds.cache.size || 0;
-        let html = fs.readFileSync(path.join(__dirname, 'public', 'home.html'), 'utf8');
+        let html = fs.readFileSync(path.join(__dirname, 'public', 'templates', 'home.html'), 'utf8');
         if (req.isAuthenticated()) {
             const user = req.user;
             const currentDate = new Date().toDateString();
@@ -2458,7 +2458,7 @@ web.get('/', async (req, res) => {
 web.get('/profile', checkAuth, async (req, res) => {
     try {
         const user = req.user;
-        let html = fs.readFileSync(path.join(__dirname, 'public', 'profile.html'), 'utf8');
+        let html = fs.readFileSync(path.join(__dirname, 'public', 'templates', 'profile.html'), 'utf8');
         html = html.replace('User', user.username || 'Member')
                    .replace('{{balance}}', user.balance.toLocaleString())
                    .replace('{{level}}', user.level)
@@ -2517,7 +2517,7 @@ web.get('/portfolio', checkAuth, async (req, res) => {
                 </tr>
             `;
         }).join('');
-        let html = fs.readFileSync(path.join(__dirname, 'public', 'portfolio.html'), 'utf8');
+        let html = fs.readFileSync(path.join(__dirname, 'public', 'templates', 'portfolio.html'), 'utf8');
         html = html.replace('{{rows}}', tableRows || '<tr><td colspan="3">No holdings found</td></tr>')
                    .replace('{{cash}}', Number(user.balance).toLocaleString())
                    .replace('{{assetValue}}', Math.round(totalValue).toLocaleString())
@@ -2540,7 +2540,7 @@ web.get('/casino', checkAuth, (req, res) => {
             { name: "High Low", symbol: "hilow", icon: `${process.env.DOMAIN}/games/hilow/icon.png` },
             { name: "Baccarat", symbol: "baccarat", icon: `${process.env.DOMAIN}/games/baccarat/icon-256.png` },
         ];
-        let html = fs.readFileSync(path.join(__dirname, 'public', 'casino.html'), 'utf8');
+        let html = fs.readFileSync(path.join(__dirname, 'public', 'templates', 'casino.html'), 'utf8');
         const marketButtons = games.map(game => `
             <div class="market-card" onclick="location.href='/casino/${game.symbol.toLowerCase()}'">
                 <div class="market-icon">
@@ -2562,7 +2562,7 @@ web.get('/casino', checkAuth, (req, res) => {
 
 web.get('/casino/plinko', checkAuth, (req, res) => {
     try {
-        let html = fs.readFileSync(path.join(__dirname, 'public', 'plinko.html'), 'utf8');
+        let html = fs.readFileSync(path.join(__dirname, 'public', 'templates', 'plinko.html'), 'utf8');
         html = html.replaceAll('{{userid}}', req.user.userid)
                    .replaceAll('{{avatarurl}}', getAvatar(req.user.userid, req.user.avatar));
         res.send(html);
@@ -2573,7 +2573,7 @@ web.get('/casino/plinko', checkAuth, (req, res) => {
 
 web.get('/casino/miniroulette', checkAuth, (req, res) => {
     try {
-        let html = fs.readFileSync(path.join(__dirname, 'public', 'miniroulette.html'), 'utf8');
+        let html = fs.readFileSync(path.join(__dirname, 'public', 'templates', 'miniroulette.html'), 'utf8');
         html = html.replaceAll('{{userid}}', req.user.userid)
                    .replaceAll('{{avatarurl}}', getAvatar(req.user.userid, req.user.avatar));
         res.send(html);
@@ -2584,7 +2584,7 @@ web.get('/casino/miniroulette', checkAuth, (req, res) => {
 
 web.get('/casino/luckyslot', checkAuth, (req, res) => {
     try {
-        let html = fs.readFileSync(path.join(__dirname, 'public', 'luckyslot.html'), 'utf8');
+        let html = fs.readFileSync(path.join(__dirname, 'public', 'templates', 'luckyslot.html'), 'utf8');
         html = html.replaceAll('{{userid}}', req.user.userid)
                    .replaceAll('{{avatarurl}}', getAvatar(req.user.userid, req.user.avatar));
         res.send(html);
@@ -2595,7 +2595,7 @@ web.get('/casino/luckyslot', checkAuth, (req, res) => {
 
 web.get('/casino/blackjack', checkAuth, (req, res) => {
     try {
-        let html = fs.readFileSync(path.join(__dirname, 'public', 'blackjack.html'), 'utf8');
+        let html = fs.readFileSync(path.join(__dirname, 'public', 'templates', 'blackjack.html'), 'utf8');
         html = html.replaceAll('{{userid}}', req.user.userid)
                    .replaceAll('{{avatarurl}}', getAvatar(req.user.userid, req.user.avatar));
         res.send(html);
@@ -2606,7 +2606,7 @@ web.get('/casino/blackjack', checkAuth, (req, res) => {
 
 web.get('/casino/hilow', checkAuth, (req, res) => {
     try {
-        let html = fs.readFileSync(path.join(__dirname, 'public', 'hilow.html'), 'utf8');
+        let html = fs.readFileSync(path.join(__dirname, 'public', 'templates', 'hilow.html'), 'utf8');
         html = html.replaceAll('{{userid}}', req.user.userid)
                    .replaceAll('{{avatarurl}}', getAvatar(req.user.userid, req.user.avatar));
         res.send(html);
@@ -2617,7 +2617,7 @@ web.get('/casino/hilow', checkAuth, (req, res) => {
 
 web.get('/casino/baccarat', checkAuth, (req, res) => {
     try {
-        let html = fs.readFileSync(path.join(__dirname, 'public', 'baccarat.html'), 'utf8');
+        let html = fs.readFileSync(path.join(__dirname, 'public', 'templates', 'baccarat.html'), 'utf8');
         html = html.replaceAll('{{userid}}', req.user.userid)
                    .replaceAll('{{avatarurl}}', getAvatar(req.user.userid, req.user.avatar));
         res.send(html);
@@ -2631,17 +2631,7 @@ web.post('/callback/gameinit', checkAuth, async (req, res, next) => {
     res.json({ Balance: user.balance });
 });
 
-web.post('/callback/playercheck', async (req, res, next) => {
-    const user = await db.query(`SELECT * FROM playercheck WHERE userid = ?`, [req.body.userid]);
-    const nonce = await getnonce();
-    if (!user) { await db.query(`INSERT INTO playercheck (userid, nonce) VALUES (?, ?)`, [req.body.userid, nonce]); }
-    await db.query(`UPDATE playercheck SET nonce = ? WHERE userid = ?`, [nonce, req.body.userid]);
-    res.json({ Data: nonce });
-});
-
 web.post('/callback/luckyslot', async (req, res, next) => {
-    //const nonce = await db.query('SELECT * FROM playercheck WHERE userid = ?', [req.user.userid]);
-    //if (req.body.nonce !== nonce.nonce) { return res.status(400).json({ message: "Invalid nonce" }); }
     const [status] = await db.query(`SELECT * FROM gamestatus WHERE userid = ?`, [req.user.userid]);
     if (!status[0]) { await db.query(`INSERT INTO gamestatus (userid) VALUES (?)`, [req.user.userid])}
     if (status[0].luckyslot === 1) {
@@ -2664,24 +2654,18 @@ web.post('/callback/luckyslot', async (req, res, next) => {
 });
 
 web.post('/callback/luckyslot/bw', async (req, res, next) => {
-    //const nonce = await db.query('SELECT * FROM playercheck WHERE userid = ?', [req.user.userid]);
-    //if (req.body.nonce !== nonce.nonce) { return res.status(400).json({ message: "Invalid nonce" }); }
     db.query(`UPDATE users SET balance = ? WHERE userid = ?`, [req.body.value, req.user.userid]);
     db.query(`UPDATE gamestatus SET luckyslot = ? WHERE userid = ?`, [1, req.user.userid]);
     res.json({ Status: "success" });
 });
 
 web.post('/callback/plinko/win', async (req, res, next) => {
-    //const nonce = await db.query('SELECT * FROM playercheck WHERE userid = ?', [req.user.userid]);
-    //if (req.body.nonce !== nonce.nonce) { return res.status(400).json({ message: "Invalid nonce" }); }
     const reward = req.body.win - req.body.bet;
     db.query(`UPDATE users SET balance = balance + ? WHERE userid = ?`, [reward, req.user.userid]);
     res.json({ Status: "success" });
 });
 
 web.post('/callback/plinko/lose', async (req, res, next) => {
-    //const nonce = await db.query('SELECT * FROM playercheck WHERE userid = ?', [req.user.userid]);
-    //if (req.body.nonce !== nonce.nonce) { return res.status(400).json({ message: "Invalid nonce" }); }
     db.query(`UPDATE users SET balance = balance - ? WHERE userid = ?`, [req.body.bet, req.user.userid]);
     res.json({ Status: "success" });
 });
@@ -2753,8 +2737,6 @@ web.post('/callback/baccarat/win', async (req, res, next) => {
 });
 
 web.post('/callback/miniroulette/bet', async (req, res, next) => {
-    const nonce = await db.query('SELECT * FROM playercheck WHERE userid = ?', [req.user.userid]);
-    if (req.body.nonce !== nonce.nonce) { return res.status(400).json({ message: "Invalid nonce" }); }
     const [user] = await db.query("SELECT * FROM users WHERE userid = ?", [req.user.userid]);
     if (user[0].balance >= req.body.bet) {
         await db.query(`UPDATE users SET balance = balance - ? WHERE userid = ?`, [req.body.bet, req.user.userid]);
@@ -2764,8 +2746,6 @@ web.post('/callback/miniroulette/bet', async (req, res, next) => {
 });
 
 web.post('/callback/miniroulette/win', async (req, res, next) => {
-    const nonce = await db.query('SELECT * FROM playercheck WHERE userid = ?', [req.user.userid]);
-    if (req.body.nonce !== nonce.nonce) { return res.status(400).json({ message: "Invalid nonce" }); }
     const reward = req.body.bet * req.body.win;
     await db.query(`UPDATE users SET balance = balance + ? WHERE userid = ?`, [reward, req.user.userid]);
     return res.json({ Status: "success" });
@@ -2790,7 +2770,7 @@ web.get('/trading', checkAuth, (req, res) => {
             { name: "Aave", symbol: "aave", icon: `${process.env.DOMAIN}/images/aaveicon.png` },
             { name: "Monero", symbol: "xmr", icon: `${process.env.DOMAIN}/images/xmricon.png` },
         ];
-        let html = fs.readFileSync(path.join(__dirname, 'public', 'trading_hub.html'), 'utf8');
+        let html = fs.readFileSync(path.join(__dirname, 'public', 'templates', 'trading_hub.html'), 'utf8');
         const marketButtons = markets.map(coin => `
             <div class="market-card" onclick="location.href='/trading/${coin.symbol.toLowerCase()}'">
                 <div class="market-icon">
@@ -2891,7 +2871,7 @@ web.get('/trading/:symbol', checkAuth, async (req, res) => {
                     </td>
                 </tr>`;
         }).join('');
-        let html = fs.readFileSync(path.join(__dirname, 'public', 'trading.html'), 'utf8');
+        let html = fs.readFileSync(path.join(__dirname, 'public', 'templates', 'trading.html'), 'utf8');
         html = html.replace('{{positionRows}}', positionRows || '<tr><td colspan="6" style="text-align:center; padding:20px;">No open positions</td></tr>')
                    .replaceAll('{{balance}}', user.balance.toLocaleString())
                    .replaceAll('{{ownedshares}}', userShares.toLocaleString())
@@ -3066,7 +3046,7 @@ web.get('/trade/history', checkAuth, async (req, res) => {
                 </tr>
             `;
         }).join('');
-        let html = fs.readFileSync(path.join(__dirname, 'public', 'tradehistory.html'), 'utf8');
+        let html = fs.readFileSync(path.join(__dirname, 'public', 'templates', 'tradehistory.html'), 'utf8');
         html = html.replace('{{performanceSummary}}', summaryHtml)
                    .replace('{{symbolOptions}}', symbolOptions)
                    .replace('{{logRows}}', logRows || '<tr><td colspan="7" style="text-align:center; padding:20px;">No trade history found.</td></tr>')
@@ -3118,11 +3098,15 @@ web.get('/auth/discord/callback', (req, res, next) => {
 });
 
 web.get('/login', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'login.html'));
+    res.sendFile(path.join(__dirname, 'public', 'templates', 'login.html'));
 });
 
-web.use((req, res, next) => {
-    res.status(404).sendFile(path.join(__dirname, 'public', '404.html'));
+web.use(checkAuth, async (req, res, next) => {
+    if(res.status(400)) {
+        let html = fs.readFileSync(path.join(__dirname, 'public', 'templates', '404.html'), 'utf8');
+        html = html.replace('{{avatarurl}}', getAvatar(req.user.userid, req.user.avatar));
+        res.send(html);
+    }
 });
 
 web.use((err, req, res, next) => {
@@ -3135,7 +3119,7 @@ web.listen(port, () => {
 );
 
 function renderLeaderboard(res, rows, title, userdata) {
-    let html = fs.readFileSync(path.join(__dirname, 'public', 'leaderboard.html'), 'utf8');
+    let html = fs.readFileSync(path.join(__dirname, 'public', 'templates', 'leaderboard.html'), 'utf8');
     let tableRows = rows.map((user, index) => {
         const rank = index + 1;
         let medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : rank;

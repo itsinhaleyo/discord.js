@@ -10,26 +10,8 @@
     <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16.png">
     <link rel="manifest" href="/site.webmanifest">
     <link rel="stylesheet" href="https://itsinhaleyo.online/css/header.css">
-    <style>
-        :root { --bg-dark: #0f172a; --card-bg: rgba(30, 41, 59, 0.7); --text-main: #f8fafc; --text-muted: #94a3b8; }
-        body { font-family: 'Segoe UI', sans-serif; background: radial-gradient(circle at top right, #1e293b, var(--bg-dark)); color: var(--text-main); margin: 0; padding-top: 100px; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
-        .container { width: 95%; max-width: 1200px; margin: 0 auto; }
-        h1 { margin-bottom: 30px; font-weight: 700; }
-        .history-card { background: var(--card-bg); backdrop-filter: blur(12px); border-radius: 18px; border: 1px solid rgba(255, 255, 255, 0.1); overflow: hidden; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3); }
-        table { width: 100%; border-collapse: collapse; text-align: left; font-size: 0.9rem; }
-        th { padding: 15px 20px; background: rgba(0,0,0,0.2); color: var(--text-muted); font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; font-size: 0.75rem; }
-        td { padding: 15px 20px; border-bottom: 1px solid rgba(255, 255, 255, 0.05); }
-        tr:hover { background: rgba(255, 255, 255, 0.02); }
-        .filter-group { margin-bottom: 25px; display: flex; align-items: center; gap: 12px; }
-        .filter-group label { color: var(--text-muted); font-size: 0.85rem; font-weight: 500; }
-        .asset-select { background: rgba(30, 41, 59, 0.8); color: #f8fafc; border: 1px solid rgba(255, 255, 255, 0.1); padding: 10px 16px; border-radius: 10px; font-size: 0.9rem; outline: none; cursor: pointer; min-width: 140px; transition: all 0.2s ease; appearance: none; -webkit-appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://w3.org' fill='none' viewBox='0 0 24 24' stroke='%2394a3b8'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; background-size: 16px; padding-right: 40px; }
-        .asset-select:hover { border-color: #5865F2; background: rgba(45, 55, 72, 0.9); }
-        .asset-select:focus { border-color: #5865F2; box-shadow: 0 0 0 2px rgba(88, 101, 242, 0.2); }
-        .asset-select option { background-color: #1e293b; color: white; padding: 12px; }
-        .total-cell { display: flex; flex-direction: column; gap: 2px; }
-        .pnl-subtext { font-size: 0.7rem; font-weight: 600; }
-        @media (max-width: 768px) { th:nth-child(1), td:nth-child(1), th:nth-child(4), td:nth-child(4) { display: none; } }
-    </style>
+    <link rel="stylesheet" href="https://itsinhaleyo.online/css/tradehistory.css">
+    <script src="https://itsinhaleyo.online/script/tradehistory.js" defer></script>
 </head>
 <body>
     <header class="main-header">
@@ -91,18 +73,5 @@
             </table>
         </div>
     </div>
-<script>
-    function filterHistory() {
-        const selected = document.getElementById('assetFilter').value;
-        const rows = document.querySelectorAll('.log-row');
-        rows.forEach(row => {
-            if (selected === 'ALL' || row.dataset.symbol === selected) {
-                row.style.display = '';
-            } else {
-                row.style.display = 'none';
-            }
-        });
-    }
-</script>
 </body>
 </html>

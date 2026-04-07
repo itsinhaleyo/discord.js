@@ -48,11 +48,6 @@ CREATE TABLE portfolios (
     PRIMARY KEY (userid, symbol)
 );
 
-CREATE TABLE playercheck (
-    userid VARCHAR(100) NOT NULL PRIMARY KEY,
-    nonce BIGINT NOT NULL
-);
-
 CREATE TABLE stock_logs (
     id INT AUTO_INCREMENT PRIMARY KEY,
     userid VARCHAR(255) NOT NULL,

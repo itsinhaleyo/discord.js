@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profile</title>
+    <link rel='shortcut icon' type='image/x-icon' href='/images/favicon.ico'>
+    <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16.png">
+    <link rel="manifest" href="/site.webmanifest">
+    <link rel="stylesheet" href="https://itsinhaleyo.online/css/header.css">
+    <link rel="stylesheet" href="https://itsinhaleyo.online/css/profile.css">
+</head>
+<body>
+    <header class="main-header">
+        <div class="nav-container">
+            <a href="/" class="logo">
+                <img src="https://cdn.discordapp.com/avatars/1479879290270126263/baa2dc5e6d19d064dba7d62c5a6b0a4f.png" class="nav-logo">
+                Jew
+            </a>
+            <nav class="nav-links">
+                <div class = "casino">
+                    <a href="/casino">Casino</a>
+                </div>
+                <div class="dropdown">
+                    <button class="dropbtn">Crypto ▾</button>
+                    <div class="dropdown-content">
+                        <a href="/portfolio">💰 Portfolio</a>
+                        <a href="/trading">📈 Trade Assets</a>
+                    </div>
+                </div>
+                <div class="dropdown">
+                    <button class="dropbtn">Leaderboards ▾</button>
+                    <div class="dropdown-content">
+                        <a href="/leaderboard/money">💰 Money</a>
+                        <a href="/leaderboard/rank">⭐ Rank</a>
+                    </div>
+                </div>
+                <a href="/profile">
+                    <img src="{{avatarurl}}" class="nav-user-avatar">
+                </a>
+            </nav>
+        </div>
+    </header>
+    <div class="container">
+        <img src="{{avatarurl}}" class="avatar">
+        <h1>Welcome, User</h1>
+        <div class="status-badge">● Secure via Cloudflare</div>
+        <div id="discord-section">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-label">Balance</div>
+                    <div class="stat-value">💰 {{balance}}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Level</div>
+                    <div class="stat-value">⭐ {{level}}</div>
+                </div>
+            </div>
+        </div>
+        <div class="logout-section" style="margin-top: 2rem; padding-top: 2rem; border-top: 1px solid rgba(255,255,255,0.05);">
+            <form action="/logout" method="POST">
+                <button type="submit" class="btn-logout-special">
+                    <span class="icon">🚀</span> Sign Out of Session
+                </button>
+            </form>
+            <p style="color: var(--text-muted); font-size: 0.8rem; margin-top: 1rem;">
+                Securely ends your session on this device.
+            </p>
+        </div>
+    </div>
+</body>
+</html>

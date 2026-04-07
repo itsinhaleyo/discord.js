@@ -1,0 +1,52 @@
+body {
+    font-family: 'Segoe UI', sans-serif;
+    background: radial-gradient(circle at top right, #1e293b, var(--bg-dark));
+    color: var(--text-main);
+    margin: 0;
+    padding-top: 80px;
+}
+.cta-btn {
+    display: inline-block;
+    background: var(--discord-blue);
+    color: white;
+    text-decoration: none;
+    padding: 16px 32px;
+    border-radius: 12px;
+    font-weight: bold;
+    font-size: 1.1rem;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+.cta-btn:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 10px 20px rgba(88, 101, 242, 0.4);
+}
+.bot-stats {
+    text-align: center;
+    padding: 50px 20px;
+    background: rgba(0,0,0,0.2);
+}
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+    margin: 2rem auto;
+    max-width: 500px;
+    width: 100%;
+}
+.stat-card {
+    background: rgba(15, 23, 42, 0.5);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    padding: 1.25rem;
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    text-align: center;
+}
+.stat-card.full-width {
+    grid-column: span 2;
+    padding: 1rem 2rem;
+}
+.stat-value {
+    font-size: 1.2rem;
+    font-weight: 700;
+}

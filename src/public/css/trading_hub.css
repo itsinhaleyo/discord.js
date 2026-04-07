@@ -1,0 +1,76 @@
+body { 
+    font-family: 'Segoe UI', sans-serif; 
+    background: radial-gradient(circle at top right, #1e293b, var(--bg-dark)); 
+    color: var(--text-main); 
+    margin: 0; 
+    padding-top: 120px; 
+    display: flex; 
+    flex-direction: column; 
+    align-items: center; 
+    min-height: 100vh; 
+}
+.container { 
+    width: 90%; 
+    max-width: 900px; 
+    text-align: center; 
+}
+h1 { margin-bottom: 10px; }
+.subtitle { color: var(--text-muted); margin-bottom: 40px; }
+.market-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 20px;
+    width: 100%;
+}
+.market-card {
+    background: var(--card-bg);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 1.5rem;
+    border-radius: 24px;
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    text-align: left;
+}
+.market-card:hover {
+    transform: translateY(-5px);
+    background: rgba(88, 101, 242, 0.1);
+    border-color: var(--discord-blue);
+    box-shadow: 0 20px 40px -12px rgba(0, 0, 0, 0.5);
+}
+.market-icon {
+    background: rgba(15, 23, 42, 0.5);
+    width: 54px;
+    height: 54px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 16px;
+    margin-right: 15px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    overflow: hidden;
+}
+.market-icon img {
+    width: 32px;
+    height: 32px;
+    filter: drop-shadow(0 0 5px rgba(0,0,0,0.5));
+}
+.market-info h3 { margin: 0; font-size: 1.1rem; color: #fff; }
+.market-info p { margin: 4px 0 0; font-size: 0.8rem; color: var(--text-muted); }
+.market-arrow {
+    margin-left: auto;
+    color: var(--text-muted);
+    font-size: 1.2rem;
+    transition: transform 0.3s;
+}
+.market-card:hover .market-arrow {
+    color: var(--discord-blue);
+    transform: translateX(5px);
+}
+.history-link {
+    margin-bottom: 30px;
+    width: 100%;
+    box-sizing: border-box;
+}

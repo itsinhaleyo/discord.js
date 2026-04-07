@@ -1,3 +1,13 @@
+:root {
+    --discord-blue: #5865F2;
+    --bg-dark: #0f172a;
+    --text-main: #f8fafc;
+    --text-muted: #94a3b8;
+    --card-bg: rgba(30, 41, 59, 0.7);
+    --discord-blue: #5865F2;
+    --up-green: #10b981;
+    --down-red: #ef4444;
+}
 .main-header {
     position: fixed;
     top: 0;

@@ -17,62 +17,34 @@ const scriptsInEvents = {
 
 	async EventSheet1_Event9_Act3(runtime, localVars)
 	{
-		var xhttp = new XMLHttpRequest();
-		xhttp.open("POST", "https://itsinhaleyo.online/callback/playercheck", true);
-		xhttp.setRequestHeader('Content-Type', 'application/json');
-		xhttp.onload = () => {
-			const userdata = JSON.parse(xhttp.responseText);
-			var xhr = new XMLHttpRequest();
-			xhr.open("POST", "https://itsinhaleyo.online/callback/miniroulette/bet", true);
-			xhr.setRequestHeader('Content-Type', 'application/json');
-			xhr.send(JSON.stringify({'nonce':userdata.data, 'bet':runtime.globalVars.Bet_amount}));
-		};
-		xhttp.send(JSON.stringify({'Game':'SystemCheck'}));
+		var xhr = new XMLHttpRequest();
+		xhr.open("POST", "https://itsinhaleyo.online/callback/miniroulette/bet", true);
+		xhr.setRequestHeader('Content-Type', 'application/json');
+		xhr.send(JSON.stringify({'bet':runtime.globalVars.Bet_amount}));
 	},
 
 	async EventSheet1_Event11_Act3(runtime, localVars)
 	{
-		var xhttp = new XMLHttpRequest();
-		xhttp.open("POST", "https://itsinhaleyo.online/callback/playercheck", true);
-		xhttp.setRequestHeader('Content-Type', 'application/json');
-		xhttp.onload = () => {
-			const userdata = JSON.parse(xhttp.responseText);
-			var xhr = new XMLHttpRequest();
-			xhr.open("POST", "https://itsinhaleyo.online/callback/miniroulette/win", true);
-			xhr.setRequestHeader('Content-Type', 'application/json');
-			xhr.send(JSON.stringify({'nonce':userdata.data, 'win':13, 'bet':runtime.globalVars.Bet_amount}));
-		};
-		xhttp.send(JSON.stringify({'Game':'SystemCheck'}));
+		var xhr = new XMLHttpRequest();
+		xhr.open("POST", "https://itsinhaleyo.online/callback/miniroulette/win", true);
+		xhr.setRequestHeader('Content-Type', 'application/json');
+		xhr.send(JSON.stringify({'win':13, 'bet':runtime.globalVars.Bet_amount}));
 	},
 
 	async EventSheet1_Event14_Act3(runtime, localVars)
 	{
-		var xhttp = new XMLHttpRequest();
-		xhttp.open("POST", "https://itsinhaleyo.online/callback/playercheck", true);
-		xhttp.setRequestHeader('Content-Type', 'application/json');
-		xhttp.onload = () => {
-			const userdata = JSON.parse(xhttp.responseText);
-			var xhr = new XMLHttpRequest();
-			xhr.open("POST", "https://itsinhaleyo.online/callback/miniroulette/win", true);
-			xhr.setRequestHeader('Content-Type', 'application/json');
-			xhr.send(JSON.stringify({'nonce':userdata.data, 'win':2, 'bet':runtime.globalVars.Bet_amount}));
-		};
-		xhttp.send(JSON.stringify({'Game':'SystemCheck'}));
+		var xhr = new XMLHttpRequest();
+		xhr.open("POST", "https://itsinhaleyo.online/callback/miniroulette/win", true);
+		xhr.setRequestHeader('Content-Type', 'application/json');
+		xhr.send(JSON.stringify({'win':2, 'bet':runtime.globalVars.Bet_amount}));
 	},
 
 	async EventSheet1_Event16_Act3(runtime, localVars)
 	{
-		var xhttp = new XMLHttpRequest();
-		xhttp.open("POST", "https://itsinhaleyo.online/callback/playercheck", true);
-		xhttp.setRequestHeader('Content-Type', 'application/json');
-		xhttp.onload = () => {
-			const userdata = JSON.parse(xhttp.responseText);
-			var xhr = new XMLHttpRequest();
-			xhr.open("POST", "https://itsinhaleyo.online/callback/miniroulette/win", true);
-			xhr.setRequestHeader('Content-Type', 'application/json');
-			xhr.send(JSON.stringify({'nonce':userdata.data, 'win':2, 'bet':runtime.globalVars.Bet_amount}));
-		};
-		xhttp.send(JSON.stringify({'Game':'SystemCheck'}));
+		var xhr = new XMLHttpRequest();
+		xhr.open("POST", "https://itsinhaleyo.online/callback/miniroulette/win", true);
+		xhr.setRequestHeader('Content-Type', 'application/json');
+		xhr.send(JSON.stringify({'win':2, 'bet':runtime.globalVars.Bet_amount}));
 	},
 
 	async EventSheet1_Event110_Act1(runtime, localVars)
