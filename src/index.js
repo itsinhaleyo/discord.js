@@ -2536,7 +2536,7 @@ web.get('/casino', checkAuth, (req, res) => {
             { name: "Plinko", symbol: "plinko", icon: `${process.env.DOMAIN}/games/plinko/favicon.ico` },
             { name: "Mini Roulette", symbol: "miniroulette", icon: `${process.env.DOMAIN}/images/miniroulette.png`},
             { name: "Lucky Slots", symbol: "luckyslot", icon: `${process.env.DOMAIN}/games/luckyslot/img/game_title.png` },
-            { name: "Super Plinko Coming Soon", symbol: "superplinko", icon: `${process.env.DOMAIN}/games/superplinko/icon.ico` },
+            { name: "BlackJack", symbol: "blackjack", icon: `${process.env.DOMAIN}/games/blackjack/icon-256.png` },
         ];
         let html = fs.readFileSync(path.join(__dirname, 'public', 'casino.html'), 'utf8');
         const marketButtons = games.map(game => `
@@ -2569,17 +2569,6 @@ web.get('/casino/plinko', checkAuth, (req, res) => {
     }
 });
 
-web.get('/casino/superplinko', checkAuth, (req, res) => {
-    try {
-        let html = fs.readFileSync(path.join(__dirname, 'public', 'games', 'superplinko', 'index.html'), 'utf8');
-        html = html.replaceAll('{{userid}}', req.user.userid)
-                   .replaceAll('{{avatarurl}}', getAvatar(req.user.userid, req.user.avatar));
-        res.send(html);
-    } catch (err) {
-        res.status(500).send("Super Plinko Error: " + err.message);
-    }
-});
-
 web.get('/casino/miniroulette', checkAuth, (req, res) => {
     try {
         let html = fs.readFileSync(path.join(__dirname, 'public', 'miniroulette.html'), 'utf8');
@@ -2599,6 +2588,17 @@ web.get('/casino/luckyslot', checkAuth, (req, res) => {
         res.send(html);
     } catch (err) {
         res.status(500).send("Super Plinko Error: " + err.message);
+    }
+});
+
+web.get('/casino/blackjack', checkAuth, (req, res) => {
+    try {
+        let html = fs.readFileSync(path.join(__dirname, 'public', 'blackjack.html'), 'utf8');
+        html = html.replaceAll('{{userid}}', req.user.userid)
+                   .replaceAll('{{avatarurl}}', getAvatar(req.user.userid, req.user.avatar));
+        res.send(html);
+    } catch (err) {
+        res.status(500).send("Blackjack Error: " + err.message);
     }
 });
 
@@ -2660,6 +2660,30 @@ web.post('/callback/plinko/lose', async (req, res, next) => {
     //if (req.body.nonce !== nonce.nonce) { return res.status(400).json({ message: "Invalid nonce" }); }
     db.query(`UPDATE users SET balance = balance - ? WHERE userid = ?`, [req.body.bet, req.user.userid]);
     res.json({ Status: "success" });
+});
+
+web.post('/callback/bj/lose', async (req, res, next) => {
+    const [user] = await db.query("SELECT * FROM users WHERE userid = ?", [req.user.userid]);
+    if (user[0].balance >= req.body.bet) {
+        await db.query(`UPDATE users SET balance = balance - ? WHERE userid = ?`, [req.body.bet, req.user.userid]);
+        return res.json({ Status: "success" });
+    }
+    res.json({ Status: "fail" });
+});
+
+web.post('/callback/bj/win', async (req, res, next) => {
+    const [user] = await db.query("SELECT * FROM users WHERE userid = ?", [req.user.userid]);
+    if (user[0].balance >= req.body.bet) {
+        if (req.body.bj === 1) {
+            const win = req.body.bet *  1.5;
+            await db.query(`UPDATE users SET balance = balance + ? WHERE userid = ?`, [win, req.user.userid]);
+            return res.json({ Status: "success" });
+        } else {
+            await db.query(`UPDATE users SET balance = balance + ? WHERE userid = ?`, [req.body.bet, req.user.userid]);
+            return res.json({ Status: "success" });
+        }
+    }
+    res.json({ Status: "fail" });
 });
 
 web.post('/callback/miniroulette/bet', async (req, res, next) => {
