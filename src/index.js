@@ -2537,6 +2537,7 @@ web.get('/casino', checkAuth, (req, res) => {
             { name: "Mini Roulette", symbol: "miniroulette", icon: `${process.env.DOMAIN}/images/miniroulette.png`},
             { name: "Lucky Slots", symbol: "luckyslot", icon: `${process.env.DOMAIN}/games/luckyslot/img/game_title.png` },
             { name: "BlackJack", symbol: "blackjack", icon: `${process.env.DOMAIN}/games/blackjack/icon-256.png` },
+            { name: "High Low", symbol: "hilow", icon: `${process.env.DOMAIN}/games/hilow/icon.png` },
         ];
         let html = fs.readFileSync(path.join(__dirname, 'public', 'casino.html'), 'utf8');
         const marketButtons = games.map(game => `
@@ -2594,6 +2595,17 @@ web.get('/casino/luckyslot', checkAuth, (req, res) => {
 web.get('/casino/blackjack', checkAuth, (req, res) => {
     try {
         let html = fs.readFileSync(path.join(__dirname, 'public', 'blackjack.html'), 'utf8');
+        html = html.replaceAll('{{userid}}', req.user.userid)
+                   .replaceAll('{{avatarurl}}', getAvatar(req.user.userid, req.user.avatar));
+        res.send(html);
+    } catch (err) {
+        res.status(500).send("Blackjack Error: " + err.message);
+    }
+});
+
+web.get('/casino/hilow', checkAuth, (req, res) => {
+    try {
+        let html = fs.readFileSync(path.join(__dirname, 'public', 'hilow.html'), 'utf8');
         html = html.replaceAll('{{userid}}', req.user.userid)
                    .replaceAll('{{avatarurl}}', getAvatar(req.user.userid, req.user.avatar));
         res.send(html);
@@ -2672,6 +2684,30 @@ web.post('/callback/bj/lose', async (req, res, next) => {
 });
 
 web.post('/callback/bj/win', async (req, res, next) => {
+    const [user] = await db.query("SELECT * FROM users WHERE userid = ?", [req.user.userid]);
+    if (user[0].balance >= req.body.bet) {
+        if (req.body.bj === 1) {
+            const win = req.body.bet *  1.5;
+            await db.query(`UPDATE users SET balance = balance + ? WHERE userid = ?`, [win, req.user.userid]);
+            return res.json({ Status: "success" });
+        } else {
+            await db.query(`UPDATE users SET balance = balance + ? WHERE userid = ?`, [req.body.bet, req.user.userid]);
+            return res.json({ Status: "success" });
+        }
+    }
+    res.json({ Status: "fail" });
+});
+
+web.post('/callback/hilow/lose', async (req, res, next) => {
+    const [user] = await db.query("SELECT * FROM users WHERE userid = ?", [req.user.userid]);
+    if (user[0].balance >= req.body.bet) {
+        await db.query(`UPDATE users SET balance = balance - ? WHERE userid = ?`, [req.body.bet, req.user.userid]);
+        return res.json({ Status: "success" });
+    }
+    res.json({ Status: "fail" });
+});
+
+web.post('/callback/hilow/win', async (req, res, next) => {
     const [user] = await db.query("SELECT * FROM users WHERE userid = ?", [req.user.userid]);
     if (user[0].balance >= req.body.bet) {
         if (req.body.bj === 1) {

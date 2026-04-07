@@ -901,8 +901,8 @@ function Game(){
 
         this.cur_cash += this.bet*2;
         this.update_cash();
-        if (this.bet > 5000) {
-            this.bet = 5000;
+        if (this.bet > 1000000) {
+            this.bet = 1000000;
             this.update_bet();
         }
     }
