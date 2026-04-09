@@ -54,4 +54,4 @@ async function updateAllPrices() {
     }
 }
 updateAllPrices();
-setInterval(updateAllPrices, 10000);
+setInterval(updateAllPrices, 5000);

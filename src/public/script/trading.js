@@ -26,7 +26,7 @@
             status.innerText = `❌ ${result.message}`;
         }
     } catch (err) {
-        console.error("Close Error:", err);
+        console.log("Close Error:", err);
         status.innerText = "❌ Connection error.";
     }
 }
@@ -57,7 +57,7 @@ async function trade(side) {
             status.style.color = "#ef4444";
             status.innerText = `❌ ${result.message}`;
         }
-    } catch (err) { status.innerText = "❌ Connection error."; }
+    } catch (err) { console.log(err); status.innerText = "❌ Connection error."; }
 }
 async function updateLivePrice() {
     const network = document.getElementById('network').value;

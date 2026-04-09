@@ -27,11 +27,6 @@ CREATE TABLE towers (
     item5 VARCHAR(5) NOT NULL
 );
 
-CREATE TABLE hilow (
-    userid VARCHAR(100) NOT NULL PRIMARY KEY,
-    lastNumber VARCHAR(5) NOT NULL
-);
-
 CREATE TABLE guilds(
     guildid VARCHAR(100) NOT NULL PRIMARY KEY
 );
@@ -64,5 +59,6 @@ CREATE TABLE stock_logs (
 
 CREATE TABLE gamestatus (
     userid VARCHAR(255) NOT NULL PRIMARY KEY,
-    luckyslot INT DEFAULT 1
+    luckyslot INT DEFAULT 1,
+    hilow NOT NULL DEFAULT 5
 );

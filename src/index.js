@@ -3,7 +3,7 @@ const { REST, Routes, ActionRowBuilder, MessageFlags, StringSelectMenuBuilder, S
       { VoiceConnectionStatus, joinVoiceChannel, createAudioPlayer, createAudioResource, getVoiceConnection, StreamType, AudioPlayerStatus, NoSubscriberBehavior } = require('@discordjs/voice'),
       { LeaderboardBuilder, RankCardBuilder, Font } = require('canvacord'), express = require('express'), session = require('express-session'), MySQLStore = require('express-mysql-session')(session),
       { GoogleGenAI } = require("@google/genai"), axios = require('axios'), passport = require('passport'), DiscordStrategy = require('passport-discord').Strategy,
-      { getData, getTracks } = require('spotify-url-info')(require('isomorphic-unfetch')),
+      { getData, getTracks } = require('spotify-url-info')(require('isomorphic-unfetch')), vhost = require('vhost'),
       { MusicCard } = require("./handlers/MusicCard.js"), { BalanceCard } = require("./handlers/BalanceCard.js"),
       fs = require('fs'), path = require('path'), util = require('util'),
       ytdl = require('youtube-dl-exec'), eventHandler = require('./handlers/eventHandler'),
@@ -326,7 +326,7 @@ async function runHiLow(interaction, choice) {
     const bet = interaction.options.getNumber('bet-amount');
     try {
         let [userRows] = await db.query("SELECT * FROM users WHERE userid = ?", [userId]);
-        let [gameRows] = await db.query("SELECT * FROM hilow WHERE userid = ?", [userId]);
+        let [gameRows] = await db.query("SELECT * FROM gamestatus WHERE userid = ?", [userId]);
         let user = userRows[0];
         let game = gameRows[0];
         if (!user) {
@@ -335,17 +335,17 @@ async function runHiLow(interaction, choice) {
         }
         if (!game) {
             await db.query('INSERT INTO hilow VALUES(?, ?)', [userId, 5]);
-            game = { lastNumber: 5 };
+            game = { hilow: 5 };
         }
         if (!bet) {
-            return await interaction.editReply(`Your Last Number is :${numtoemo(game.lastNumber)}`);
+            return await interaction.editReply(`Your Last Number is :${numtoemo(game.hilow)}`);
         }
         if (bet < 1 || user.balance < bet) {
             return interaction.editReply(`Invalid bet. Your balance: ${numtoemo(user.balance)}`);
         }
         if (bet >= 1000) giveXp(interaction);
         const nextNum = Math.floor(Math.random() * 11) + 1;
-        const lastNum = Number(game.lastNumber);
+        const lastNum = Number(game.hilow);
         if (nextNum === lastNum) {
             return interaction.editReply(`➡️ **${nextNum}** ➡️\nIt's a tie! No money lost.`);
         }
@@ -355,7 +355,7 @@ async function runHiLow(interaction, choice) {
         const payout = didWin ? Math.floor(bet / 4) : -bet;
         const arrow = nextNum > lastNum ? '⬆️' : '⬇️';
         await db.query('UPDATE users SET balance = balance + ? WHERE userid = ?', [payout, userId]);
-        await db.query('UPDATE hilow SET lastNumber = ? WHERE userid = ?', [nextNum, userId]);
+        await db.query('UPDATE gamestatus SET hilow = ? WHERE userid = ?', [nextNum, userId]);
         const embed = new EmbedBuilder()
             .setTitle(didWin ? '💰 You Won!' : '💀 You Lost')
             .setColor(didWin ? 'Green' : 'Red')
@@ -2321,14 +2321,15 @@ client.on('messageCreate', async (message) => {
 });
 
 // Website Coding
-const web = express();
-web.use(express.urlencoded({ extended: false }));
-web.use(express.json());
-web.use(express.static(path.join(__dirname, 'public')));
+const mainweb = express(), web = express(), apiweb = express();
+mainweb.set('subdomain offset', 1);
+mainweb.use(express.urlencoded({ extended: false }));
+mainweb.use(express.json());
+mainweb.use(express.static(path.join(__dirname, 'public')));
 const port = process.env.PORT;
 const sessionStore = new MySQLStore({}, db);
-web.set('trust proxy', 1);
-web.use(session({
+mainweb.set('trust proxy', 1);
+mainweb.use(session({
     secret: process.env.SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
@@ -2339,8 +2340,8 @@ web.use(session({
         secure: true
     }
 }));
-web.use(passport.initialize());
-web.use(passport.session());
+mainweb.use(passport.initialize());
+mainweb.use(passport.session());
 passport.use(new DiscordStrategy({
     clientID: process.env.CLIENT_ID,
     clientSecret: process.env.CLIENT_SECRET,
@@ -2385,6 +2386,7 @@ passport.deserializeUser(async (id, done) => {
 });
 
 const getAvatar = (id, hash) => { return `https://cdn.discordapp.com/avatars/${id}/${hash}.png`;};
+const checkAuth = (req, res, next) => req.isAuthenticated() ? next() : res.redirect('/login');
 
 web.post('/login', passport.authenticate('local', {
     successRedirect: '/',
@@ -2397,8 +2399,6 @@ web.post('/logout', (req, res, next) => {
         res.redirect('/login');
     });
 });
-
-const checkAuth = (req, res, next) => req.isAuthenticated() ? next() : res.redirect('/login');
 
 web.post('/claim-daily', checkAuth, async (req, res) => {
     try {
@@ -2422,6 +2422,10 @@ web.post('/claim-daily', checkAuth, async (req, res) => {
 
 web.get('/', checkAuth, async (req, res) => {
     try {
+        if (req.subdomains.includes('api')) {
+            const array = { Itsinhale: "yo", Squeeze: "dem" };
+            res.send(array);
+        }
         const [[{ count: userCount }]] = await db.query('SELECT COUNT(*) as count FROM users');
         const serverCount = client.guilds.cache.size || 0;
         let html = fs.readFileSync(path.join(__dirname, 'public', 'templates', 'home.html'), 'utf8');
@@ -3135,6 +3139,39 @@ web.use(checkAuth, async (req, res, next) => {
     }
 });
 
+
+apiweb.get('/', async (req, res) => { 
+    const data = {
+        "User Data": {
+            "users": `${process.env.APIDOMAIN}/users`
+        },
+        "Crypto Trading": {
+            "portfolios": `${process.env.APIDOMAIN}/portfolios`,
+            "stock_logs": `${process.env.APIDOMAIN}/stock_logs`
+        },
+        "Game Data": {
+            "gamestatus": `${process.env.APIDOMAIN}/gamestatus`,
+            "towers": `${process.env.APIDOMAIN}/towers`
+        },
+        "Misc": {
+            "cooldown": `${process.env.APIDOMAIN}/cooldown`,
+            "Discord Guild List": `${process.env.APIDOMAIN}/guilds`
+        }
+    }; 
+    res.send(data);
+});
+apiweb.get('/users', async (req, res) => { const data = await db.query("SELECT * FROM users;"); res.send(data[0]);});
+apiweb.get('/cooldown', async (req, res) => { const data = await db.query("SELECT * FROM cooldown;"); res.send(data[0]);});
+apiweb.get('/gamestatus', async (req, res) => { const data = await db.query("SELECT * FROM gamestatus;"); res.send(data[0]);});
+apiweb.get('/guilds', async (req, res) => { const data = await db.query("SELECT * FROM guilds;"); res.send(data[0]);});
+apiweb.get('/portfolios', async (req, res) => { const data = await db.query("SELECT * FROM portfolios;"); res.send(data[0]);});
+apiweb.get('/stock_logs', async (req, res) => { const data = await db.query("SELECT * FROM stock_logs;"); res.send(data[0]);});
+apiweb.get('/towers', async (req, res) => { const data = await db.query("SELECT * FROM towers;"); res.send(data[0]);});
+
+apiweb.use((req, res) => {
+    res.status(404).json({ error: "API Route Not Found", help: "List of API endpoints at https://api.itsinhaleyo.online/" });
+});
+
 web.use((err, req, res, next) => {
     console.error("DEBUG - Server Error:", err.stack);
     let html = fs.readFileSync(path.join(__dirname, 'public', 'templates', '404.html'), 'utf8');
@@ -3142,7 +3179,10 @@ web.use((err, req, res, next) => {
     res.send(html);
 });
 
-web.listen(port, () => { 
+mainweb.use(vhost(`api.itsinhaleyo.online`, apiweb));
+mainweb.use(vhost(`itsinhaleyo.online`, web));
+
+mainweb.listen(port, () => { 
     console.log(`Website running at ${process.env.DOMAIN}:${port}/`); }
 );
 
@@ -3214,10 +3254,6 @@ async function getContract(network, poolAddress) {
     }
 }
 
-async function getnonce() {
-    return Math.floor(Math.random() * (10000000000 - 999999999999) + 999999999999);
-}
-
 async function getPosition(userid, contract) {
     try {
         resp = await db.query(`SELECT * FROM portfolios WHERE userid = ? AND contract = ?`, [userid, contract]);
@@ -3264,4 +3300,4 @@ setInterval(async () => {
     } catch (err) {
         console.error("Background Monitor Error:", err);
     }
-}, 10000);
+}, 5000);
