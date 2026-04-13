@@ -2320,9 +2320,12 @@ client.on('messageCreate', async (message) => {
 
 });
 
-// Website Coding
+//// Website Coding
+// Website Init
 const mainweb = express(), web = express(), apiweb = express();
 mainweb.set('subdomain offset', 1);
+mainweb.set('view engine', 'ejs');
+mainweb.set('views', path.join(__dirname, 'public', 'templates')); 
 mainweb.use(express.urlencoded({ extended: false }));
 mainweb.use(express.json());
 mainweb.use(express.static(path.join(__dirname, 'public')));
@@ -2384,10 +2387,10 @@ passport.deserializeUser(async (id, done) => {
         done(err);
     }
 });
-
 const getAvatar = (id, hash) => { return `https://cdn.discordapp.com/avatars/${id}/${hash}.png`;};
 const checkAuth = (req, res, next) => req.isAuthenticated() ? next() : res.redirect('/login');
 
+// Website URL's
 web.post('/login', passport.authenticate('local', {
     successRedirect: '/',
     failureRedirect: '/login'
@@ -2422,10 +2425,6 @@ web.post('/claim-daily', checkAuth, async (req, res) => {
 
 web.get('/', checkAuth, async (req, res) => {
     try {
-        if (req.subdomains.includes('api')) {
-            const array = { Itsinhale: "yo", Squeeze: "dem" };
-            res.send(array);
-        }
         const [[{ count: userCount }]] = await db.query('SELECT COUNT(*) as count FROM users');
         const serverCount = client.guilds.cache.size || 0;
         let html = fs.readFileSync(path.join(__dirname, 'public', 'templates', 'home.html'), 'utf8');
@@ -2461,16 +2460,31 @@ web.get('/', checkAuth, async (req, res) => {
 
 web.get('/profile', checkAuth, async (req, res) => {
     try {
-        const user = req.user;
-        let html = fs.readFileSync(path.join(__dirname, 'public', 'templates', 'profile.html'), 'utf8');
-        html = html.replace('User', user.username || 'Member')
-                   .replace('{{balance}}', user.balance.toLocaleString())
-                   .replace('{{level}}', user.level)
-                   .replaceAll('{{avatarurl}}', getAvatar(user.userid, user.avatar));
-        res.send(html);
+        const { userid, username } = req.query;
+        let user;
+        if (userid) {
+            const query = await db.query("SELECT * FROM users WHERE userid = ?", [userid]);
+            user = query[0];
+        } else if (username) {
+            const query = await db.query("SELECT * FROM users WHERE username = ?", [username]);
+            user = query[0];
+        } else {
+            user = req.user;
+        }
+        if (!user) return res.status(404).send("User not found");
+        const userData = Array.isArray(user) ? user[0] : user;
+        res.render(path.join(__dirname, 'public', 'templates', 'profile.ejs'), {
+            username: userData.username || 'Member',
+            balance: userData.balance.toLocaleString(),
+            level: userData.level,
+            avatarUrl: getAvatar(userData.userid, userData.avatar),
+            useravatarUrl: getAvatar(req.user.userid, req.user.avatar)
+        });
     } catch (err) {
-        console.error(err);
-        res.status(500).send("Error loading home");
+        let html = fs.readFileSync(path.join(__dirname, 'public', 'templates', '404.html'), 'utf8');
+        html = html.replace('{{avatarurl}}', getAvatar(req.user.userid, req.user.avatar))
+                   .replace(`Oops! This page doesn't exist.`, "Oops! That User doesn't exist.");
+        res.send(html);
     }
 });
 
@@ -3139,11 +3153,22 @@ web.use(checkAuth, async (req, res, next) => {
     }
 });
 
+web.use((err, req, res, next) => {
+    console.error("DEBUG - Server Error:", err.stack);
+    let html = fs.readFileSync(path.join(__dirname, 'public', 'templates', '404.html'), 'utf8');
+    html = html.replace('{{avatarurl}}', getAvatar(req.user.userid, req.user.avatar));
+    res.send(html);
+});
 
-apiweb.get('/', async (req, res) => { 
+// API URL's
+apiweb.all('/', async (req, res) => { 
     const data = {
         "User Data": {
-            "users": `${process.env.APIDOMAIN}/users`
+            "users": {
+                "All Users": `${process.env.APIDOMAIN}/users`,
+                "Search By Userid": `${process.env.APIDOMAIN}/users?userid=`,
+                "Search By Username": `${process.env.APIDOMAIN}/users?username=`
+            }
         },
         "Crypto Trading": {
             "portfolios": `${process.env.APIDOMAIN}/portfolios`,
@@ -3160,32 +3185,39 @@ apiweb.get('/', async (req, res) => {
     }; 
     res.send(data);
 });
-apiweb.get('/users', async (req, res) => { const data = await db.query("SELECT * FROM users;"); res.send(data[0]);});
-apiweb.get('/cooldown', async (req, res) => { const data = await db.query("SELECT * FROM cooldown;"); res.send(data[0]);});
-apiweb.get('/gamestatus', async (req, res) => { const data = await db.query("SELECT * FROM gamestatus;"); res.send(data[0]);});
-apiweb.get('/guilds', async (req, res) => { const data = await db.query("SELECT * FROM guilds;"); res.send(data[0]);});
-apiweb.get('/portfolios', async (req, res) => { const data = await db.query("SELECT * FROM portfolios;"); res.send(data[0]);});
-apiweb.get('/stock_logs', async (req, res) => { const data = await db.query("SELECT * FROM stock_logs;"); res.send(data[0]);});
-apiweb.get('/towers', async (req, res) => { const data = await db.query("SELECT * FROM towers;"); res.send(data[0]);});
-
-apiweb.use((req, res) => {
-    res.status(404).json({ error: "API Route Not Found", help: "List of API endpoints at https://api.itsinhaleyo.online/" });
+apiweb.all('/users', async (req, res) => {
+    const { username, userid } = req.query;
+    let query = "SELECT * FROM users";
+    if (username) {
+        const [rows] = await db.query(`${query} WHERE username = ?`, [username]);
+        return res.json(rows.length ? rows : { "Username": "Not Found." });
+    } 
+    if (userid) {
+        const [rows] = await db.query(`${query} WHERE userid = ?`, [userid]);
+        return res.json(rows.length ? rows : { "Userid": "Not Found." });
+    }
+    const [rows] = await db.query(query);
+    res.json(rows);
 });
-
-web.use((err, req, res, next) => {
-    console.error("DEBUG - Server Error:", err.stack);
-    let html = fs.readFileSync(path.join(__dirname, 'public', 'templates', '404.html'), 'utf8');
-    html = html.replace('{{avatarurl}}', getAvatar(req.user.userid, req.user.avatar));
-    res.send(html);
-});
+const autoRoute = (path, table) => {
+    apiweb.all(path, async (req, res) => {
+        const [rows] = await db.query(`SELECT * FROM ??`, [table]);
+        res.json(rows);
+    });
+};
+autoRoute('/cooldown', 'cooldown');
+autoRoute('/gamestatus', 'gamestatus');
+autoRoute('/guilds', 'guilds');
+autoRoute('/portfolios', 'portfolios');
+autoRoute('/stock_logs', 'stock_logs');
+autoRoute('/towers', 'towers');
+apiweb.use((req, res) => { res.status(404).json({ error: "API Route Not Found", help: "List of API endpoints at https://api.itsinhaleyo.online/" }); });
 
 mainweb.use(vhost(`api.itsinhaleyo.online`, apiweb));
 mainweb.use(vhost(`itsinhaleyo.online`, web));
+mainweb.listen(port, () => { console.log(`Website running at ${process.env.DOMAIN}:${port}/`); });
 
-mainweb.listen(port, () => { 
-    console.log(`Website running at ${process.env.DOMAIN}:${port}/`); }
-);
-
+// Website Functions
 function renderLeaderboard(res, rows, title, userdata) {
     let html = fs.readFileSync(path.join(__dirname, 'public', 'templates', 'leaderboard.html'), 'utf8');
     let tableRows = rows.map((user, index) => {
@@ -3266,21 +3298,17 @@ async function getPosition(userid, contract) {
 }
 
 async function executeAutoClose(pos, currentPrice, reason) {
-    const priceDiff = (pos.side === 'SHORT') 
-        ? (pos.average_price - currentPrice) 
-        : (currentPrice - pos.average_price);
+    const priceDiff = (pos.side === 'SHORT') ? (pos.average_price - currentPrice) : (currentPrice - pos.average_price);
     const pnl = priceDiff * pos.shares;
     let totalReturn = Math.round(Number(pos.margin_used) + pnl);
     if (totalReturn < 0) totalReturn = 0;
     await db.query('UPDATE users SET balance = balance + ? WHERE userid = ?', [totalReturn, pos.userid]);
     await db.query('DELETE FROM portfolios WHERE userid = ? AND symbol = ?', [pos.userid, pos.symbol]);
     const actionLabel = `AUTO-${reason.toUpperCase().replace(' ', '-')}`;
-    await db.query(
-        'INSERT INTO stock_logs (userid, symbol, action, amount, price_per_share, total_cost, leverage, side, pnl) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)', 
-        [pos.userid, pos.symbol, actionLabel, pos.shares, currentPrice, totalReturn, pos.leverage, pos.side, pnl]
-    );
+    await db.query( 'INSERT INTO stock_logs (userid, symbol, action, amount, price_per_share, total_cost, leverage, side, pnl) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)', [pos.userid, pos.symbol, actionLabel, pos.shares, currentPrice, totalReturn, pos.leverage, pos.side, pnl]);
 }
 
+// Run Functions Every 10s
 setInterval(async () => {
     try {
         const [positions] = await db.query( 'SELECT * FROM portfolios WHERE take_profit IS NOT NULL OR stop_loss IS NOT NULL' );
@@ -3300,4 +3328,4 @@ setInterval(async () => {
     } catch (err) {
         console.error("Background Monitor Error:", err);
     }
-}, 5000);
+}, 10000);

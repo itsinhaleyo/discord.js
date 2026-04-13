@@ -128,3 +128,26 @@
 body {
     padding-top: 80px !important;
 }
+@media (max-width: 768px) {
+    .nav-container {
+        padding: 0 1rem;
+    }
+    .logo {
+        font-size: 1.1rem;
+        gap: 8px;
+    }
+    .nav-logo {
+        height: 32px;
+        width: 32px;
+    }
+    .nav-links {
+        gap: 1rem;
+    }
+    .nav-links a, 
+    .dropbtn {
+        font-size: 0.8rem;
+    }
+    .dropdown-content {
+        min-width: 140px;
+    }
+}

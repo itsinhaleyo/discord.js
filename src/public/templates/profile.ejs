@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Profile</title>
+    <title>Profile - <%= username %></title>
     <link rel='shortcut icon' type='image/x-icon' href='/images/favicon.ico'>
     <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon.png">
     <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32.png">
@@ -38,24 +38,24 @@
                     </div>
                 </div>
                 <a href="/profile">
-                    <img src="{{avatarurl}}" class="nav-user-avatar">
+                    <img src="<%= useravatarUrl %>" class="nav-user-avatar">
                 </a>
             </nav>
         </div>
     </header>
     <div class="container">
-        <img src="{{avatarurl}}" class="avatar">
-        <h1>Welcome, User</h1>
+        <img src="<%= avatarUrl %>" class="avatar">
+        <h1>Welcome, <%= username %></h1>
         <div class="status-badge">● Secure via Cloudflare</div>
         <div id="discord-section">
             <div class="stats-grid">
                 <div class="stat-card">
                     <div class="stat-label">Balance</div>
-                    <div class="stat-value">💰 {{balance}}</div>
+                    <div class="stat-value">💰 <%= balance %></div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-label">Level</div>
-                    <div class="stat-value">⭐ {{level}}</div>
+                    <div class="stat-value">⭐ <%= level %></div>
                 </div>
             </div>
         </div>
@@ -69,6 +69,9 @@
                 Securely ends your session on this device.
             </p>
         </div>
+        <a class="api-link" href="https://api.itsinhaleyo.online/">
+            API Endpoints Available
+        </a>
     </div>
 </body>
 </html>

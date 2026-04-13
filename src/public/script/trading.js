@@ -1,5 +1,5 @@
-    async function closePosition(symbol, network, contract, totalShare, isAuto = false) {
-    if (!confirm(`Close your entire ${symbol} position?`)) return;
+async function closePosition(symbol, network, contract, totalShares, isAuto = false) {
+    if (!isAuto && !confirm(`Close your entire ${symbol} position?`)) return;
     const status = document.getElementById('trade-status');
     status.innerText = "⏳ Closing position...";
     status.style.color = "var(--text-muted)";
