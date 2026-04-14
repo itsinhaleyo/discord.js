@@ -200,3 +200,18 @@ tr:hover { background: rgba(255, 255, 255, 0.02); }
 .clear-btn:hover {
     color: white;
 }
+@media (max-width: 768px) {
+    body {
+        display: block !important; 
+        height: auto !important;
+        min-height: auto !important;
+        padding-top: 80px !important; 
+    }
+    .leaderboard-container {
+        margin: 0 auto !important; 
+        width: 95% !important;
+        transform: none !important;
+        position: relative !important;
+        top: 0 !important;
+    }
+}

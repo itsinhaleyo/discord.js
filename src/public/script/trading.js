@@ -31,14 +31,17 @@ async function closePosition(symbol, network, contract, totalShares, isAuto = fa
     }
 }
 async function trade(side) {
+    const amountInput = document.getElementById('amount');
+    const status = document.getElementById('trade-status');
+    if (!amountInput || !status) return;
     const network = document.getElementById('network').value;
     const coinid = document.getElementById('coinid').value;
     const contract = document.getElementById('contract').value;
-    const amount = document.getElementById('amount').value;
+    const amount = amountInput.value;
     const leverage = parseInt(document.getElementById('leverage').value) || 1;
-    const status = document.getElementById('trade-status');
     if(!amount || amount <= 0) return alert("Please enter a valid amount");
     status.innerText = `⏳ Opening ${side}...`;
+    status.style.color = "white";
     try {
         const response = await fetch(`/trade/buy`, {
             method: 'POST',
@@ -57,13 +60,15 @@ async function trade(side) {
             status.style.color = "#ef4444";
             status.innerText = `❌ ${result.message}`;
         }
-    } catch (err) { console.log(err); status.innerText = "❌ Connection error."; }
+    } catch (err) { 
+        console.error(err); 
+        status.innerText = "❌ Connection error."; 
+    }
 }
 async function updateLivePrice() {
     const network = document.getElementById('network').value;
     const contract = document.getElementById('contract').value;
     const ownedShares = document.getElementById('display-shares').value;
-    const userid = document.getElementById('userid') ? document.getElementById('userid').value : null;
     const valueDisplay = document.getElementById('live-value');
     const marketprice = document.getElementById('marketprice');
     try {
@@ -80,7 +85,6 @@ async function updateLivePrice() {
             const totalEntryCost = marginused * ownedShares;
             const pnl = currentTotalValue - totalEntryCost;
             const pnlPercent = ((pnl / marginused) * 100).toFixed(2);
-            const pnlElement = document.getElementById('live-value');
             valueDisplay.innerText = `PnL: ${Math.round(pnl.toLocaleString())} (${pnlPercent}%)`;
             valueDisplay.style.color = pnl >= 0 ? '#00ff00' : '#ff0000';
         }
