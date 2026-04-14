@@ -2820,6 +2820,7 @@ web.get('/trading/:symbol', checkAuth, async (req, res) => {
             balance: user.balance.toLocaleString(),
             ownedshares: userShares.toLocaleString(),
             allHoldings: allHoldings,
+            user: user,
             price: 0,
             avatarUrl: getAvatar(user.userid, user.avatar)
         });

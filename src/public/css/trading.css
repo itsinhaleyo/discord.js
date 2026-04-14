@@ -308,13 +308,20 @@ body {
     .pos-pnl {
         font-size: 1.1rem;
         font-weight: bold;
+        margin-bottom: 5px;
     }
     .position-row td:last-child {
+        display: flex;
         justify-content: center;
+        align-items: center;
         padding-top: 15px !important;
+        border-bottom: none;
     }
     .btn-close-pos {
         width: 100%;
-        padding: 12px !important;
+        padding: 14px !important;
+        font-size: 1rem;
+        font-weight: 700;
+        border-radius: 12px;
     }
 }
