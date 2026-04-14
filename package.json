@@ -35,7 +35,7 @@
     "spotify-url-info": "^3.3.0",
     "vhost": "^3.0.2",
     "webtorrent": "^2.8.5",
-    "youtube-dl-exec": "^3.1.4",
+    "youtube-dl-exec": "^3.1.5",
     "yt-dlp-exec": "^1.0.2"
   },
   "devDependencies": {
