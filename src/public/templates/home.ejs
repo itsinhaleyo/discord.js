@@ -13,45 +13,16 @@
     <link rel="stylesheet" href="https://itsinhaleyo.online/css/home.css">
 </head>
 <body>
-    <header class="main-header">
-        <div class="nav-container">
-            <a href="/" class="logo">
-                <img src="https://cdn.discordapp.com/avatars/1479879290270126263/baa2dc5e6d19d064dba7d62c5a6b0a4f.png" class="nav-logo">
-                Jew
-            </a>
-            <nav class="nav-links">
-                <div class = "casino">
-                    <a href="/casino">Casino</a>
-                </div>
-                <div class="dropdown">
-                    <button class="dropbtn">Crypto ▾</button>
-                    <div class="dropdown-content">
-                        <a href="/portfolio">💰 Portfolio</a>
-                        <a href="/trading">📈 Trade Assets</a>
-                    </div>
-                </div>
-                <div class="dropdown">
-                    <button class="dropbtn">Leaderboards ▾</button>
-                    <div class="dropdown-content">
-                        <a href="/leaderboard/money">💰 Money</a>
-                        <a href="/leaderboard/rank">⭐ Rank</a>
-                    </div>
-                </div>
-                <a href="/profile">
-                    <img src="{{avatarurl}}" class="nav-user-avatar">
-                </a>
-            </nav>
-        </div>
-    </header>
+    <%- include('header') %>
     <div class="dashboard-wrapper" style="max-width: 800px; margin: 0 auto; text-align: center;"></div>
         <div class="stats-grid">
             <div class="stat-card">
                 <div class="stat-label">Balance</div>
-                <div class="stat-value">💰 {{balance}}</div>
+                <div class="stat-value">💰 <%= balance %></div>
             </div>
             <div class="stat-card">
                 <div class="stat-label">Level</div>
-                <div class="stat-value">⭐ {{level}}</div>
+                <div class="stat-value">⭐ <%= level %></div>
             </div>
             <div class="stat-card full-width">
                 <div class="stat-label">Daily Reward</div>
@@ -66,8 +37,8 @@
             </div>
         </div>
         <script>
-            let hasClaimed = {{hasClaimed}};
-            let msLeft = {{msUntilMidnight}};
+            let hasClaimed = <%= hasClaimed %>;
+            let msLeft = <%= msUntilMidnight %>;
             function updateTimer() {
                 if (msLeft <= 0) {
                     location.reload(); 
@@ -115,11 +86,11 @@
         <div class="bot-stats" style="margin-top: 3rem;">
         <div style="display: flex; justify-content: center; gap: 40px; margin-bottom: 1.5rem;">
             <div>
-                <h2 style="margin:0; font-size: 1.5rem;">{{userCount}}</h2>
+                <h2 style="margin:0; font-size: 1.5rem;"><%= userCount %></h2>
                 <p style="color: var(--text-muted); font-size: 0.8rem;">Users</p>
             </div>
             <div>
-                <h2 style="margin:0; font-size: 1.5rem;">{{serverCount}}</h2>
+                <h2 style="margin:0; font-size: 1.5rem;"><%= serverCount %></h2>
                 <p style="color: var(--text-muted); font-size: 0.8rem;">Servers</p>
             </div>
         </div>

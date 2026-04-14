@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>My Portfolio</title>
+    <link rel='shortcut icon' type='image/x-icon' href='/images/favicon.ico'>
+    <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16.png">
+    <link rel="manifest" href="/site.webmanifest">
+    <link rel="stylesheet" href="https://itsinhaleyo.online/css/header.css">
+    <link rel="stylesheet" href="https://itsinhaleyo.online/css/portfolio.css">
+    <script src="https://itsinhaleyo.online/script/portfolio.js" defer></script>
+</head>
+<body>
+    <%- include('header') %>
+    <div class="container">
+        <h1>Your Portfolio</h1>
+        <div class="portfolio-header">
+            <div class="p-stat"><div class="p-label">Cash</div><div class="p-value" id="top-cash">💰 <%= cash %></div></div>
+            <div class="p-stat"><div class="p-label">Assets</div><div class="p-value" id="top-assets">📊 <%= assetValue %></div></div>
+            <div class="p-stat">
+                <div class="p-label">Total P/L</div>
+                <div class="p-value" id="top-pnl">
+                    <span style="color: <%= totalPnlAmount >= 0 ? '#10b981' : '#ef4444' %>">
+                        <%= totalPnlAmount >= 0 ? '+' : '' %><%= Math.round(totalPnlAmount).toLocaleString() %> (<%= totalPnlPercent %>%)
+                    </span>
+                </div>
+            </div>
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th>Asset</th>
+                    <th>Shares</th>
+                    <th>Profit/Loss</th>
+                </tr>
+            </thead>
+            <tbody>
+                <% if (holdings.length > 0) { %>
+                    <% holdings.forEach(stock => { %>
+                        <tr class="portfolio-row" 
+                            data-network="<%= stock.network %>" 
+                            data-contract="<%= stock.contract %>" 
+                            data-shares="<%= stock.shares %>" 
+                            data-entry="<%= stock.average_price %>"
+                            data-margin="<%= stock.margin_used %>"
+                            data-side="<%= stock.side %>">
+                            <td>
+                                <%= stock.symbol %><br>
+                                <small style="color: <%= stock.side === 'LONG' ? '#10b981' : '#ef4444' %>; font-size: 0.7rem;">
+                                    <%= stock.side %>
+                                </small>
+                            </td>
+                            <td><%= Number(stock.shares).toLocaleString() %></td>
+                            <td class="pos-pnl" style="color: <%= stock.pnl >= 0 ? '#10b981' : '#ef4444' %>">
+                                <%= stock.pnl >= 0 ? '+' : '' %>💰<%= Math.round(stock.pnl).toLocaleString() %>
+                                <div class="pnl-percent" style="font-size: 0.7rem; opacity: 0.8;">(<%= stock.pnlPercent %>%)</div>
+                            </td>
+                        </tr>
+                    <% }); %>
+                <% } else { %>
+                    <tr><td colspan="3">No holdings found</td></tr>
+                <% } %>
+            </tbody>
+        </table>
+    </div>
+</body>
+</html>

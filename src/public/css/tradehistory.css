@@ -14,4 +14,8 @@ tr:hover { background: rgba(255, 255, 255, 0.02); }
 .asset-select option { background-color: #1e293b; color: white; padding: 12px; }
 .total-cell { display: flex; flex-direction: column; gap: 2px; }
 .pnl-subtext { font-size: 0.7rem; font-weight: 600; }
+.stat-card.summary-box { background: var(--card-bg); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); padding: 20px; border-radius: 16px; display: flex; flex-direction: column; gap: 5px; transition: transform 0.2s ease;}
+.stat-card.summary-box:hover { transform: translateY(-2px); border-color: rgba(255, 255, 255, 0.2); }
+.stat-card.summary-box .label { color: var(--text-muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; }
+.stat-card.summary-box .value { font-size: 1.4rem; font-weight: 800; font-family: 'JetBrains Mono', monospace; }
 @media (max-width: 768px) { th:nth-child(1), td:nth-child(1), th:nth-child(4), td:nth-child(4) { display: none; } }

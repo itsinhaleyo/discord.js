@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title><%= title %></title>
+    <link rel="stylesheet" href="https://itsinhaleyo.online/css/header.css">
+    <link rel="stylesheet" href="https://itsinhaleyo.online/css/leaderboard.css">
+</head>
+<body>
+    <%- include('header') %>
+    <div class="leaderboard-container">
+        <h1><%= title %></h1>
+        <form action="" method="GET" class="search-form">
+            <div class="search-wrapper">
+                <span class="search-icon">🔍</span>
+                <input type="text" name="search" placeholder="Search by username..." class="search-input">
+                <button type="submit" class="search-btn">Search</button>
+            </div>
+        </form>
+        <table>
+            <thead>
+                <tr>
+                    <th>Rank</th>
+                    <th>User</th>
+                    <th>Balance</th>
+                    <th>Level</th>
+                </tr>
+            </thead>
+            <tbody>
+                <% rows.forEach((user, index) => { 
+                    const rank = index + 1;
+                    const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : rank;
+                %>
+                    <tr>
+                        <td style="text-align:center"><%= medal %></td>
+                        <td style="display:flex; align-items:center; gap:10px;">
+                            <img src="<%= getAvatar(user.userid, user.avatar) %>" style="width:30px; border-radius:50%"> 
+                            <%= user.username %>
+                        </td>
+                        <td>💰 <%= user.balance.toLocaleString() %></td>
+                        <td>⭐ <%= user.level %></td>
+                    </tr>
+                <% }); %>
+            </tbody>
+        </table>
+        <a href="/" class="btn-back">← Back to Dashboard</a>
+    </div>
+</body>
+</html>

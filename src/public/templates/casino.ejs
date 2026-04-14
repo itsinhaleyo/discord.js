@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Casino</title>
+    <link rel='shortcut icon' type='image/x-icon' href='/images/favicon.ico'>
+    <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16.png">
+    <link rel="manifest" href="/site.webmanifest">
+    <link rel="stylesheet" href="https://itsinhaleyo.online/css/header.css">
+    <link rel="stylesheet" href="https://itsinhaleyo.online/css/casino.css">
+</head>
+<body>
+    <%- include('header') %>
+    <div class="container">
+        <p class="subtitle">Select a Casino Game</p>
+        <div class="market-grid">
+            <% games.forEach(game => { %>
+                <div class="market-card" onclick="location.href='/casino/<%= game.symbol.toLowerCase() %>'">
+                    <div class="market-icon">
+                        <img src="<%= game.icon %>" style="width: 32px; height: 32px; object-fit: contain;" alt="<%= game.name %>">
+                    </div>
+                    <div class="market-info">
+                        <h3><%= game.name %></h3>
+                    </div>
+                    <div class="market-arrow">➜</div>
+                </div>
+            <% }); %>
+        </div>
+    </div>
+</body>

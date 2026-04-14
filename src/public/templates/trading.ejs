@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crypto Trading | <%= share %></title>
+    <link rel='shortcut icon' type='image/x-icon' href='/images/favicon.ico'>
+    <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16.png">
+    <link rel="manifest" href="/site.webmanifest">
+    <link rel="stylesheet" href="https://itsinhaleyo.online/css/header.css">
+    <link rel="stylesheet" href="https://itsinhaleyo.online/css/trading.css">
+    <script src="https://itsinhaleyo.online/script/trading.js" defer></script>
+</head>
+<body>
+    <%- include('header') %>
+    <div class="trading-layout">
+        <div class="chart-container">
+            <div class="stat-card chart-wrapper">
+                <iframe id="geckoterminal-embed" title="GeckoTerminal Embed"
+                    src="<%= contractlink %>?embed=1&info=0&swaps=0&light_chart=0&chart_type=price&resolution=1s&bg_color=111827" 
+                    frameborder="0" allow="clipboard-write" allowfullscreen style="width: 100%; height: 100%; border: none;">
+                </iframe>
+            </div>
+        </div>
+        <input type="hidden" id="network" value="<%= coin.network %>">
+        <input type="hidden" id="contract" value="<%= coin.contract %>">
+        <input type="hidden" id="coinid" value="<%= share %>">
+        <input type="hidden" id="price" value="<%= price %>">
+        <input type="hidden" id="display-shares" value="<%= ownedshares %>">
+        <input type="hidden" id="live-value">
+        <div class="sidebar">
+            <div class="stat-card">
+                <div class="stat-label">Balance</div>
+                <div id="balance" class="stat-value">💰 <%= balance %></div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Market Order</div>
+                <input id="amount" type="number" placeholder="Amount" class="trade-input">
+                <div class="leverage-container">
+                    <div class="leverage-header">
+                        <span>Leverage</span>
+                        <span id="lev-display">1x (Spot)</span>
+                    </div>
+                    <input type="range" id="leverage" class="leverage-slider" min="1" max="100" value="1" 
+                        oninput="document.getElementById('lev-display').innerText = this.value + 'x'">
+                </div>
+                <div class="btn-group">
+                    <button onclick="trade('LONG')" class="btn-buy">Long</button>
+                    <button onclick="trade('SHORT')" class="btn-sell">Short</button>
+                </div>
+                <p id="trade-status" style="margin-top: 10px; font-size: 0.8rem;"></p>
+            </div>
+        </div>
+    </div>
+    <div class="orders-container" style="width: 95%; max-width: 1400px; margin: 20px auto; background: var(--card-bg); border-radius: 18px; border: 1px solid rgba(255, 255, 255, 0.1); overflow: hidden;">
+        <div style="padding: 1rem 1.5rem; border-bottom: 1px solid rgba(255, 255, 255, 0.1); font-weight: 600; color: var(--text-muted); display: flex; justify-content: space-between;">
+            <span>Open Positions</span>
+            <span id="marketprice">Market Price: calculating...</span>
+        </div>
+        <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem; text-align: left;">
+            <thead style="background: rgba(0,0,0,0.2); color: var(--text-muted);">
+                <tr>
+                    <th style="padding: 12px 20px;">Symbol</th>
+                    <th>Size</th>
+                    <th>Entry Price</th>
+                    <th>Take Profit</th>
+                    <th>Stop Loss</th>
+                    <th>Liq. Price</th>
+                    <th>Leverage</th>
+                    <th>PnL</th>
+                    <th style="text-align: right; padding-right: 20px;">Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                <% if (allHoldings.length > 0) { %>
+                    <% allHoldings.forEach(pos => { %>
+                        <tr class="position-row" 
+                            data-symbol="<%= pos.symbol %>" 
+                            data-entry="<%= pos.average_price %>" 
+                            data-shares="<%= pos.shares %>" 
+                            data-side="<%= pos.side %>" 
+                            data-margin="<%= pos.margin_used %>" 
+                            data-leverage="<%= pos.leverage %>"
+                            data-network="<%= pos.network %>"
+                            data-contract="<%= pos.contract %>">
+                            <td style="padding: 15px 20px;">
+                                <%= pos.symbol.toUpperCase() %> <br>
+                                <small style="color: <%= pos.side === 'LONG' ? '#10b981' : '#ef4444' %>"><%= pos.side %></small>
+                            </td>
+                            <td><%= Number(pos.shares).toLocaleString() %></td>
+                            <td>$<%= Number(pos.average_price).toLocaleString() %></td>
+                            <td>
+                                <div class="input-action-row">
+                                    <input type="number" step="any" placeholder="TP" id="tp-<%= pos.symbol %>" 
+                                        class="limit-input-small tp-style" value="<%= pos.take_profit || '' %>">
+                                    <button class="btn-set-limit tp-btn" onclick="updateLimits('<%= pos.symbol %>', document.getElementById('tp-<%= pos.symbol %>').value, 'tp', this)">SET</button>
+                                </div>
+                            </td>
+                            <td>
+                                <div class="input-action-row">
+                                    <input type="number" step="any" placeholder="SL" id="sl-<%= pos.symbol %>" 
+                                        class="limit-input-small sl-style" value="<%= pos.stop_loss || '' %>">
+                                    <button class="btn-set-limit sl-btn" onclick="updateLimits('<%= pos.symbol %>', document.getElementById('sl-<%= pos.symbol %>').value, 'sl', this)">SET</button>
+                                </div>
+                            </td>
+                            <td class="pos-liq" style="color: #f59e0b;">Calculating...</td>
+                            <td><%= pos.leverage %>x</td>
+                            <td class="pos-pnl">Calculating...</td>
+                            <td style="text-align: right; padding-right: 20px;">
+                                <button onclick="closePosition('<%= pos.symbol %>', '<%= pos.network %>', '<%= pos.contract %>', <%= pos.shares %>)" class="btn-close-pos">
+                                    Close
+                                </button>
+                            </td>
+                        </tr>
+                    <% }); %>
+                <% } else { %>
+                    <tr><td colspan="9" style="text-align:center; padding:20px;">No open positions</td></tr>
+                <% } %>
+            </tbody>
+        </table>
+    </div>
+</body>
+</html>

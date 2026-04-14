@@ -13,36 +13,7 @@
     <link rel="stylesheet" href="https://itsinhaleyo.online/css/profile.css">
 </head>
 <body>
-    <header class="main-header">
-        <div class="nav-container">
-            <a href="/" class="logo">
-                <img src="https://cdn.discordapp.com/avatars/1479879290270126263/baa2dc5e6d19d064dba7d62c5a6b0a4f.png" class="nav-logo">
-                Jew
-            </a>
-            <nav class="nav-links">
-                <div class = "casino">
-                    <a href="/casino">Casino</a>
-                </div>
-                <div class="dropdown">
-                    <button class="dropbtn">Crypto ▾</button>
-                    <div class="dropdown-content">
-                        <a href="/portfolio">💰 Portfolio</a>
-                        <a href="/trading">📈 Trade Assets</a>
-                    </div>
-                </div>
-                <div class="dropdown">
-                    <button class="dropbtn">Leaderboards ▾</button>
-                    <div class="dropdown-content">
-                        <a href="/leaderboard/money">💰 Money</a>
-                        <a href="/leaderboard/rank">⭐ Rank</a>
-                    </div>
-                </div>
-                <a href="/profile">
-                    <img src="<%= useravatarUrl %>" class="nav-user-avatar">
-                </a>
-            </nav>
-        </div>
-    </header>
+    <%- include('header') %>
     <div class="container">
         <img src="<%= avatarUrl %>" class="avatar">
         <h1>Welcome, <%= username %></h1>

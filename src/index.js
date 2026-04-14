@@ -2323,9 +2323,11 @@ client.on('messageCreate', async (message) => {
 //// Website Coding
 // Website Init
 const mainweb = express(), web = express(), apiweb = express();
-mainweb.set('subdomain offset', 1);
+web.set('view engine', 'ejs');
+web.set('views', path.join(__dirname, 'public', 'templates'));
 mainweb.set('view engine', 'ejs');
 mainweb.set('views', path.join(__dirname, 'public', 'templates')); 
+mainweb.set('subdomain offset', 1);
 mainweb.use(express.urlencoded({ extended: false }));
 mainweb.use(express.json());
 mainweb.use(express.static(path.join(__dirname, 'public')));
@@ -2389,6 +2391,7 @@ passport.deserializeUser(async (id, done) => {
 });
 const getAvatar = (id, hash) => { return `https://cdn.discordapp.com/avatars/${id}/${hash}.png`;};
 const checkAuth = (req, res, next) => req.isAuthenticated() ? next() : res.redirect('/login');
+const phavatar = "https://itsinhaleyo.online/images/imageplaceholder.png"
 
 // Website URL's
 web.post('/login', passport.authenticate('local', {
@@ -2427,31 +2430,22 @@ web.get('/', checkAuth, async (req, res) => {
     try {
         const [[{ count: userCount }]] = await db.query('SELECT COUNT(*) as count FROM users');
         const serverCount = client.guilds.cache.size || 0;
-        let html = fs.readFileSync(path.join(__dirname, 'public', 'templates', 'home.html'), 'utf8');
-        if (req.isAuthenticated()) {
-            const user = req.user;
-            const currentDate = new Date().toDateString();
-            const hasClaimed = (user.daily === currentDate);
-            const now = new Date();
-            const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-            const msUntilMidnight = midnight - now;
-            html = html.replace('{{hasClaimed}}', hasClaimed)
-                       .replace('{{msUntilMidnight}}', msUntilMidnight)
-                       .replace('{{balance}}', (user.balance || 0).toLocaleString())
-                       .replace('{{level}}', user.level || 1);
-            html = html.replaceAll('{{avatarurl}}', getAvatar(user.userid, user.avatar));
-        } else {
-            html = html.replace('{{hasClaimed}}', 'false')
-                       .replace('{{msUntilMidnight}}', '0')
-                       .replace('{{balance}}', '0')
-                       .replace('{{level}}', '1');
-            const loginToClaim = `<a href="/auth/discord" class="btn-discord" style="text-align:center;">Login to Claim Daily</a>`;
-            html = html.replace('<button onclick="claimDaily()" id="daily-btn"', '<!--')
-                       .replace('Claim Daily 💰 25,000\n        </button>', '--> ' + loginToClaim);
-        }
-        html = html.replace('{{userCount}}', userCount.toLocaleString())
-                   .replace('{{serverCount}}', serverCount.toLocaleString());
-        res.send(html);
+        const user = req.user || {};
+        const currentDate = new Date().toDateString();
+        const hasClaimed = (user.daily === currentDate);
+        const now = new Date();
+        const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+        const msUntilMidnight = midnight - now;
+        res.render('home', {
+            isAuthenticated: req.isAuthenticated(),
+            userCount: userCount.toLocaleString(),
+            serverCount: serverCount.toLocaleString(),
+            balance: (user.balance || 0).toLocaleString(),
+            level: user.level || 1,
+            avatarUrl: user.userid ? getAvatar(user.userid, user.avatar) : phavatar,
+            hasClaimed: hasClaimed,
+            msUntilMidnight: msUntilMidnight
+        });
     } catch (err) {
         console.error(err);
         res.status(500).send("Error loading home");
@@ -2481,17 +2475,19 @@ web.get('/profile', checkAuth, async (req, res) => {
             useravatarUrl: getAvatar(req.user.userid, req.user.avatar)
         });
     } catch (err) {
-        let html = fs.readFileSync(path.join(__dirname, 'public', 'templates', '404.html'), 'utf8');
-        html = html.replace('{{avatarurl}}', getAvatar(req.user.userid, req.user.avatar))
-                   .replace(`Oops! This page doesn't exist.`, "Oops! That User doesn't exist.");
-        res.send(html);
+        const avatarUrl = req.user ? getAvatar(req.user.userid, req.user.avatar) : phavatar;
+        res.status(404).render('404', {
+            avatarUrl: avatarUrl,
+            errorMessage: "Oops! That User doesn't exist.",
+            errorCode: "User Not Found"
+        });
     }
 });
 
 web.get('/portfolio', checkAuth, async (req, res) => {
     try {
         const user = req.user;
-        const [holdings] = await db.query( 'SELECT * FROM portfolios WHERE userid = ?', [user.userid] );
+        const [holdings] = await db.query('SELECT * FROM portfolios WHERE userid = ?', [user.userid]);
         let totalValue = 0;
         let totalCostBasis = 0;
         const list = await Promise.all(holdings.map(async (stock) => {
@@ -2500,51 +2496,30 @@ web.get('/portfolio', checkAuth, async (req, res) => {
             const margin = Number(stock.margin_used);
             const shares = Number(stock.shares);
             const entryPrice = Number(stock.average_price);
-            let pnl;
-            if (stock.side === 'SHORT') { pnl = (entryPrice - currentPrice) * shares; } else { pnl = (currentPrice - entryPrice) * shares; }
+            let pnl = stock.side === 'SHORT' ? (entryPrice - currentPrice) * shares : (currentPrice - entryPrice) * shares;
             totalCostBasis += margin;
             totalValue += (margin + pnl);
-            const pnlPercent = margin > 0 ? ((pnl / margin) * 100).toFixed(2) : "0.00";
-            return { symbol: stock.symbol.toUpperCase(), shares: stock.shares, side: stock.side, pnl, pnlPercent, isUp: pnl >= 0 };
+            return {
+                ...stock,
+                symbol: stock.symbol.toUpperCase(),
+                pnl,
+                pnlPercent: margin > 0 ? ((pnl / margin) * 100).toFixed(2) : "0.00"
+            };
         }));
         const totalPnlAmount = totalValue - totalCostBasis;
         const totalPnlPercent = totalCostBasis > 0 ? ((totalPnlAmount / totalCostBasis) * 100).toFixed(2) : "0.00";
-        const pnlColor = totalPnlAmount >= 0 ? '#10b981' : '#ef4444';
-        const pnlSign = totalPnlAmount >= 0 ? '+' : '';
-        const tableRows = list.map((item, index) => {
-            const stock = holdings[index]; 
-            const itemSign = item.pnl >= 0 ? '+' : '';
-            const sideColor = stock.side === 'LONG' ? '#10b981' : '#ef4444';
-            return `
-                <tr class="portfolio-row" 
-                    data-network="${stock.network}" 
-                    data-contract="${stock.contract}" 
-                    data-shares="${stock.shares}" 
-                    data-entry="${stock.average_price}"
-                    data-margin="${stock.margin_used}"
-                    data-side="${stock.side}">
-                    <td>
-                        ${item.symbol}<br>
-                        <small style="color: ${sideColor}; font-size: 0.7rem;">${stock.side}</small>
-                    </td>
-                    <td>${Number(item.shares).toLocaleString()}</td>
-                    <td class="pos-pnl" style="color: ${item.pnl >= 0 ? '#10b981' : '#ef4444'}"> <!-- Changed to pos-pnl -->
-                        ${itemSign}💰${Math.round(item.pnl).toLocaleString()}
-                        <div class="pnl-percent" style="font-size: 0.7rem; opacity: 0.8;">(${item.pnlPercent}%)</div>
-                        </td>
-                </tr>
-            `;
-        }).join('');
-        let html = fs.readFileSync(path.join(__dirname, 'public', 'templates', 'portfolio.html'), 'utf8');
-        html = html.replace('{{rows}}', tableRows || '<tr><td colspan="3">No holdings found</td></tr>')
-                   .replace('{{cash}}', Number(user.balance).toLocaleString())
-                   .replace('{{assetValue}}', Math.round(totalValue).toLocaleString())
-                   .replace('{{totalPnl}}', `<span style="color: ${pnlColor}">${pnlSign}${Math.round(totalPnlAmount).toLocaleString()} (${totalPnlPercent}%)</span>`)
-                   .replaceAll('{{avatarurl}}', getAvatar(user.userid, user.avatar));
-        res.send(html);
+        res.render('portfolio', {
+            user,
+            avatarUrl: getAvatar(user.userid, user.avatar),
+            cash: Number(user.balance).toLocaleString(),
+            assetValue: Math.round(totalValue).toLocaleString(),
+            totalPnlAmount,
+            totalPnlPercent,
+            holdings: list
+        });
     } catch (err) {
         console.error("Portfolio Error:", err);
-        res.status(500).send("Portfolio Error\n" + err.message);
+        res.status(500).render('404', { errorMessage: "Could not load portfolio." });
     }
 });
 
@@ -2559,23 +2534,17 @@ web.get('/casino', checkAuth, (req, res) => {
             { name: "Baccarat", symbol: "baccarat", icon: `${process.env.DOMAIN}/games/baccarat/icon-256.png` },
             { name: "Jungle Scratch", symbol: "junglescratch", icon: `${process.env.DOMAIN}/games/junglescratch/icon.ico`}
         ];
-        let html = fs.readFileSync(path.join(__dirname, 'public', 'templates', 'casino.html'), 'utf8');
-        const marketButtons = games.map(game => `
-            <div class="market-card" onclick="location.href='/casino/${game.symbol.toLowerCase()}'">
-                <div class="market-icon">
-                    <img src="${game.icon}" style="width: 32px; height: 32px; object-fit: contain;">
-                </div>
-                <div class="market-info">
-                    <h3>${game.name}</h3>
-                </div>
-                <div class="market-arrow">➜</div>
-            </div>
-        `).join('');
-        html = html.replace('{{marketButtons}}', marketButtons)
-                   .replaceAll('{{avatarurl}}', getAvatar(req.user.userid, req.user.avatar));
-        res.send(html);
+        res.render('casino', {
+            games: games,
+            avatarUrl: getAvatar(req.user.userid, req.user.avatar)
+        });
     } catch (err) {
-        res.status(500).send("Trading Hub Error: " + err.message);
+        console.error(err);
+        res.status(500).render('404', { 
+            errorCode: '500', 
+            errorMessage: "Casino Hub Error", 
+            avatarUrl: getAvatar(req.user.userid, req.user.avatar) 
+        });
     }
 });
 
@@ -2593,8 +2562,7 @@ web.get('/casino/plinko', checkAuth, (req, res) => {
 web.get('/casino/miniroulette', checkAuth, (req, res) => {
     try {
         let html = fs.readFileSync(path.join(__dirname, 'public', 'templates', 'miniroulette.html'), 'utf8');
-        html = html.replaceAll('{{userid}}', req.user.userid)
-                   .replaceAll('{{avatarurl}}', getAvatar(req.user.userid, req.user.avatar));
+        html = html.replaceAll('{{userid}}', req.user.userid);
         res.send(html);
     } catch (err) {
         res.status(500).send("Super Plinko Error: " + err.message);
@@ -2604,8 +2572,7 @@ web.get('/casino/miniroulette', checkAuth, (req, res) => {
 web.get('/casino/luckyslot', checkAuth, (req, res) => {
     try {
         let html = fs.readFileSync(path.join(__dirname, 'public', 'templates', 'luckyslot.html'), 'utf8');
-        html = html.replaceAll('{{userid}}', req.user.userid)
-                   .replaceAll('{{avatarurl}}', getAvatar(req.user.userid, req.user.avatar));
+        html = html.replaceAll('{{userid}}', req.user.userid);
         res.send(html);
     } catch (err) {
         res.status(500).send("Super Plinko Error: " + err.message);
@@ -2615,8 +2582,7 @@ web.get('/casino/luckyslot', checkAuth, (req, res) => {
 web.get('/casino/blackjack', checkAuth, (req, res) => {
     try {
         let html = fs.readFileSync(path.join(__dirname, 'public', 'templates', 'blackjack.html'), 'utf8');
-        html = html.replaceAll('{{userid}}', req.user.userid)
-                   .replaceAll('{{avatarurl}}', getAvatar(req.user.userid, req.user.avatar));
+        html = html.replaceAll('{{userid}}', req.user.userid);
         res.send(html);
     } catch (err) {
         res.status(500).send("Blackjack Error: " + err.message);
@@ -2626,8 +2592,7 @@ web.get('/casino/blackjack', checkAuth, (req, res) => {
 web.get('/casino/hilow', checkAuth, (req, res) => {
     try {
         let html = fs.readFileSync(path.join(__dirname, 'public', 'templates', 'hilow.html'), 'utf8');
-        html = html.replaceAll('{{userid}}', req.user.userid)
-                   .replaceAll('{{avatarurl}}', getAvatar(req.user.userid, req.user.avatar));
+        html = html.replaceAll('{{userid}}', req.user.userid);
         res.send(html);
     } catch (err) {
         res.status(500).send("HighLow Error: " + err.message);
@@ -2637,8 +2602,7 @@ web.get('/casino/hilow', checkAuth, (req, res) => {
 web.get('/casino/baccarat', checkAuth, (req, res) => {
     try {
         let html = fs.readFileSync(path.join(__dirname, 'public', 'templates', 'baccarat.html'), 'utf8');
-        html = html.replaceAll('{{userid}}', req.user.userid)
-                   .replaceAll('{{avatarurl}}', getAvatar(req.user.userid, req.user.avatar));
+        html = html.replaceAll('{{userid}}', req.user.userid);
         res.send(html);
     } catch (err) {
         res.status(500).send("Baccarat Error: " + err.message);
@@ -2648,8 +2612,7 @@ web.get('/casino/baccarat', checkAuth, (req, res) => {
 web.get('/casino/junglescratch', checkAuth, (req, res) => {
     try {
         let html = fs.readFileSync(path.join(__dirname, 'public', 'templates', 'junglescratch.html'), 'utf8');
-        html = html.replaceAll('{{userid}}', req.user.userid)
-                   .replaceAll('{{avatarurl}}', getAvatar(req.user.userid, req.user.avatar));
+        html = html.replaceAll('{{userid}}', req.user.userid);
         res.send(html);
     } catch (err) {
         res.status(500).send("Baccarat Error: " + err.message);
@@ -2814,24 +2777,12 @@ web.get('/trading', checkAuth, (req, res) => {
             { name: "Aave", symbol: "aave", icon: `${process.env.DOMAIN}/images/aaveicon.png` },
             { name: "Monero", symbol: "xmr", icon: `${process.env.DOMAIN}/images/xmricon.png` },
         ];
-        let html = fs.readFileSync(path.join(__dirname, 'public', 'templates', 'trading_hub.html'), 'utf8');
-        const marketButtons = markets.map(coin => `
-            <div class="market-card" onclick="location.href='/trading/${coin.symbol.toLowerCase()}'">
-                <div class="market-icon">
-                    <img src="${coin.icon}" style="width: 32px; height: 32px; object-fit: contain;">
-                </div>
-                <div class="market-info">
-                    <h3>${coin.name}</h3>
-                    <p>Trade ${coin.symbol.toUpperCase()}/USD</p>
-                </div>
-                <div class="market-arrow">➜</div>
-            </div>
-        `).join('');
-        html = html.replace('{{marketButtons}}', marketButtons)
-                   .replaceAll('{{avatarurl}}', getAvatar(req.user.userid, req.user.avatar));
-        res.send(html);
+        res.render('trading_hub', {
+            markets,
+            avatarUrl: getAvatar(req.user.userid, req.user.avatar)
+        });
     } catch (err) {
-        res.status(500).send("Trading Hub Error: " + err.message);
+        res.status(500).render('404', { errorCode: '500', errorMessage: 'Trading Hub Error' });
     }
 });
 
@@ -2859,77 +2810,22 @@ web.get('/trading/:symbol', checkAuth, async (req, res) => {
         const coin = coinConfig[requestedSymbol];
         if (!coin) return res.redirect('/trading');
         const contractAddress = `https://geckoterminal.com/${coin.network}/pools/${coin.contract}`;
-        const [holding] = await db.query( 'SELECT shares FROM portfolios WHERE userid = ? AND symbol = ?', [user.userid, requestedSymbol] );
-        const [allHoldings] = await db.query( 'SELECT * FROM portfolios WHERE userid = ?', [user.userid] );
+        const [holding] = await db.query('SELECT shares FROM portfolios WHERE userid = ? AND symbol = ?', [user.userid, requestedSymbol]);
+        const [allHoldings] = await db.query('SELECT * FROM portfolios WHERE userid = ?', [user.userid]);
         const userShares = holding.length > 0 ? holding[0].shares : 0;
-        const positionRows = allHoldings.map(pos => {
-            return `
-                <tr class="position-row" 
-                    data-symbol="${pos.symbol}" 
-                    data-entry="${pos.average_price}" 
-                    data-shares="${pos.shares}" 
-                    data-side="${pos.side}" 
-                    data-margin="${pos.margin_used}" 
-                    data-leverage="${pos.leverage}"
-                    data-network="${pos.network}"
-                    data-contract="${pos.contract}">
-                    <td style="padding: 15px 20px;">
-                        ${pos.symbol.toUpperCase()} <br>
-                        <small style="color: ${pos.side === 'LONG' ? '#10b981' : '#ef4444'}">${pos.side}</small>
-                    </td>
-                    <td data-label="Amount">${Number(pos.shares).toLocaleString()}</td>
-                    <td data-label="Entry Price">$${Number(pos.average_price).toLocaleString()}</td>
-                    <td data-label="Take Profit">
-                        <div class="limit-group" style="display: flex; flex-direction: column; align-items: center;">
-                            <div class="input-action-row">
-                                <input type="number" step="any" placeholder="TP" 
-                                    id="tp-${pos.symbol}" 
-                                    class="limit-input-small tp-style" 
-                                    value="${pos.take_profit || ''}">
-                                <button class="btn-set-limit tp-btn" onclick="updateLimits('${pos.symbol}', document.getElementById('tp-${pos.symbol}').value, 'tp', this)">
-                                    SET
-                                </button>
-                            </div>
-                        </div>
-                    </td>
-                    <td data-label="Stop Loss">
-                        <div class="limit-group" style="display: flex; flex-direction: column; align-items: center;">
-                            <div class="input-action-row">
-                                <input type="number" step="any" placeholder="SL" 
-                                    id="sl-${pos.symbol}" 
-                                    class="limit-input-small sl-style" 
-                                    value="${pos.stop_loss || ''}">
-                                <button class="btn-set-limit sl-btn" onclick="updateLimits('${pos.symbol}', document.getElementById('sl-${pos.symbol}').value, 'sl', this)">
-                                    SET
-                                </button>
-                            </div>
-                        </div>
-                    </td>
-                    <td class="pos-liq" data-label="Liq. Price" style="color: #f59e0b;">Calculating...</td>
-                    <td data-label="Leverage">${pos.leverage}x</td>
-                    <td class="pos-pnl" data-label="PnL">Calculating...</td>
-                    <td data-label="" style="text-align: right; padding-right: 20px;">
-                        <button onclick="closePosition('${pos.symbol}', '${pos.network}', '${pos.contract}', ${pos.shares})" class="btn-close-pos">
-                            Close
-                        </button>
-                    </td>
-                </tr>`;
-        }).join('');
-        let html = fs.readFileSync(path.join(__dirname, 'public', 'templates', 'trading.html'), 'utf8');
-        html = html.replace('{{positionRows}}', positionRows || '<tr><td colspan="6" style="text-align:center; padding:20px;">No open positions</td></tr>')
-                   .replaceAll('{{balance}}', user.balance.toLocaleString())
-                   .replaceAll('{{ownedshares}}', userShares.toLocaleString())
-                   .replaceAll('{{contractlink}}', contractAddress)
-                   .replaceAll('{{network}}', coin.network)
-                   .replaceAll('{{contract}}', coin.contract)
-                   .replaceAll('{{coinid}}', requestedSymbol)
-                   .replaceAll('{{share}}', requestedSymbol)
-                   .replaceAll('{{userid}}', user.userid)
-                   .replaceAll('{{avatarurl}}', getAvatar(user.userid, user.avatar));
-        res.send(html);
+        res.render('trading', {
+            share: requestedSymbol,
+            coin: coin,
+            contractlink: contractAddress,
+            balance: user.balance.toLocaleString(),
+            ownedshares: userShares.toLocaleString(),
+            allHoldings: allHoldings,
+            price: 0,
+            avatarUrl: getAvatar(user.userid, user.avatar)
+        });
     } catch (err) {
         console.error("Trading Route Error:", err);
-        res.status(500).send("Trading Error\n" + err.message);
+        res.status(500).render('404', { errorCode: '500', errorMessage: 'Trading Error' });
     }
 });
 
@@ -3010,10 +2906,7 @@ web.post('/trade/update-limits', checkAuth, async (req, res) => {
 web.get('/trade/history', checkAuth, async (req, res) => {
     try {
         const user = req.user;
-        const [logs] = await db.query(
-            'SELECT * FROM stock_logs WHERE userid = ? ORDER BY timestamp DESC LIMIT 100', 
-            [user.userid]
-        );
+        const [logs] = await db.query( 'SELECT * FROM stock_logs WHERE userid = ? ORDER BY timestamp DESC LIMIT 100', [user.userid]);
         const closingTrades = logs.filter(log => {
             const act = log.action.toUpperCase();
             return act.includes('SELL') || act.includes('CLOSE') || act.includes('STOP') || act.includes('PROFIT');
@@ -3021,84 +2914,18 @@ web.get('/trade/history', checkAuth, async (req, res) => {
         const totalPnL = closingTrades.reduce((sum, log) => sum + Number(log.pnl), 0);
         const wins = closingTrades.filter(log => Number(log.pnl) > 0).length;
         const winRate = closingTrades.length > 0 ? ((wins / closingTrades.length) * 100).toFixed(1) : 0;
-        const totalTrades = closingTrades.length;
-        const summaryHtml = `
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-bottom: 25px;">
-                <div class="stat-card" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); padding: 15px; border-radius: 12px; text-align: center;">
-                    <div style="color: var(--text-muted); font-size: 0.75rem; text-transform: uppercase;">Total Profit</div>
-                    <div style="font-size: 1.2rem; font-weight: 800; color: ${totalPnL >= 0 ? '#10b981' : '#ef4444'};">
-                        ${totalPnL >= 0 ? '+' : ''}💰${Math.round(totalPnL).toLocaleString()}
-                    </div>
-                </div>
-                <div class="stat-card" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); padding: 15px; border-radius: 12px; text-align: center;">
-                    <div style="color: var(--text-muted); font-size: 0.75rem; text-transform: uppercase;">Win Rate</div>
-                    <div style="font-size: 1.2rem; font-weight: 800; color: #6366f1;">${winRate}%</div>
-                </div>
-                <div class="stat-card" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); padding: 15px; border-radius: 12px; text-align: center;">
-                    <div style="color: var(--text-muted); font-size: 0.75rem; text-transform: uppercase;">Closed Trades</div>
-                    <div style="font-size: 1.2rem; font-weight: 800; color: white;">${totalTrades}</div>
-                </div>
-            </div>
-        `;
         const uniqueSymbols = [...new Set(logs.map(log => log.symbol.toUpperCase()))];
-        const symbolOptions = uniqueSymbols.map(sym => `<option value="${sym}">${sym}</option>`).join('');
-        const logRows = logs.map(log => {
-            const action = log.action.toUpperCase();
-            const isClose = action.includes('SELL') || action.includes('CLOSE') || action.includes('STOP') || action.includes('PROFIT') || action.includes('AUTO');
-            const isBuy = action === 'BUY' || action === 'OPEN';
-            let actionColor = '#94a3b8';
-            let displayAction = action;
-            if (isBuy) {
-                actionColor = '#10b981';
-            } else if (action.includes('TP')) {
-                actionColor = '#10b981';
-                displayAction = '🎯 TP-CLOSE';
-            } else if (action.includes('SL')) {
-                actionColor = '#ef4444';
-                displayAction = '🛑 SL-CLOSE';
-            } else if (action.includes('LIQ')) {
-                actionColor = '#f59e0b';
-                displayAction = '💀 LIQUIDATED';
-            } else if (isClose) {
-                actionColor = '#ef4444';
-            }
-            const sideColor = log.side === 'LONG' ? '#10b981' : '#ef4444';
-            let pnlDisplay = '';
-            if (isClose) {
-                const pnlValue = Number(log.pnl);
-                const pnlColor = pnlValue >= 0 ? '#10b981' : '#ef4444';
-                const sign = pnlValue >= 0 ? '+' : '';
-                pnlDisplay = `
-                    <div style="color: ${pnlColor}; font-size: 0.7rem; font-weight: 600; margin-top: 2px;">
-                        ${sign}💰${Math.round(pnlValue).toLocaleString()}
-                    </div>`;
-            }
-            return `
-                <tr class="log-row" data-symbol="${log.symbol.toUpperCase()}">
-                    <td style="color: var(--text-muted); font-size: 0.8rem;">
-                        ${new Date(log.timestamp).toLocaleString()}
-                    </td>
-                    <td><strong>${log.symbol.toUpperCase()}</strong></td>
-                    <td style="color: ${actionColor}; font-weight: bold;">${log.action}</td>
-                    <td style="color: ${sideColor}; font-size: 0.75rem;">${log.side}</td>
-                    <td>${Number(log.amount).toLocaleString()}</td>
-                    <td>$${Number(log.price_per_share).toLocaleString()}</td>
-                    <td>
-                        💰${Number(log.total_cost).toLocaleString()}
-                        ${pnlDisplay} 
-                    </td>
-                </tr>
-            `;
-        }).join('');
-        let html = fs.readFileSync(path.join(__dirname, 'public', 'templates', 'tradehistory.html'), 'utf8');
-        html = html.replace('{{performanceSummary}}', summaryHtml)
-                   .replace('{{symbolOptions}}', symbolOptions)
-                   .replace('{{logRows}}', logRows || '<tr><td colspan="7" style="text-align:center; padding:20px;">No trade history found.</td></tr>')
-                   .replaceAll('{{avatarurl}}', getAvatar(user.userid, user.avatar));
-        res.send(html);
+        res.render('tradehistory', {
+            avatarUrl: getAvatar(user.userid, user.avatar),
+            totalPnL,
+            winRate,
+            totalTrades: closingTrades.length,
+            uniqueSymbols,
+            logs
+        });
     } catch (err) {
         console.error("History Error:", err);
-        res.status(500).send("Error loading trade history.");
+        res.status(500).render('404', { errorCode: '500', errorMessage: 'Error loading history' });
     }
 });
 
@@ -3145,19 +2972,23 @@ web.get('/login', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'templates', 'login.html'));
 });
 
-web.use(checkAuth, async (req, res, next) => {
-    if(res.status(400)) {
-        let html = fs.readFileSync(path.join(__dirname, 'public', 'templates', '404.html'), 'utf8');
-        html = html.replace('{{avatarurl}}', getAvatar(req.user.userid, req.user.avatar));
-        res.send(html);
-    }
+web.use((req, res) => {
+    const avatarUrl = req.user ? getAvatar(req.user.userid, req.user.avatar) : phavatar;
+    res.status(404).render('404', {
+        avatarUrl: avatarUrl,
+        title: "Page Not Found",
+        errorCode: "404"
+    });
 });
 
 web.use((err, req, res, next) => {
     console.error("DEBUG - Server Error:", err.stack);
-    let html = fs.readFileSync(path.join(__dirname, 'public', 'templates', '404.html'), 'utf8');
-    html = html.replace('{{avatarurl}}', getAvatar(req.user.userid, req.user.avatar));
-    res.send(html);
+    const avatarUrl = (req.user) ? getAvatar(req.user.userid, req.user.avatar) : phavatar;
+    res.status(500).render('404', {
+        avatarUrl: avatarUrl,
+        title: "Internal Server Error",
+        errorCode: "500"
+    });
 });
 
 // API URL's
@@ -3218,47 +3049,29 @@ mainweb.use(vhost(`itsinhaleyo.online`, web));
 mainweb.listen(port, () => { console.log(`Website running at ${process.env.DOMAIN}:${port}/`); });
 
 // Website Functions
-function renderLeaderboard(res, rows, title, userdata) {
-    let html = fs.readFileSync(path.join(__dirname, 'public', 'templates', 'leaderboard.html'), 'utf8');
-    let tableRows = rows.map((user, index) => {
-        const rank = index + 1;
-        let medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : rank;
-        const avatarUrl = `https://cdn.discordapp.com/avatars/${user.userid}/${user.avatar}.png`;
-        return `<tr>
-            <td style="text-align:center">${medal}</td>
-            <td style="display:flex; align-items:center; gap:10px;"><img src="${avatarUrl}" style="width:30px; border-radius:50%"> ${user.username}</td>
-            <td>💰 ${user.balance.toLocaleString()}</td>
-            <td>⭐ ${user.level}</td>
-        </tr>`;
-    }).join('');
-    html = html.replace('{{rows}}', tableRows)
-        .replaceAll('{{LB-TYPE}}', title)
-        .replaceAll('{{avatarurl}}', getAvatar(userdata.userid, userdata.avatar));;
-    res.send(html);
-}
-
-async function handleLeaderboard(req, res, sortColumn, title, user) {
+async function handleLeaderboard(req, res, sortColumn, title) {
     try {
         const searchTerm = req.query.search || '';
         let query;
         let queryParams = [];
         if (searchTerm) {
-            query = `
-                SELECT userid, username, avatar, balance, level 
-                FROM users 
-                WHERE username LIKE ? 
-                ORDER BY ${sortColumn} DESC 
-                LIMIT 50
-            `;
+            query = `SELECT userid, username, avatar, balance, level FROM users 
+                     WHERE username LIKE ? ORDER BY ${sortColumn} DESC LIMIT 50`;
             queryParams = [`%${searchTerm}%`];
         } else {
-            query = `SELECT userid, username, avatar, balance, level FROM users ORDER BY ${sortColumn} DESC LIMIT 10`;
+            query = `SELECT userid, username, avatar, balance, level FROM users 
+                     ORDER BY ${sortColumn} DESC LIMIT 10`;
         }
         const [rows] = await db.query(query, queryParams);
-        renderLeaderboard(res, rows, title, user);
+        res.render('leaderboard', {
+            title: title,
+            rows: rows,
+            avatarUrl: getAvatar(req.user.userid, req.user.avatar),
+            getAvatar: getAvatar
+        });
     } catch (err) {
         console.error(err);
-        res.status(500).send("Error");
+        res.status(500).render('404', { errorCode: '500', errorMessage: 'Leaderboard Error' });
     }
 }
 
@@ -3281,7 +3094,6 @@ async function getContract(network, poolAddress) {
         }
         return null;
     } catch (error) {
-        console.error("GeckoTerminal API Error:", error.message);
         return priceCache[cacheKey] ? priceCache[cacheKey].price : null;
     }
 }
