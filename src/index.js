@@ -2394,6 +2394,7 @@ const checkAuth = (req, res, next) => req.isAuthenticated() ? next() : res.redir
 const phavatar = "https://itsinhaleyo.online/images/imageplaceholder.png"
 
 // Website URL's
+web.get('/login', (req, res) => { res.render('login'); });
 web.post('/login', passport.authenticate('local', {
     successRedirect: '/',
     failureRedirect: '/login'
@@ -2967,10 +2968,6 @@ web.get('/auth/discord/callback', (req, res, next) => {
         failureRedirect: '/login',
         successRedirect: '/'
     })(req, res, next);
-});
-
-web.get('/login', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'templates', 'login.html'));
 });
 
 web.use((req, res) => {
