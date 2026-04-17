@@ -2533,7 +2533,8 @@ web.get('/casino', checkAuth, (req, res) => {
             { name: "BlackJack", symbol: "blackjack", icon: `${process.env.DOMAIN}/games/blackjack/icon-256.png` },
             { name: "High Low", symbol: "hilow", icon: `${process.env.DOMAIN}/games/hilow/icon.png` },
             { name: "Baccarat", symbol: "baccarat", icon: `${process.env.DOMAIN}/games/baccarat/icon-256.png` },
-            { name: "Jungle Scratch", symbol: "junglescratch", icon: `${process.env.DOMAIN}/games/junglescratch/icon.ico`}
+            { name: "Jungle Scratch", symbol: "junglescratch", icon: `${process.env.DOMAIN}/games/junglescratch/icon.ico`},
+            //{ name: "Book of Ra", symbol: "bookofra", icon: `${process.env.DOMAIN}/games/bookofra/icon256.png`}
         ];
         res.render('casino', {
             games: games,
@@ -2566,7 +2567,7 @@ web.get('/casino/miniroulette', checkAuth, (req, res) => {
         html = html.replaceAll('{{userid}}', req.user.userid);
         res.send(html);
     } catch (err) {
-        res.status(500).send("Super Plinko Error: " + err.message);
+        res.status(500).send("Mini Roulette Error: " + err.message);
     }
 });
 
@@ -2576,7 +2577,7 @@ web.get('/casino/luckyslot', checkAuth, (req, res) => {
         html = html.replaceAll('{{userid}}', req.user.userid);
         res.send(html);
     } catch (err) {
-        res.status(500).send("Super Plinko Error: " + err.message);
+        res.status(500).send("Lucky Slot Error: " + err.message);
     }
 });
 
@@ -2616,7 +2617,17 @@ web.get('/casino/junglescratch', checkAuth, (req, res) => {
         html = html.replaceAll('{{userid}}', req.user.userid);
         res.send(html);
     } catch (err) {
-        res.status(500).send("Baccarat Error: " + err.message);
+        res.status(500).send("Junglescratch Error: " + err.message);
+    }
+});
+
+web.get('/casino/bookofra', checkAuth, (req, res) => {
+    try {
+        let html = fs.readFileSync(path.join(__dirname, 'public', 'templates', 'bookofra.html'), 'utf8');
+        html = html.replaceAll('{{userid}}', req.user.userid);
+        res.send(html);
+    } catch (err) {
+        res.status(500).send("Book of Ra Error: " + err.message);
     }
 });
 

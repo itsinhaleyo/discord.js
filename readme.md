@@ -30,6 +30,10 @@ For Setting Up your DATABASE: use MySQL
 
 NOW YOU SHOULD BE ALL SET TO RUN THE BOT!
 
+
+FOR SETTING UP THE PC STARTUP SCRIPT JUST ADD THE PATH TO THIS FOLDER
+
+
 to run the bot open terminal in the bot folder and enter "nodemon index.js"
 
 and if nodemon doesnt work use this line "npx nodemon index.js"
