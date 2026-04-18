@@ -62,3 +62,11 @@ CREATE TABLE gamestatus (
     luckyslot INT DEFAULT 1,
     hilow NOT NULL DEFAULT 5
 );
+
+CREATE TABLE messages (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    userid VARCHAR(255) NOT NULL,
+    username VARCHAR(255) NOT NULL,
+    content TEXT NOT NULL,
+    timestamp BIGINT NOT NULL
+);

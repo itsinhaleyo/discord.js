@@ -2277,7 +2277,9 @@ client.on('messageCreate', async (message) => {
     if (message.author.username === process.env.BOT_USER) { return; }
     const date = new Date(message.createdTimestamp);
     const timestamp = date.toLocaleDateString('en-US', { hour: 'numeric', minute: 'numeric', second: 'numeric' });
-    console.log(message.guild.id+" - "+timestamp+" - "+message.author.username+" - "+message.content);
+    console.log(message.guild.id+":"+message.author.username+" - "+timestamp+" - "+message.author.username+" - "+message.cleanContent);
+    //FOR LOGGING MESSAGES INTO DATABASE USE TABLE messages in src/database/schema.sql and uncomment below line, make sure to handle DB size as this can grow indefinitely with active bots
+    //db.query("INSERT INTO messages (userid, username, content, timestamp) VALUES (?, ?, ?, ?)", [message.author.id, message.author.username, message.cleanContent, message.createdTimestamp]).catch(err => console.error('DB Insert Error:', err));
 
     if (message.content === 'help') { message.reply({ content: 'Please use / commands.', flags: [MessageFlags.Ephemeral] }); }
 
@@ -2391,7 +2393,7 @@ passport.deserializeUser(async (id, done) => {
 });
 const getAvatar = (id, hash) => { return `https://cdn.discordapp.com/avatars/${id}/${hash}.png`;};
 const checkAuth = (req, res, next) => req.isAuthenticated() ? next() : res.redirect('/login');
-const phavatar = "https://itsinhaleyo.online/images/imageplaceholder.png"
+const phavatar = `${process.env.DOMAIN}/images/imageplaceholder.png`;
 
 // Website URL's
 web.get('/login', (req, res) => { res.render('login'); });
