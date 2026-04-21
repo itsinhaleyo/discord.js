@@ -558,7 +558,7 @@ const client = new Client({
 const commands = [
     { name: 'help', description: 'Help Command' },
     { name: 'claim', description: '60% chance to Collect 1-1000 every Minute' },
-    { name: 'daily', description: 'Collect 25000 Daily' },
+    { name: 'daily', description: 'Collect Money Daily' },
     { name: 'ping', description: 'Replies With the Bots Ping' },
     { name: 'queue', description: 'Displays the current music queue' },
     { 
@@ -1307,8 +1307,11 @@ client.on('interactionCreate', async (interaction) => {
     if (interaction.commandName === 'daily') {
         try {
             await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
-            const currentDate = new Date().toDateString();
-            const dailyAmount = 25000;
+            const now = new Date();
+            const currentDate = now.toDateString();
+            const yesterday = new Date();
+            yesterday.setDate(now.getDate() - 1);
+            const yesterdayDate = yesterday.toDateString();
             let user = await getuser(interaction.member.id);
             if (user.daily === currentDate) {
                 const waitEmbed = new EmbedBuilder()
@@ -1317,12 +1320,18 @@ client.on('interactionCreate', async (interaction) => {
                     .setColor('Yellow');
                 return interaction.editReply({ embeds: [waitEmbed] });
             }
+            const newStreak = (user.daily === yesterdayDate) ? (user.dailystreak + 1) : 1;
+            const dailyAmount = 10000 * newStreak;
             const newBalance = Number(user.balance) + dailyAmount;
-            await db.query('UPDATE users SET balance = ?, daily = ? WHERE userid = ?', [newBalance, currentDate, interaction.member.id]);
+            await db.query( 'UPDATE users SET balance = ?, daily = ?, dailystreak = ? WHERE userid = ?', [newBalance, currentDate, newStreak, interaction.member.id]);
             await giveXp(interaction);
             const successEmbed = new EmbedBuilder()
                 .setTitle('💰 Daily Reward Claimed!')
-                .setDescription(`You received your daily **${dailyAmount}** 💵!\n\n**New Balance:** ${numtoemo(newBalance)}`)
+                .setDescription(
+                    `You received **${dailyAmount.toLocaleString()}** 💵!\n` +
+                    `**Streak:** Day ${newStreak} 🔥\n\n` +
+                    `**New Balance:** ${numtoemo(newBalance)}`
+                )
                 .setColor('Gold')
                 .setThumbnail(interaction.user.displayAvatarURL())
                 .setTimestamp();
@@ -2277,9 +2286,9 @@ client.on('messageCreate', async (message) => {
     if (message.author.username === process.env.BOT_USER) { return; }
     const date = new Date(message.createdTimestamp);
     const timestamp = date.toLocaleDateString('en-US', { hour: 'numeric', minute: 'numeric', second: 'numeric' });
-    console.log(message.guild.id+":"+message.author.username+" - "+timestamp+" - "+message.author.username+" - "+message.cleanContent);
+    console.log(message.guild.id+" - "+timestamp+" - "+message.author.username+" - "+message.cleanContent);
     //FOR LOGGING MESSAGES INTO DATABASE USE TABLE messages in src/database/schema.sql and uncomment below line, make sure to handle DB size as this can grow indefinitely with active bots
-    //db.query("INSERT INTO messages (userid, username, content, timestamp) VALUES (?, ?, ?, ?)", [message.author.id, message.author.username, message.cleanContent, message.createdTimestamp]).catch(err => console.error('DB Insert Error:', err));
+    //db.query("INSERT INTO messages (guildid, userid, username, content, timestamp) VALUES (?, ?, ?, ?, ?)", [message.guild.id, message.author.id, message.author.username, message.cleanContent, message.createdTimestamp]).catch(err => console.error('DB Insert Error:', err));
 
     if (message.content === 'help') { message.reply({ content: 'Please use / commands.', flags: [MessageFlags.Ephemeral] }); }
 
@@ -2319,7 +2328,6 @@ client.on('messageCreate', async (message) => {
             await message.delete().catch(err => { if (err.code !== 10008) console.error('Delete failed:', err); });
         } catch (error) { console.error("Facebook fixer Error:", error); }
     }
-
 });
 
 //// Website Coding
@@ -2411,16 +2419,21 @@ web.post('/logout', (req, res, next) => {
 
 web.post('/claim-daily', checkAuth, async (req, res) => {
     try {
-        const currentDate = new Date().toDateString();
-        const dailyAmount = 25000;
+        const now = new Date();
+        const currentDate = now.toDateString();
+        const yesterday = new Date();
+        yesterday.setDate(now.getDate() - 1);
+        const yesterdayDate = yesterday.toDateString();
         const [rows] = await db.query('SELECT * FROM users WHERE userid = ?', [req.user.userid]);
         const user = rows[0];
         if (user.daily === currentDate) { return res.json({ success: false, message: "You've already collected your reward today!" }); }
+        const newStreak = (user.daily === yesterdayDate) ? (user.dailystreak + 1) : 1;
+        const dailyAmount = 10000 * newStreak;
         const newBalance = Number(user.balance) + dailyAmount;
-        await db.query('UPDATE users SET balance = ?, daily = ? WHERE userid = ?', [newBalance, currentDate, req.user.userid]);
+        await db.query( 'UPDATE users SET balance = ?, daily = ?, dailystreak = ? WHERE userid = ?', [newBalance, currentDate, newStreak, req.user.userid]);
         res.json({ 
             success: true, 
-            message: `Successfully claimed 💰 ${dailyAmount.toLocaleString()}!`,
+            message: `Successfully claimed 💰 ${dailyAmount.toLocaleString()}! (Day ${newStreak} Streak)`,
             newBalance: newBalance.toLocaleString() 
         });
     } catch (err) {
@@ -2434,9 +2447,17 @@ web.get('/', checkAuth, async (req, res) => {
         const [[{ count: userCount }]] = await db.query('SELECT COUNT(*) as count FROM users');
         const serverCount = client.guilds.cache.size || 0;
         const user = req.user || {};
-        const currentDate = new Date().toDateString();
-        const hasClaimed = (user.daily === currentDate);
         const now = new Date();
+        const currentDate = now.toDateString();
+        const yesterday = new Date();
+        yesterday.setDate(now.getDate() - 1);
+        const yesterdayDate = yesterday.toDateString();
+        const hasClaimed = (user.daily === currentDate);
+        const claimedYesterday = (user.daily === yesterdayDate);
+        let currentStreak = user.dailystreak || 0;
+        if (!hasClaimed && !claimedYesterday) { currentStreak = 0; }
+        const activeStreak = hasClaimed ? currentStreak : currentStreak + 1;
+        const dailyAmount = 10000 * activeStreak;
         const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
         const msUntilMidnight = midnight - now;
         res.render('home', {
@@ -2447,7 +2468,8 @@ web.get('/', checkAuth, async (req, res) => {
             level: user.level || 1,
             avatarUrl: user.userid ? getAvatar(user.userid, user.avatar) : phavatar,
             hasClaimed: hasClaimed,
-            msUntilMidnight: msUntilMidnight
+            msUntilMidnight: msUntilMidnight,
+            dailyAmount: dailyAmount
         });
     } catch (err) {
         console.error(err);

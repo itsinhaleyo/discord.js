@@ -4,6 +4,7 @@ CREATE TABLE users (
     userid VARCHAR(100) NOT NULL PRIMARY KEY,
     balance BIGINT NOT NULL,
     daily VARCHAR(100) NOT NULL,
+    dailystreak INT NOT NULL DEFAULT 0,
     username VARCHAR(255) NOT NULL,
     avatar VARCHAR(100) NOT NULL,
     xp INT NOT NULL DEFAULT 1,
@@ -65,6 +66,7 @@ CREATE TABLE gamestatus (
 
 CREATE TABLE messages (
     id INT AUTO_INCREMENT PRIMARY KEY,
+    guildid VARCHAR(255) NOT NULL,
     userid VARCHAR(255) NOT NULL,
     username VARCHAR(255) NOT NULL,
     content TEXT NOT NULL,
