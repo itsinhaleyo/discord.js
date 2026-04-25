@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><%= title %></title>
     <%- include('icon') %>
     <link rel="stylesheet" href="https://itsinhaleyo.online/css/header.css">
@@ -22,10 +23,10 @@
         <table>
             <thead>
                 <tr>
-                    <th>Rank</th>
+                    <th style="text-align:center">Rank</th>
                     <th>User</th>
                     <th>Balance</th>
-                    <th>Level</th>
+                    <th style="text-align:center">Level</th>
                 </tr>
             </thead>
             <tbody>
@@ -33,19 +34,25 @@
                     const rank = index + 1;
                     const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : rank;
                 %>
-                    <tr>
-                        <td style="text-align:center"><%= medal %></td>
-                        <td style="display:flex; align-items:center; gap:10px;">
-                            <img src="<%= getAvatar(user.userid, user.avatar) %>" style="width:30px; border-radius:50%"> 
-                            <%= user.username %>
-                        </td>
-                        <td>💰 <%= user.balance.toLocaleString() %></td>
-                        <td>⭐ <%= user.level %></td>
-                    </tr>
+                <tr>
+                    <td style="text-align:center; font-weight: bold;"><%= medal %></td>
+                    <td>
+                        <div class="user-cell">
+                            <img src="<%= getAvatar(user.userid, user.avatar) %>" class="user-avatar" alt=""> 
+                            <span class="username"><%= user.username %></span>
+                        </div>
+                    </td>
+                    <td class="balance-cell">💰<%= user.balance.toLocaleString() %></td>
+                    <td style="text-align:center">
+                        <span class="level-badge">⭐ <%= user.level %></span>
+                    </td>
+                </tr>
                 <% }); %>
             </tbody>
         </table>
-        <a href="/" class="btn-back">← Back to Dashboard</a>
+        <div style="text-align: center; margin-top: 20px;">
+            <a href="/" class="btn-back">← Back to Dashboard</a>
+        </div>
     </div>
 </body>
 </html>

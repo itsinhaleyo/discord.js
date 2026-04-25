@@ -4,7 +4,6 @@
     --text-main: #f8fafc;
     --text-muted: #94a3b8;
     --card-bg: rgba(30, 41, 59, 0.7);
-    --discord-blue: #5865F2;
     --up-green: #10b981;
     --down-red: #ef4444;
 }
@@ -82,8 +81,13 @@
     padding: 10px 0;
     transition: color 0.2s;
 }
-.dropdown:hover .dropbtn {
-    color: var(--discord-blue);
+@media (min-width: 769px) {
+    .dropdown:hover .dropbtn {
+        color: var(--discord-blue);
+    }
+    .dropdown:hover .dropdown-content {
+        display: block;
+    }
 }
 .dropdown-content {
     display: none;
@@ -110,9 +114,6 @@
     background-color: rgba(88, 101, 242, 0.1);
     color: var(--discord-blue);
 }
-.dropdown:hover .dropdown-content {
-    display: block;
-}
 .nav-user-avatar {
     width: 34px;
     height: 34px;
@@ -125,29 +126,106 @@
     border-color: var(--discord-blue);
     transform: scale(1.05);
 }
+.hamburger {
+    display: none;
+    flex-direction: column;
+    background: none;
+    border: none;
+    cursor: pointer;
+    gap: 6px;
+    padding: 8px;
+    margin-right: -8px;
+}
+.hamburger span {
+    width: 25px;
+    height: 3px;
+    background: var(--text-muted);
+    border-radius: 2px;
+    transition: all 0.3s ease;
+}
 body {
     padding-top: 80px !important;
 }
 @media (max-width: 768px) {
-    .nav-container {
-        padding: 0 1rem;
+    .hamburger {
+        display: flex;
+        z-index: 10001;
     }
-    .logo {
-        font-size: 1.1rem;
-        gap: 8px;
+    .hamburger.active span:nth-child(1) {
+        transform: translateY(9px) rotate(45deg);
     }
-    .nav-logo {
-        height: 32px;
-        width: 32px;
+    .hamburger.active span:nth-child(2) {
+        opacity: 0;
+    }
+    .hamburger.active span:nth-child(3) {
+        transform: translateY(-9px) rotate(-45deg);
     }
     .nav-links {
-        gap: 1rem;
+        position: absolute;
+        top: 70px;
+        left: 0;
+        right: 0;
+        background: rgba(15, 23, 42, 0.98);
+        backdrop-filter: blur(12px);
+        flex-direction: column;
+        gap: 0;
+        padding: 0;
+        max-height: 0;
+        opacity: 0;
+        overflow-y: auto;
+        pointer-events: none;
+        transition: max-height 0.4s ease, opacity 0.3s ease;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .nav-links.active {
+        max-height: calc(100vh - 70px);
+        opacity: 1;
+        padding: 1rem 0;
+        pointer-events: auto;
     }
     .nav-links a, 
     .dropbtn {
-        font-size: 0.8rem;
+        font-size: 1rem;
+        display: block;
+        padding: 14px 1.5rem;
+        width: 100%;
+        text-align: left;
+        color: var(--text-muted);
+        text-decoration: none;
+        box-sizing: border-box;
+    }
+    .nav-links a:hover,
+    .dropbtn:hover {
+        background: rgba(88, 101, 242, 0.1);
+        color: var(--discord-blue);
+    }
+    .casino {
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        width: 100%;
+    }
+    .dropdown {
+        display: block;
+        position: static;
+        width: 100%;
     }
     .dropdown-content {
-        min-width: 140px;
+        position: static;
+        display: none;
+        background: rgba(0, 0, 0, 0.2);
+        box-shadow: none;
+        border: none;
+        border-radius: 0;
+        min-width: auto;
+        padding: 0;
+    }
+    .dropdown-content.active {
+        display: block !important;
+    }
+    .dropdown-content a {
+        padding: 12px 1rem 12px 2.5rem;
+        font-size: 0.9rem;
+    }
+    .nav-user-avatar {
+        margin: 1rem 1.5rem;
     }
 }

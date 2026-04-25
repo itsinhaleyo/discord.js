@@ -21,8 +21,6 @@ module.exports = async (client, message) => {
         const [rows] = await db.query("SELECT * FROM users WHERE userid = ?", [message.author.id]);
         let user = rows[0];
         if (user) {
-            if (!user.username) { await db.query("UPDATE users SET username = ? WHERE userid = ?", [message.author.username, message.author.id]) }
-            if (!user.avatar) { await db.query("UPDATE users SET avatar = ? WHERE userid = ?", [message.author.avatar, message.author.id]) }
             let newXp = Number(user.xp) + xpToGive;
             if (newXp >= (100 * Number(user.level))) {
                 const newLevel = Number(user.level) + 1;
@@ -66,7 +64,7 @@ module.exports = async (client, message) => {
             }
         } else {
             const currentDate = new Date().toDateString();
-            await db.query('INSERT INTO users (userid, balance, daily, xp, level) VALUES(?, ?, ?, ?, ?)', [message.author.id, 25000, currentDate, xpToGive, 1]);
+            await db.query('INSERT INTO users (userid, username, avatar, balance, daily, xp, level) VALUES(?, ?, ?, ?, ?, ?, ?)', [message.author.id, message.author.username, message.author.avatar, 25000, currentDate, xpToGive, 1]);
         }
         cooldowns.add(message.author.id);
         setTimeout(() => cooldowns.delete(message.author.id), 10000);

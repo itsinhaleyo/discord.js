@@ -24,7 +24,7 @@
                 <div class="stat-label">Daily Reward</div>
                 <div id="daily-container">
                     <button onclick="claimDaily()" id="daily-btn" class="btn-discord" style="margin: 0; width: 100%;">
-                        Claim Daily 💰 25,000
+                        Claim Daily 💰 <%= dailyAmount.toLocaleString() %>
                     </button>
                     <div id="cooldown-timer" style="display: none; color: #94a3b8; font-size: 0.9rem; margin-top: 12px;">
                         Next reward in: <span id="timer-text" style="color: #fff; font-weight: bold;">--:--:--</span>
