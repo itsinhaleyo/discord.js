@@ -29,7 +29,7 @@
                 <div class="value" style="color: white;"><%= totalTrades %></div>
             </div>
         </div>
-        <div style="margin-bottom: 20px;">
+        <div class="filter-group">
             <label>Filter by Asset: </label>
             <select id="assetFilter" class="asset-select" onchange="filterHistory()">
                 <option value="ALL">All Assets</option>
@@ -39,10 +39,16 @@
             </select>
         </div>
         <div class="history-card">
-            <table>
+            <table class="responsive-table">
                 <thead>
                     <tr>
-                        <th>Date</th><th>Asset</th><th>Action</th><th>Side</th><th>Size</th><th>Price</th><th>Total</th>
+                        <th>Date</th>
+                        <th>Asset</th>
+                        <th>Action</th>
+                        <th>Side</th>
+                        <th>Size</th>
+                        <th>Price</th>
+                        <th class="total-cell">Total/PnL</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -57,21 +63,25 @@
                             else if (action.includes('LIQ')) actionColor = '#f59e0b';
                         %>
                             <tr class="log-row" data-symbol="<%= log.symbol.toUpperCase() %>">
-                                <td style="font-size: 0.8rem; color: var(--text-muted);">
+                                <td data-label="Date" style="font-size: 0.8rem; color: var(--text-muted);">
                                     <%= new Date(log.timestamp).toLocaleString() %>
                                 </td>
-                                <td><strong><%= log.symbol.toUpperCase() %></strong></td>
-                                <td style="color: <%= actionColor %>; font-weight: bold;"><%= action %></td>
-                                <td style="color: <%= log.side === 'LONG' ? '#10b981' : '#ef4444' %>;"><%= log.side %></td>
-                                <td><%= Number(log.amount).toLocaleString() %></td>
-                                <td>$<%= Number(log.price_per_share).toLocaleString() %></td>
-                                <td>
-                                    💰<%= Number(log.total_cost).toLocaleString() %>
-                                    <% if (isClose) { %>
-                                        <div style="color: <%= log.pnl >= 0 ? '#10b981' : '#ef4444' %>; font-size: 0.7rem; font-weight: 600;">
-                                            <%= log.pnl >= 0 ? '+' : '' %>💰<%= Math.round(log.pnl).toLocaleString() %>
-                                        </div>
-                                    <% } %>
+                                <td data-label="Asset"><strong><%= log.symbol.toUpperCase() %></strong></td>
+                                <td data-label="Action" style="color: <%= actionColor %>; font-weight: bold;"><%= action %></td>
+                                <td data-label="Side" style="color: <%= log.side === 'LONG' ? '#10b981' : '#ef4444' %>;"><%= log.side %></td>
+                                <td data-label="Size"><%= Number(log.amount).toLocaleString() %></td>
+                                <td data-label="Price">$<%= Number(log.price_per_share).toLocaleString() %></td>
+                                <td data-label="Total/PnL">
+                                    <div class="total-cell-wrapper">
+                                        <span class="total-cost">
+                                            💰<%= Number(log.total_cost).toLocaleString() %>
+                                        </span>
+                                        <% if (isClose) { %>
+                                            <span class="pnl-text" style="color: <%= log.pnl >= 0 ? '#10b981' : '#ef4444' %>;">
+                                                <%= log.pnl >= 0 ? '+' : '-' %>💰<%= Math.round(Math.abs(log.pnl)).toLocaleString() %>
+                                            </span>
+                                        <% } %>
+                                    </div>
                                 </td>
                             </tr>
                         <% }) %>

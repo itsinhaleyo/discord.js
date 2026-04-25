@@ -1,22 +1,28 @@
 <header class="main-header">
+    <script src="https://itsinhaleyo.online/script/header.js"></script>
     <div class="nav-container">
         <a href="/" class="logo">
             <img src="https://cdn.discordapp.com/avatars/1479879290270126263/baa2dc5e6d19d064dba7d62c5a6b0a4f.png" class="nav-logo">
             Jew
         </a>
-        <nav class="nav-links">
+        <button class="hamburger" id="hamburger">
+            <span></span>
+            <span></span>
+            <span></span>
+        </button>
+        <nav class="nav-links" id="nav-links">
             <div class="casino">
                 <a href="/casino">Casino</a>
             </div>
             <div class="dropdown">
-                <button class="dropbtn">Crypto ▾</button>
+                <button class="dropbtn" onclick="toggleDropdown(event, this)">Crypto ▾</button>
                 <div class="dropdown-content">
                     <a href="/portfolio">💰 Portfolio</a>
                     <a href="/trading">📈 Trade Assets</a>
                 </div>
             </div>
             <div class="dropdown">
-                <button class="dropbtn">Leaderboards ▾</button>
+                <button class="dropbtn" onclick="toggleDropdown(event, this)">Leaderboards ▾</button>
                 <div class="dropdown-content">
                     <a href="/leaderboard/money">💰 Money</a>
                     <a href="/leaderboard/rank">⭐ Rank</a>

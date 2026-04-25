@@ -18,4 +18,14 @@ tr:hover { background: rgba(255, 255, 255, 0.02); }
 .stat-card.summary-box:hover { transform: translateY(-2px); border-color: rgba(255, 255, 255, 0.2); }
 .stat-card.summary-box .label { color: var(--text-muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; }
 .stat-card.summary-box .value { font-size: 1.4rem; font-weight: 800; font-family: 'JetBrains Mono', monospace; }
-@media (max-width: 768px) { th:nth-child(1), td:nth-child(1), th:nth-child(4), td:nth-child(4) { display: none; } }
+.total-cell { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.total-cell-wrapper { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.pnl-text { font-weight: 600; font-size: 0.75rem; }
+@media (max-width: 768px) {
+    .responsive-table thead { display: none; }
+    .responsive-table tr { display: block; padding: 15px; border-bottom: 8px solid rgba(0, 0, 0, 0.2); }
+    .responsive-table td { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.05); text-align: right; }
+    .responsive-table td:last-child { border-bottom: none; }
+    .responsive-table td::before { content: attr(data-label); font-weight: 600; color: var(--text-muted); text-transform: uppercase; font-size: 0.75rem; text-align: left; }
+    .total-cell-wrapper { align-items: flex-start; }
+}
