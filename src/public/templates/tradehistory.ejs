@@ -51,7 +51,6 @@
                             const action = log.action.toUpperCase();
                             const isClose = action.includes('SELL') || action.includes('CLOSE') || action.includes('STOP') || action.includes('PROFIT') || action.includes('AUTO');
                             const isBuy = action === 'BUY' || action === 'OPEN';
-                            
                             let actionColor = '#94a3b8';
                             if (isBuy || action.includes('TP')) actionColor = '#10b981';
                             else if (action.includes('SL') || isClose) actionColor = '#ef4444';
