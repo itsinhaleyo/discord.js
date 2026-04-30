@@ -2295,8 +2295,7 @@ client.on('messageCreate', async (message) => {
     if (message.content.includes("x.com") || message.content.includes("twitter.com")) {
         if (message.author.bot) return;
         try {
-            if (message.content.includes("fxtwitter.com")) return;
-            let replacement = message.content.replace("x.com", "fixupx.com").replace("twitter.com", "fxtwitter.com");
+            let replacement = message.content.replace(".x.com", ".fixupx.com").replace(".twitter.com", ".fxtwitter.com");
             await message.reply({ content: `${replacement}`, allowedMentions: { repliedUser: false } });
             await message.delete().catch(err => { if (err.code !== 10008) console.error('Delete failed:', err); });
         } catch (error) { console.error("X-fixer Error:", error); }
@@ -2305,7 +2304,7 @@ client.on('messageCreate', async (message) => {
     if (message.content.includes("instagram.com")) {
         if (message.author.id === client.user.id) return;
         try {
-            const replacement = message.content.replace("instagram.com", "eeinstagram.com");
+            const replacement = message.content.replace(".instagram.com", ".kkinstagram.com");
             await message.reply({ content: `${replacement}`, allowedMentions: { repliedUser: false } });
             await message.delete().catch(err => { if (err.code !== 10008) console.error('Delete failed:', err); });
         } catch (error) { console.error("Instagram fixer Error:", error); }
@@ -2314,7 +2313,7 @@ client.on('messageCreate', async (message) => {
     if (message.content.includes("reddit.com")) {
         if (message.author.bot) return;
         try {
-            const replacement = message.content.replace("reddit.com", "rxddit.com");
+            const replacement = message.content.replace(".reddit.com", ".rxddit.com");
             await message.reply({ content: `${replacement}`, allowedMentions: { repliedUser: false } });
             await message.delete().catch(err => { if (err.code !== 10008) console.error('Delete failed:', err); });
         } catch (error) { console.error("Reddit Fixer Error:", error); }
@@ -2323,7 +2322,7 @@ client.on('messageCreate', async (message) => {
     if (message.content.includes("facebook.com")) {
         if (message.author.bot) return;
         try {
-            const replacement = message.content.replace("facebook.com", "facebed.com");
+            const replacement = message.content.replace(".facebook.com", ".facebed.com");
             await message.reply({ content: `${replacement}`, allowedMentions: { repliedUser: false } });
             await message.delete().catch(err => { if (err.code !== 10008) console.error('Delete failed:', err); });
         } catch (error) { console.error("Facebook fixer Error:", error); }
@@ -2333,8 +2332,11 @@ client.on('messageCreate', async (message) => {
 //// Website Coding
 // Website Init
 const mainweb = express(), web = express(), apiweb = express();
+//const rrme = express();
 web.set('view engine', 'ejs');
 web.set('views', path.join(__dirname, 'public', 'templates'));
+//rrme.set('view engine', 'html');
+//rrme.set('views', path.join(__dirname, 'public', 'templates'));
 mainweb.set('view engine', 'ejs');
 mainweb.set('views', path.join(__dirname, 'public', 'templates')); 
 mainweb.set('subdomain offset', 1);
@@ -2474,6 +2476,15 @@ web.get('/', checkAuth, async (req, res) => {
     } catch (err) {
         console.error(err);
         res.status(500).send("Error loading home");
+    }
+});
+
+web.get('/earthworks', (req, res) => {
+    try {
+        res.render('earthworkslanding');
+    } catch (err) {
+        console.error(err);
+        res.status(500).send("Error loading Earthworks: " + err.message);
     }
 });
 
@@ -3077,9 +3088,14 @@ autoRoute('/stock_logs', 'stock_logs');
 autoRoute('/towers', 'towers');
 apiweb.use((req, res) => { res.status(404).json({ error: "API Route Not Found", help: "List of API endpoints at https://api.itsinhaleyo.online/" }); });
 
+// RRM Earthworks URL's
+//rrmearthworks.get('/', (req, res) => { res.send("RRM Earthworks Coming Soon!"); });
+//rrmearthworks.use((req, res) => { res.status(404).send("RRM Earthworks - Page Not Found"); });
+
 mainweb.use(vhost(`api.itsinhaleyo.online`, apiweb));
 mainweb.use(vhost(`itsinhaleyo.online`, web));
-mainweb.listen(port, () => { console.log(`Website running at ${process.env.DOMAIN}:${port}/`); });
+//mainweb.use(vhost(`rrmearthworks.com`, rrme));
+mainweb.listen(port, () => { console.log(`Websites running on PORT:${port}/`); });
 
 // Website Functions
 async function handleLeaderboard(req, res, sortColumn, title) {
