@@ -2,7 +2,7 @@ require('dotenv').config();
 const { REST, Routes, ActionRowBuilder, MessageFlags, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, ButtonBuilder, ButtonStyle, ComponentType, ActivityType, ApplicationCommandOptionType, Client, GatewayIntentBits, IntentsBitField, EmbedBuilder, AttachmentBuilder, Events } = require('discord.js'),
       { VoiceConnectionStatus, joinVoiceChannel, createAudioPlayer, createAudioResource, getVoiceConnection, StreamType, AudioPlayerStatus, NoSubscriberBehavior } = require('@discordjs/voice'),
       { LeaderboardBuilder, RankCardBuilder, Font } = require('canvacord'), express = require('express'), session = require('express-session'), MySQLStore = require('express-mysql-session')(session),
-      { GoogleGenAI } = require("@google/genai"), axios = require('axios'), passport = require('passport'), DiscordStrategy = require('passport-discord').Strategy,
+      { GoogleGenAI } = require("@google/genai"), axios = require('axios'), passport = require('passport'), DiscordStrategy = require('passport-discord').Strategy, nodemailer = require('nodemailer'),
       { getData, getTracks } = require('spotify-url-info')(require('isomorphic-unfetch')), vhost = require('vhost'),
       { MusicCard } = require("./handlers/MusicCard.js"), { BalanceCard } = require("./handlers/BalanceCard.js"),
       fs = require('fs'), path = require('path'), util = require('util'),
@@ -249,6 +249,13 @@ async function processDownloadQueue(guildId) {
         }
     }
 }
+
+// EMail Transporter
+const email = nodemailer.createTransport({
+  host: 'smtp.gmail.com',
+  port: 465,
+  auth: { user: process.env.EMAIL, pass: process.env.EMAIL_PASSWORD }
+});
 
 // Format Time
 function formatTime(ms) { const totalSeconds = Math.floor(ms / 1000); const minutes = Math.floor(totalSeconds / 60); const seconds = totalSeconds % 60; return `${minutes}:${seconds.toString().padStart(2, '0')}`;}
@@ -2485,6 +2492,32 @@ web.get('/earthworks', (req, res) => {
     } catch (err) {
         console.error(err);
         res.status(500).send("Error loading Earthworks: " + err.message);
+    }
+});
+
+web.post('/contactform', async (req, res) => {
+    try {
+        const { usersname, formemail, phonenumber, message } = req.body;
+        console.log(`Contact Form Submission:\nName: ${usersname}\nEmail: ${formemail}\nPhone: ${phonenumber}\nMessage: ${message}`);
+        const mailOptions = {
+            from: process.env.EMAIL,
+            to: formemail,
+            subject: 'Form Submission Received',
+            html: `
+                <p><strong>Name:</strong> ${usersname}</p>
+                <p><strong>Email:</strong> <a href="mailto:${formemail}">${formemail}</a></p>
+                <p><strong>Phone:</strong> <a href="tel:${phonenumber}">${phonenumber}</a></p>
+                <p><strong>Message:</strong><br>${message}</p>
+            `
+        };
+        email.sendMail(mailOptions, (error, info) => {
+            if (error) console.log(error);
+            else console.log('Email sent: ' + info.response);
+            res.redirect('/earthworks');
+        });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ success: false, message: "Error submitting contact form." });
     }
 });
 
