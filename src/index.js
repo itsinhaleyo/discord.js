@@ -2338,12 +2338,11 @@ client.on('messageCreate', async (message) => {
 
 //// Website Coding
 // Website Init
-const mainweb = express(), web = express(), apiweb = express();
-//const rrme = express();
+const mainweb = express(), web = express(), apiweb = express(), rrme = express();
 web.set('view engine', 'ejs');
 web.set('views', path.join(__dirname, 'public', 'templates'));
-//rrme.set('view engine', 'html');
-//rrme.set('views', path.join(__dirname, 'public', 'templates'));
+rrme.set('view engine', 'ejs');
+rrme.set('views', path.join(__dirname, 'public', 'templates'));
 mainweb.set('view engine', 'ejs');
 mainweb.set('views', path.join(__dirname, 'public', 'templates')); 
 mainweb.set('subdomain offset', 1);
@@ -2483,41 +2482,6 @@ web.get('/', checkAuth, async (req, res) => {
     } catch (err) {
         console.error(err);
         res.status(500).send("Error loading home");
-    }
-});
-
-web.get('/earthworks', (req, res) => {
-    try {
-        res.render('earthworkslanding');
-    } catch (err) {
-        console.error(err);
-        res.status(500).send("Error loading Earthworks: " + err.message);
-    }
-});
-
-web.post('/contactform', async (req, res) => {
-    try {
-        const { usersname, formemail, phonenumber, message } = req.body;
-        console.log(`Contact Form Submission:\nName: ${usersname}\nEmail: ${formemail}\nPhone: ${phonenumber}\nMessage: ${message}`);
-        const mailOptions = {
-            from: process.env.EMAIL,
-            to: formemail,
-            subject: 'Form Submission Received',
-            html: `
-                <p><strong>Name:</strong> ${usersname}</p>
-                <p><strong>Email:</strong> <a href="mailto:${formemail}">${formemail}</a></p>
-                <p><strong>Phone:</strong> <a href="tel:${phonenumber}">${phonenumber}</a></p>
-                <p><strong>Message:</strong><br>${message}</p>
-            `
-        };
-        email.sendMail(mailOptions, (error, info) => {
-            if (error) console.log(error);
-            else console.log('Email sent: ' + info.response);
-            res.redirect('/earthworks');
-        });
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ success: false, message: "Error submitting contact form." });
     }
 });
 
@@ -3122,12 +3086,38 @@ autoRoute('/towers', 'towers');
 apiweb.use((req, res) => { res.status(404).json({ error: "API Route Not Found", help: "List of API endpoints at https://api.itsinhaleyo.online/" }); });
 
 // RRM Earthworks URL's
-//rrmearthworks.get('/', (req, res) => { res.send("RRM Earthworks Coming Soon!"); });
-//rrmearthworks.use((req, res) => { res.status(404).send("RRM Earthworks - Page Not Found"); });
+rrme.get('/', (req, res) => { try { res.render('earthworkslanding'); } catch (err) { console.error(err); res.status(500).send("Error loading Earthworks: " + err.message); } });
+rrme.post('/contactform', async (req, res) => {
+    try {
+        const { usersname, formemail, phonenumber, message } = req.body;
+        console.log(`Contact Form Submission:\nName: ${usersname}\nEmail: ${formemail}\nPhone: ${phonenumber}\nMessage: ${message}`);
+        const mailOptions = {
+            from: process.env.EMAIL,
+            to: process.env.RRMEMAIL,
+            subject: 'Form Submission Received',
+            html: `
+                <p><strong>Name:</strong> ${usersname}</p>
+                <p><strong>Email:</strong> <a href="mailto:${formemail}">${formemail}</a></p>
+                <p><strong>Phone:</strong> <a href="tel:${phonenumber}">${phonenumber}</a></p>
+                <p><strong>Message:</strong><br>${message}</p>
+            `
+        };
+        email.sendMail(mailOptions, (error, info) => {
+            if (error) console.log(error);
+            else console.log('Email sent: ' + info.response);
+            res.redirect('/formsuccess');
+        });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ success: false, message: "Error submitting contact form." });
+    }
+});
+rrme.get(`/formsuccess`, (req, res) => { try { res.render('earthworksformsuccess'); } catch (err) { console.error(err); res.status(500).send("Error loading success page: " + err.message); } });
+rrme.get('/*any', (req, res) => { res.redirect('/'); });
 
 mainweb.use(vhost(`api.itsinhaleyo.online`, apiweb));
 mainweb.use(vhost(`itsinhaleyo.online`, web));
-//mainweb.use(vhost(`rrmearthworks.com`, rrme));
+mainweb.use(vhost(`rrmearthworks.com`, rrme));
 mainweb.listen(port, () => { console.log(`Websites running on PORT:${port}/`); });
 
 // Website Functions
