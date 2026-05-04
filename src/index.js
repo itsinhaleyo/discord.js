@@ -3,7 +3,7 @@ const { REST, Routes, ActionRowBuilder, MessageFlags, StringSelectMenuBuilder, S
       { VoiceConnectionStatus, joinVoiceChannel, createAudioPlayer, createAudioResource, getVoiceConnection, StreamType, AudioPlayerStatus, NoSubscriberBehavior } = require('@discordjs/voice'),
       { LeaderboardBuilder, RankCardBuilder, Font } = require('canvacord'), express = require('express'), session = require('express-session'), MySQLStore = require('express-mysql-session')(session),
       { GoogleGenAI } = require("@google/genai"), axios = require('axios'), passport = require('passport'), DiscordStrategy = require('passport-discord').Strategy, nodemailer = require('nodemailer'),
-      { getData, getTracks } = require('spotify-url-info')(require('isomorphic-unfetch')), vhost = require('vhost'),
+      { getData, getTracks } = require('spotify-url-info')(require('isomorphic-unfetch')), vhost = require('vhost'), discordTTS = require('discord-tts'),
       { MusicCard } = require("./handlers/MusicCard.js"), { BalanceCard } = require("./handlers/BalanceCard.js"),
       fs = require('fs'), path = require('path'), util = require('util'),
       ytdl = require('youtube-dl-exec'), eventHandler = require('./handlers/eventHandler'),
@@ -11,8 +11,16 @@ const { REST, Routes, ActionRowBuilder, MessageFlags, StringSelectMenuBuilder, S
 Font.loadDefault();
 const priceCache = {};
 
+// Email Transporter
+const email = nodemailer.createTransport({
+  host: 'smtp.gmail.com',
+  port: 465,
+  auth: { user: process.env.EMAIL, pass: process.env.EMAIL_PASSWORD }
+});
+
 //Audio Player
 const musictimers = new Map(), musicqueues = new Map();
+const IDLE_TIME = 5 * 60 * 1000;
 
 async function createMusicCardImage(song, serverQueue, totalMs) {
     const progress = Math.min(Math.round((serverQueue.currentTimestamp / totalMs) * 100), 100);
@@ -249,13 +257,6 @@ async function processDownloadQueue(guildId) {
         }
     }
 }
-
-// EMail Transporter
-const email = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 465,
-  auth: { user: process.env.EMAIL, pass: process.env.EMAIL_PASSWORD }
-});
 
 // Format Time
 function formatTime(ms) { const totalSeconds = Math.floor(ms / 1000); const minutes = Math.floor(totalSeconds / 60); const seconds = totalSeconds % 60; return `${minutes}:${seconds.toString().padStart(2, '0')}`;}
@@ -582,7 +583,19 @@ const commands = [
     },
     { 
         name: 'say', 
-        description: `Makes ${process.env.BOTUSER} Say Something`,
+        description: `Makes ${process.env.BOTUSER} Say Something in a Text Channel`,
+        options: [
+            {
+                name: 'response',
+                description: `The Response ${process.env.BOTUSER} Will Say`,
+                type: ApplicationCommandOptionType.String,
+                required: true
+            }
+        ]
+    },
+    { 
+        name: 'tts', 
+        description: `Makes ${process.env.BOTUSER} Say Something in a Voice Channel`,
         options: [
             {
                 name: 'response',
@@ -1130,6 +1143,7 @@ client.on('interactionCreate', async (interaction) => {
                 "`/level - Shows your server level`\n" +
                 "`/leaderboard - Shows Rankings`\n"+
                 "`/ai - Generate a response from Gemini`\n" +
+                "`/tts - Makes the bot say something in a voice channel`\n" +
                 "### 🎵 Music\n"+
                 "`/play - Play a Song/Playlist from a Youtube or Spotify Link`\n"+
                 "`/queue - View Current Music Queue`\n"+
@@ -2269,6 +2283,49 @@ client.on('interactionCreate', async (interaction) => {
         }
     }
 
+    if (interaction.commandName === "tts") {
+        if (!interaction.inGuild()) { return interaction.reply({ content: 'You can only run this command inside a server.', flags: [MessageFlags.Ephemeral],}); } 
+        try {
+            await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
+            const voiceChannel = interaction.member.voice.channel;
+            if (!voiceChannel) {
+                return interaction.editReply("You need to be in a voice channel to play music!");
+            }
+            const response = interaction.options.getString('response');
+            if (!response) {
+                return interaction.editReply("Please provide some text for TTS!");
+            }
+            const connection = joinVoiceChannel({
+                channelId: voiceChannel.id,
+                guildId: voiceChannel.guild.id,
+                adapterCreator: voiceChannel.guild.voiceAdapterCreator,
+            });
+            const stream = discordTTS.getVoiceStream(response);
+            const resource = createAudioResource(stream);
+            const player = createAudioPlayer();
+            player.play(resource);
+            connection.subscribe(player);
+            player.on(AudioPlayerStatus.Idle, () => {        
+                const timer = setTimeout(() => {
+                    const currentConnection = getVoiceConnection(interaction.guildId);
+                    if (currentConnection) {
+                        currentConnection.destroy();
+                        musictimers.delete(interaction.guildId);
+                    }
+                }, IDLE_TIME);
+                musictimers.set(interaction.guildId, timer);
+            });
+            player.on('error', error => {
+                console.error(`Error: ${error.message}`);
+                interaction.editReply("There was an error playing the audio.");
+            });
+            interaction.editReply(`🎤 Playing your TTS in ${voiceChannel.name}...`);
+        } catch(error) {
+            interaction.editReply(`Please try the Command Again\n`+error);
+            console.log(error);
+        }
+    }
+
     if (interaction.commandName === "test") {
         if (interaction.member.id !== process.env.DEV_ID) { return interaction.reply('Only my bot DEV can use this command'); }
         if (!interaction.inGuild()) { return interaction.reply({ content: 'You can only run this command inside a server.', flags: [MessageFlags.Ephemeral],}); }
@@ -3103,6 +3160,22 @@ rrme.post('/contactform', async (req, res) => {
             `
         };
         email.sendMail(mailOptions, (error, info) => {
+            if (error) console.log(error);
+            else console.log('Email sent: ' + info.response);
+            res.redirect('/formsuccess');
+        });
+        const mailOptions2 = {
+            from: process.env.EMAIL,
+            to: process.env.DEVEMAIL,
+            subject: 'Form Submission Received',
+            html: `
+                <p><strong>Name:</strong> ${usersname}</p>
+                <p><strong>Email:</strong> <a href="mailto:${formemail}">${formemail}</a></p>
+                <p><strong>Phone:</strong> <a href="tel:${phonenumber}">${phonenumber}</a></p>
+                <p><strong>Message:</strong><br>${message}</p>
+            `
+        };
+        email.sendMail(mailOptions2, (error, info) => {
             if (error) console.log(error);
             else console.log('Email sent: ' + info.response);
             res.redirect('/formsuccess');
