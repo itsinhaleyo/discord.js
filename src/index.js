@@ -4,7 +4,7 @@ const { REST, Routes, ActionRowBuilder, MessageFlags, StringSelectMenuBuilder, S
       { LeaderboardBuilder, RankCardBuilder, Font } = require('canvacord'), express = require('express'), session = require('express-session'), MySQLStore = require('express-mysql-session')(session),
       { GoogleGenAI } = require("@google/genai"), axios = require('axios'), passport = require('passport'), DiscordStrategy = require('passport-discord').Strategy, nodemailer = require('nodemailer'),
       { getData, getTracks } = require('spotify-url-info')(require('isomorphic-unfetch')), vhost = require('vhost'), discordTTS = require('discord-tts'),
-      { MusicCard } = require("./handlers/MusicCard.js"), { BalanceCard } = require("./handlers/BalanceCard.js"),
+      { MusicCard } = require("./handlers/MusicCard.js"), { BalanceCard } = require("./handlers/BalanceCard.js"), cron = require('node-cron'), 
       fs = require('fs'), path = require('path'), util = require('util'),
       ytdl = require('youtube-dl-exec'), eventHandler = require('./handlers/eventHandler'),
       songsDir = path.join(__dirname, 'songs'), torrentDir = path.join(__dirname, 'torrents');
@@ -3559,6 +3559,32 @@ async function executeAutoClose(pos, currentPrice, reason) {
     }
 }
 
+async function autoclaim() {
+    try {
+        const [users] = await db.query(`SELECT * FROM users WHERE autoclaim = 1`);
+        for (const user of users) {
+            try {
+                console.log(`Processing auto-claim for User ${user.username} (ID: ${user.userid})`);
+                const now = new Date();
+                const currentDate = now.toDateString();
+                const yesterday = new Date();
+                yesterday.setDate(now.getDate() - 1);
+                const yesterdayDate = yesterday.toDateString();
+                if (user.daily === currentDate) continue;
+                const newStreak = (user.daily === yesterdayDate) ? (user.dailystreak + 1) : 1;
+                const dailyAmount = 10000 * newStreak;
+                await db.query('UPDATE users SET balance = balance + ?, daily = ?, dailystreak = dailystreak + 1 WHERE userid = ?', [dailyAmount, currentDate, user.userid]);
+            } catch (err) {
+                logError(`AUTOCLAIM_USER_${user.userid}_ERROR`, err);
+                console.error(`Auto-Claim Error for User ${user.userid}:`, err);
+            }
+        }
+    } catch (err) {
+        logError('AUTOCLAIM_ERROR', err);
+        console.error("Auto-Claim Error:", err);
+    }
+}
+
 // Run Functions Every 10s
 setInterval(async () => {
     try {
@@ -3581,3 +3607,17 @@ setInterval(async () => {
         console.error("Background Monitor Error:", err);
     }
 }, 10000);
+
+// Run Functions Every Day at Midnight
+try {
+    cron.schedule('0 0 * * *', async () => {
+        console.log('Running scheduled auto-claim...');
+        await autoclaim();
+    }, {
+        scheduled: true,
+        timezone: "America/Chicago"
+    });
+} catch (err) {
+    logError('CRON_SCHEDULE_ERROR', err);
+    console.error("Cron Schedule Error:", err);
+}

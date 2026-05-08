@@ -9,6 +9,7 @@ CREATE TABLE users (
     avatar VARCHAR(100) NOT NULL,
     xp INT NOT NULL DEFAULT 1,
     level INT NOT NULL DEFAULT 1
+    autoclaim BOOLEAN NOT NULL DEFAULT false
 );
 
 CREATE TABLE cooldown (
