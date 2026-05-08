@@ -72,3 +72,11 @@ CREATE TABLE messages (
     content TEXT NOT NULL,
     timestamp BIGINT NOT NULL
 );
+
+CREATE TABLE error_logs (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+    code VARCHAR(50),
+    message TEXT,
+    stack TEXT
+);

@@ -1,3 +1,5 @@
+const { log } = require('console');
+
 require('dotenv').config();
 const { REST, Routes, ActionRowBuilder, MessageFlags, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, ButtonBuilder, ButtonStyle, ComponentType, ActivityType, ApplicationCommandOptionType, Client, GatewayIntentBits, IntentsBitField, EmbedBuilder, AttachmentBuilder, Events } = require('discord.js'),
       { VoiceConnectionStatus, joinVoiceChannel, createAudioPlayer, createAudioResource, getVoiceConnection, StreamType, AudioPlayerStatus, NoSubscriberBehavior } = require('@discordjs/voice'),
@@ -16,23 +18,45 @@ const email = nodemailer.createTransport({
   host: 'smtp.gmail.com',
   port: 465,
   auth: { user: process.env.EMAIL, pass: process.env.EMAIL_PASSWORD }
-});
+}.on('error', (err) => {
+    console.error('Error occurred while sending email:', err);
+    logError('EMAIL_TRANSPORT_ERROR', err);
+}));
+
+// Error Logging to error_logs TABLE
+function logError(code, error) {
+    const values = [
+        code, 
+        error.message || error, 
+        error.stack || null
+    ];
+    db.query(`INSERT INTO error_logs (code, message, stack) VALUES (?, ?, ?)`, [...values.slice(1)], (err) => {
+        if (err) {
+            console.error('Failed to write to MySQL error log:', err);
+        }
+    });
+}
 
 //Audio Player
 const musictimers = new Map(), musicqueues = new Map();
 const IDLE_TIME = 5 * 60 * 1000;
 
 async function createMusicCardImage(song, serverQueue, totalMs) {
-    const progress = Math.min(Math.round((serverQueue.currentTimestamp / totalMs) * 100), 100);
-    const card = new MusicCard()
-        .setAuthor(song.author)
-        .setTitle(song.displayTitle || song.title)
-        .setImage(song.thumbnail)
-        .setProgress(progress)
-        .setCurrentTime(formatTime(serverQueue.currentTimestamp))
-        .setTotalTime(formatTime(totalMs));
-    const buffer = await card.build();
-    return new AttachmentBuilder(buffer, { name: `card.png` });
+    try {
+        const progress = Math.min(Math.round((serverQueue.currentTimestamp / totalMs) * 100), 100);
+        const card = new MusicCard()
+            .setAuthor(song.author)
+            .setTitle(song.displayTitle || song.title)
+            .setImage(song.thumbnail)
+            .setProgress(progress)
+            .setCurrentTime(formatTime(serverQueue.currentTimestamp))
+            .setTotalTime(formatTime(totalMs));
+        const buffer = await card.build();
+        return new AttachmentBuilder(buffer, { name: `card.png` });
+    } catch (error) {
+        console.error("Error creating music card:", error);
+        logError('CREATE_MUSICCARD_ERROR', error);
+    }
 }
 
 async function playSong(guildId) {
@@ -64,6 +88,7 @@ async function playSong(guildId) {
             }
             song.url = videoData.webpage_url || videoData.url;
         } catch (err) {
+            logError('PLAYSONG_ERROR_1', err);
             serverQueue.songs.shift();
             return playSong(guildId);
         }
@@ -73,7 +98,11 @@ async function playSong(guildId) {
     const filePath = path.join(songsDir, `${videoId}.webm`);
     try {
         if (serverQueue.lastMessage) {
-            try { await serverQueue.lastMessage.delete(); } catch (err) {}
+            try { 
+                await serverQueue.lastMessage.delete(); 
+                } catch (err) {
+                    logError('PLAYSONG_ERROR_2', err);
+            }
         }
         if (!fs.existsSync(filePath)) {
             const downloadMsg = await serverQueue.textChannel.send(`Caching for **${song.title}**... ⏳`);
@@ -88,6 +117,7 @@ async function playSong(guildId) {
             } catch (err) {
                 await downloadMsg.delete().catch(() => {});
                 console.error("Download Error:", err);
+                logError('PLAYSONG_ERROR_3', err);
                 serverQueue.songs.shift();
                 return playSong(guildId);
             }
@@ -227,6 +257,7 @@ async function playSong(guildId) {
         });
     } catch (error) {
         console.error("Playback Error:", error);
+        logError('PLAYSONG_ERROR_4', error);
         serverQueue.songs.shift();
         playSong(guildId);
     }
@@ -252,6 +283,7 @@ async function processDownloadQueue(guildId) {
                 });
                 console.log(`Successfully cached: ${song.title}`);
             } catch (err) {
+                logError('PROCESSDOWNLOAD_ERROR', err);
                 console.error(`Background download failed for ${song.title}:`, err);
             }
         }
@@ -259,26 +291,55 @@ async function processDownloadQueue(guildId) {
 }
 
 // Format Time
-function formatTime(ms) { const totalSeconds = Math.floor(ms / 1000); const minutes = Math.floor(totalSeconds / 60); const seconds = totalSeconds % 60; return `${minutes}:${seconds.toString().padStart(2, '0')}`;}
+function formatTime(ms) { 
+    try {
+        const totalSeconds = Math.floor(ms / 1000); 
+        const minutes = Math.floor(totalSeconds / 60); 
+        const seconds = totalSeconds % 60; 
+        return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    } catch (error) {
+        console.error("Error formatting time:", error);
+        logError('FORMAT_TIME_ERROR', error);
+    }
+}
 
 // Get User Data
 async function getuser(userId) {
-    let [rows] = await db.query("SELECT * FROM users WHERE userid = ?", [userId]);
-    if (rows[0]) return rows[0];
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    await db.query('INSERT INTO users VALUES(?, ?, ?, ?, ?)', [userId, 25000, yesterday.toDateString(), 0, 1]);
-    return { userid: userId, balance: 25000, daily: yesterday.toDateString(), xp: 0, level: 1 };
+    try {
+        let [rows] = await db.query("SELECT * FROM users WHERE userid = ?", [userId]);
+        if (rows[0]) return rows[0];
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        await db.query('INSERT INTO users VALUES(?, ?, ?, ?, ?)', [userId, 25000, yesterday.toDateString(), 0, 1]);
+        return { userid: userId, balance: 25000, daily: yesterday.toDateString(), xp: 0, level: 1 };
+    } catch (error) {
+        console.error("Error fetching user data:", error);
+        logError('GETUSER_ERROR', error);
+    }
 }
 
 // Function to get a Random Number
-function getRandomNumber(x, y) { const range = y - x + 1; const randomNumber = Math.floor(Math.random() * range); return randomNumber + x;}
+function getRandomNumber(x, y) { 
+    try {
+        const range = y - x + 1; 
+        const randomNumber = Math.floor(Math.random() * range); 
+        return randomNumber + x;
+    } catch (error) {
+        console.error("Error generating random number:", error);
+        logError('RANDOM_NUMBER_ERROR', error);
+    }
+}
 
 // Turn  Numbers to Emojis
 function numtoemo(number) {
-    if (number === undefined || number === null) return "0️⃣"; 
-    const emojiMap = {'0': '0️⃣', '1': '1️⃣', '2': '2️⃣', '3': '3️⃣', '4': '4️⃣', '5': '5️⃣', '6': '6️⃣', '7': '7️⃣', '8': '8️⃣', '9': '9️⃣'};
-    return number.toString().replace(/\d/g, digit => emojiMap[digit]);
+    try {
+        if (number === undefined || number === null) return "0️⃣"; 
+        const emojiMap = {'0': '0️⃣', '1': '1️⃣', '2': '2️⃣', '3': '3️⃣', '4': '4️⃣', '5': '5️⃣', '6': '6️⃣', '7': '7️⃣', '8': '8️⃣', '9': '9️⃣'};
+        return number.toString().replace(/\d/g, digit => emojiMap[digit]);
+    } catch (error) {
+        console.error("Error converting number to emoji:", error);
+        logError('NUM_TO_EMO_ERROR', error);
+    }
 }
 
 // Function to Calculate Xp
@@ -324,6 +385,7 @@ async function giveXp(interaction) {
         }
     } catch (error) {
         console.error(`=-=GIVE=XP=ERROR=-= ${error}`);
+        logError('GIVE_XP_ERROR', error);
     }
 }
 
@@ -375,6 +437,7 @@ async function runHiLow(interaction, choice) {
         await interaction.editReply({ embeds: [embed] });
     } catch (error) {
         console.error(error);
+        logError('HI_LOW_ERROR', error);
         interaction.editReply("Something went wrong. Try again!");
     }
 }
@@ -425,6 +488,7 @@ async function runRPS(interaction, choice) {
         await interaction.editReply({ embeds: [embed] });
     } catch (error) {
         console.error(error);
+        logError('RPS_ERROR', error);
         interaction.editReply("Error running RPS.");
     }
 }
@@ -441,103 +505,123 @@ const slotConfig = {
 const slotReels = Object.keys(slotConfig); 
 
 async function onexthreespinWheel(interaction, user, bet, spin) {
-    const results = Array.from({ length: 3 }, () => Math.floor(Math.random() * slotReels.length));
-    const emojis = results.map(i => slotReels[i]);
-    const isWin = (results[0] === results[1] && results[1] === results[2]);
-    const multiplier = isWin ? slotConfig[emojis[0]].x3 : 0;
-    const payout = isWin ? (bet * multiplier) : (spin === 1 ? 0 : -bet);
-    let result = await db.query("SELECT * FROM users WHERE userid = ?", [interaction.member.id]);
-    user = result[0][0];
-    const newBalance = Number(user.balance) + payout;
-    await db.query('UPDATE users SET balance = balance + ? WHERE userid = ?', [payout, interaction.member.id]);
-    const embed = new EmbedBuilder()
-        .setTitle(spin === 1 ? '🔥 FREE SPIN' : '🎰 Classic 1x3 Slots')
-        .setColor(isWin ? 'Gold' : (spin === 1 ? 'Blue' : 'Red'))
-        .setDescription(['```', '┌───────────────┐', `│ ${emojis[0]} | ${emojis[1]} | ${emojis[2]} │`, '└───────────────┘', '```', 
-            isWin ? `**${slotConfig[emojis[0]].label} WIN!** ${multiplier}X!` : (spin === 1 ? 'No luck...' : 'Better luck next time!'),
-            `**Result:** ${payout >= 0 ? '+' : ''}${payout} 💵`, `**Balance:** ${numtoemo(newBalance)} 💵`
-        ].join('\n'));
-    spin === 1 ? await interaction.followUp({ embeds: [embed] }) : await interaction.editReply({ embeds: [embed] });
-    return isWin ? multiplier : 0;
+    try {
+        const results = Array.from({ length: 3 }, () => Math.floor(Math.random() * slotReels.length));
+        const emojis = results.map(i => slotReels[i]);
+        const isWin = (results[0] === results[1] && results[1] === results[2]);
+        const multiplier = isWin ? slotConfig[emojis[0]].x3 : 0;
+        const payout = isWin ? (bet * multiplier) : (spin === 1 ? 0 : -bet);
+        let result = await db.query("SELECT * FROM users WHERE userid = ?", [interaction.member.id]);
+        user = result[0][0];
+        const newBalance = Number(user.balance) + payout;
+        await db.query('UPDATE users SET balance = balance + ? WHERE userid = ?', [payout, interaction.member.id]);
+        const embed = new EmbedBuilder()
+            .setTitle(spin === 1 ? '🔥 FREE SPIN' : '🎰 Classic 1x3 Slots')
+            .setColor(isWin ? 'Gold' : (spin === 1 ? 'Blue' : 'Red'))
+            .setDescription(['```', '┌───────────────┐', `│ ${emojis[0]} | ${emojis[1]} | ${emojis[2]} │`, '└───────────────┘', '```', 
+                isWin ? `**${slotConfig[emojis[0]].label} WIN!** ${multiplier}X!` : (spin === 1 ? 'No luck...' : 'Better luck next time!'),
+                `**Result:** ${payout >= 0 ? '+' : ''}${payout} 💵`, `**Balance:** ${numtoemo(newBalance)} 💵`
+            ].join('\n'));
+        spin === 1 ? await interaction.followUp({ embeds: [embed] }) : await interaction.editReply({ embeds: [embed] });
+        return isWin ? multiplier : 0;
+    } catch (error) {
+        console.error(error);
+        logError('1X3_SPIN_ERROR', error);
+    }
 }
 
 async function onexfivespinWheel(interaction, user, bet, spin) {
-    const results = Array.from({ length: 5 }, () => Math.floor(Math.random() * slotReels.length));
-    const emojis = results.map(i => slotReels[i]);
-    const counts = {};
-    results.forEach(idx => counts[idx] = (counts[idx] || 0) + 1);
-    const maxMatch = Math.max(...Object.values(counts));
-    const winEmoji = slotReels[Object.keys(counts).find(key => counts[key] === maxMatch)];
-    let multiplier = 0;
-    if (maxMatch >= 3) {
-        const data = slotConfig[winEmoji];
-        multiplier = maxMatch === 5 ? data.x5 : (maxMatch === 4 ? data.x4 : data.x3);
+    try {
+        const results = Array.from({ length: 5 }, () => Math.floor(Math.random() * slotReels.length));
+        const emojis = results.map(i => slotReels[i]);
+        const counts = {};
+        results.forEach(idx => counts[idx] = (counts[idx] || 0) + 1);
+        const maxMatch = Math.max(...Object.values(counts));
+        const winEmoji = slotReels[Object.keys(counts).find(key => counts[key] === maxMatch)];
+        let multiplier = 0;
+        if (maxMatch >= 3) {
+            const data = slotConfig[winEmoji];
+            multiplier = maxMatch === 5 ? data.x5 : (maxMatch === 4 ? data.x4 : data.x3);
+        }
+        const payout = multiplier > 0 ? (bet * multiplier) : (spin === 1 ? 0 : -bet);
+        let result = await db.query("SELECT * FROM users WHERE userid = ?", [interaction.member.id]);
+        user = result[0][0];
+        const newBalance = Number(user.balance) + payout;
+        await db.query('UPDATE users SET balance = balance + ? WHERE userid = ?', [payout, interaction.member.id]);
+        const embed = new EmbedBuilder()
+            .setTitle(spin === 1 ? '🔥 FREE SPIN' : '🎰 Deluxe 1x5 Slots')
+            .setColor(multiplier > 0 ? 'Gold' : (spin === 1 ? 'Blue' : 'Red'))
+            .setDescription(['```', '┌─────────────────────────┐', `│ ${emojis.join(' | ')} │`, '└─────────────────────────┘', '```',
+                multiplier > 0 ? `**${maxMatch}-REEL ${slotConfig[winEmoji].label} WIN!**` : 'No match found.',
+                `**Result:** ${payout >= 0 ? '+' : ''}${payout} 💵`, `**Balance:** ${numtoemo(newBalance)} 💵`
+            ].join('\n'));
+        spin === 1 ? await interaction.followUp({ embeds: [embed] }) : await interaction.editReply({ embeds: [embed] });
+        return multiplier;
+    } catch (error) {
+        console.error(error);
+        logError('1X5_SPIN_ERROR', error);
     }
-    const payout = multiplier > 0 ? (bet * multiplier) : (spin === 1 ? 0 : -bet);
-    let result = await db.query("SELECT * FROM users WHERE userid = ?", [interaction.member.id]);
-    user = result[0][0];
-    const newBalance = Number(user.balance) + payout;
-    await db.query('UPDATE users SET balance = balance + ? WHERE userid = ?', [payout, interaction.member.id]);
-    const embed = new EmbedBuilder()
-        .setTitle(spin === 1 ? '🔥 FREE SPIN' : '🎰 Deluxe 1x5 Slots')
-        .setColor(multiplier > 0 ? 'Gold' : (spin === 1 ? 'Blue' : 'Red'))
-        .setDescription(['```', '┌─────────────────────────┐', `│ ${emojis.join(' | ')} │`, '└─────────────────────────┘', '```',
-            multiplier > 0 ? `**${maxMatch}-REEL ${slotConfig[winEmoji].label} WIN!**` : 'No match found.',
-            `**Result:** ${payout >= 0 ? '+' : ''}${payout} 💵`, `**Balance:** ${numtoemo(newBalance)} 💵`
-        ].join('\n'));
-    spin === 1 ? await interaction.followUp({ embeds: [embed] }) : await interaction.editReply({ embeds: [embed] });
-    return multiplier;
 }
 
 async function threexthreespinWheel(interaction, user, bet, spin) {
-    const results = Array.from({ length: 9 }, () => Math.floor(Math.random() * slotReels.length));
-    const emojis = results.map(i => slotReels[i]);
-    const counts = {};
-    results.forEach(idx => counts[idx] = (counts[idx] || 0) + 1);
-    const maxMatch = Math.max(...Object.values(counts));
-    const winEmoji = slotReels[Object.keys(counts).find(key => counts[key] === maxMatch)];
-    let multiplier = 0;
-    if (maxMatch >= 5) {
-        const data = slotConfig[winEmoji];
-        if (maxMatch === 9) multiplier = data.grid9;
-        else if (maxMatch >= 7) multiplier = data.x5;
-        else multiplier = data.x4;
+    try {
+        const results = Array.from({ length: 9 }, () => Math.floor(Math.random() * slotReels.length));
+        const emojis = results.map(i => slotReels[i]);
+        const counts = {};
+        results.forEach(idx => counts[idx] = (counts[idx] || 0) + 1);
+        const maxMatch = Math.max(...Object.values(counts));
+        const winEmoji = slotReels[Object.keys(counts).find(key => counts[key] === maxMatch)];
+        let multiplier = 0;
+        if (maxMatch >= 5) {
+            const data = slotConfig[winEmoji];
+            if (maxMatch === 9) multiplier = data.grid9;
+            else if (maxMatch >= 7) multiplier = data.x5;
+            else multiplier = data.x4;
+        }
+        const payout = multiplier > 0 ? (bet * multiplier) : (spin === 1 ? 0 : -bet);
+        let result = await db.query("SELECT * FROM users WHERE userid = ?", [interaction.member.id]);
+        user = result[0][0];
+        const newBalance = Number(user.balance) + payout;
+        await db.query('UPDATE users SET balance = balance + ? WHERE userid = ?', [payout, interaction.member.id]);
+        const embed = new EmbedBuilder()
+            .setTitle(spin === 1 ? '🔥 FREE SPIN' : '🎰 3x3 Royale Grid')
+            .setColor(multiplier > 0 ? 'Gold' : (spin === 1 ? 'Blue' : 'Red'))
+            .setDescription(['```', '┌───────────────┐', `│ ${emojis[0]} | ${emojis[1]} | ${emojis[2]} │`, `│ ${emojis[3]} | ${emojis[4]} | ${emojis[5]} │`, `│ ${emojis[6]} | ${emojis[7]} | ${emojis[8]} │`, '└───────────────┘', '```',
+                multiplier > 0 ? `**${maxMatch}x ${slotConfig[winEmoji].label} MATCH!**` : 'Better luck next time!',
+                `**Result:** ${payout >= 0 ? '+' : ''}${payout} 💵`, `**Balance:** ${numtoemo(newBalance)} 💵`
+            ].join('\n'));
+        spin === 1 ? await interaction.followUp({ embeds: [embed] }) : await interaction.editReply({ embeds: [embed] });
+        return multiplier;
+    } catch (error) {
+        console.error(error);
+        logError('3X3_SPIN_ERROR', error);
     }
-    const payout = multiplier > 0 ? (bet * multiplier) : (spin === 1 ? 0 : -bet);
-    let result = await db.query("SELECT * FROM users WHERE userid = ?", [interaction.member.id]);
-    user = result[0][0];
-    const newBalance = Number(user.balance) + payout;
-    await db.query('UPDATE users SET balance = balance + ? WHERE userid = ?', [payout, interaction.member.id]);
-    const embed = new EmbedBuilder()
-        .setTitle(spin === 1 ? '🔥 FREE SPIN' : '🎰 3x3 Royale Grid')
-        .setColor(multiplier > 0 ? 'Gold' : (spin === 1 ? 'Blue' : 'Red'))
-        .setDescription(['```', '┌───────────────┐', `│ ${emojis[0]} | ${emojis[1]} | ${emojis[2]} │`, `│ ${emojis[3]} | ${emojis[4]} | ${emojis[5]} │`, `│ ${emojis[6]} | ${emojis[7]} | ${emojis[8]} │`, '└───────────────┘', '```',
-            multiplier > 0 ? `**${maxMatch}x ${slotConfig[winEmoji].label} MATCH!**` : 'Better luck next time!',
-            `**Result:** ${payout >= 0 ? '+' : ''}${payout} 💵`, `**Balance:** ${numtoemo(newBalance)} 💵`
-        ].join('\n'));
-    spin === 1 ? await interaction.followUp({ embeds: [embed] }) : await interaction.editReply({ embeds: [embed] });
-    return multiplier;
 }
 
 // Blackjack Score
 function calculateScore(hand) {
-    let score = 0;
-    let aces = 0;
-    for (const card of hand) {
-        if (card === 'A') {
-            aces += 1;
-            score += 11;
-        } else if (['J', 'Q', 'K'].includes(card)) {
-            score += 10;
-        } else {
-            score += parseInt(card);
+    try {
+        let score = 0;
+        let aces = 0;
+        for (const card of hand) {
+            if (card === 'A') {
+                aces += 1;
+                score += 11;
+            } else if (['J', 'Q', 'K'].includes(card)) {
+                score += 10;
+            } else {
+                score += parseInt(card);
+            }
         }
+        while (score > 21 && aces > 0) {
+            score -= 10;
+            aces -= 1;
+        }
+        return score;
+    } catch (error) {
+        console.error("Error calculating blackjack score:", error);
+        logError('CALCULATE_BJ_SCORE_ERROR', error);
     }
-    while (score > 21 && aces > 0) {
-        score -= 10;
-        aces -= 1;
-    }
-    return score;
 }
 
 // Hishdice Functions
@@ -1073,6 +1157,7 @@ let db, ai, tor;
         client.login(process.env.TOKEN);
     } catch (error) {
         console.log(`=-=ERROR=-= ${error}`);
+        logError('INIT_ERROR', error);
     }
 })();
 
@@ -1133,36 +1218,48 @@ client.on('interactionCreate', async (interaction) => {
     if (interaction.commandName === 'scissors') { if (!interaction.inGuild()) { return interaction.reply({ content: 'You can only run this command inside a server.', flags: [MessageFlags.Ephemeral],}); } await runRPS(interaction, 'scissors')}
 
     if (interaction.commandName === 'help') {
-        if (!interaction.inGuild()) { return interaction.reply({ content: 'You can only run this command inside a server.', flags: [MessageFlags.Ephemeral],}); } 
-        const embed = new EmbedBuilder()
-            .setTitle('Commands List')
-            .setColor('Blue')
-            .setDescription(
-                "### 🛠️ Utility\n" +
-                "`/ping - Replies with the bot's latency`\n" +
-                "`/level - Shows your server level`\n" +
-                "`/leaderboard - Shows Rankings`\n"+
-                "`/ai - Generate a response from Gemini`\n" +
-                "`/tts - Makes the bot say something in a voice channel`\n" +
-                "### 🎵 Music\n"+
-                "`/play - Play a Song/Playlist from a Youtube or Spotify Link`\n"+
-                "`/queue - View Current Music Queue`\n"+
-                "### 💰 Economy\n" +
-                "`/balance` • `/give` • `/daily`\n" +
-                "`/claim`\n" +
-                "### 🎲 Games\n" +
-                "`/blackjack` • `/slots` • `/roulette`\n" +
-                "`/coinflip` • `/rock/paper/scissors` • `/towers`\n" +
-                "`/high/low` • `/crash` • `/dice`\n" +
-                "`/baccarat` • `/plinko`"
-            );
-        interaction.reply({ embeds: [embed] });
+        try {
+            if (!interaction.inGuild()) { return interaction.reply({ content: 'You can only run this command inside a server.', flags: [MessageFlags.Ephemeral],}); } 
+            const embed = new EmbedBuilder()
+                .setTitle('Commands List')
+                .setColor('Blue')
+                .setDescription(
+                    "### 🛠️ Utility\n" +
+                    "`/ping - Replies with the bot's latency`\n" +
+                    "`/level - Shows your server level`\n" +
+                    "`/leaderboard - Shows Rankings`\n"+
+                    "`/ai - Generate a response from Gemini`\n" +
+                    "`/tts - Makes the bot say something in a voice channel`\n" +
+                    "### 🎵 Music\n"+
+                    "`/play - Play a Song/Playlist from a Youtube or Spotify Link`\n"+
+                    "`/queue - View Current Music Queue`\n"+
+                    "### 💰 Economy\n" +
+                    "`/balance` • `/give` • `/daily`\n" +
+                    "`/claim`\n" +
+                    "### 🎲 Games\n" +
+                    "`/blackjack` • `/slots` • `/roulette`\n" +
+                    "`/coinflip` • `/rock/paper/scissors` • `/towers`\n" +
+                    "`/high/low` • `/crash` • `/dice`\n" +
+                    "`/baccarat` • `/plinko`"
+                );
+            interaction.reply({ embeds: [embed] });
+        } catch (error) {
+            console.error(`Error with /help: ${error}`);
+            logError('HELP_COMMAND_ERROR', error);
+            interaction.reply({ content: 'An error occurred while fetching the help message.', flags: [MessageFlags.Ephemeral] });
+        }
     }
 
     if (interaction.commandName === 'ping') {
         await interaction.deferReply();
-        const reply = await interaction.fetchReply(), ping = reply.createdTimestamp - interaction.createdTimestamp;
-        interaction.editReply(`Client ${ping}ms | Websocket: ${client.ws.ping}ms`);
+        try {
+            const reply = await interaction.fetchReply(), ping = reply.createdTimestamp - interaction.createdTimestamp;
+            interaction.reply(`Client ${ping}ms | Websocket: ${client.ws.ping}ms`);
+        } catch (error) {
+            console.error(`Error with /ping: ${error}`);
+            logError('PING_COMMAND_ERROR', error);
+            interaction.reply({ content: 'An error occurred while fetching the ping.', flags: [MessageFlags.Ephemeral] });
+        }   
     }
 
     if (interaction.commandName === 'balance') {
@@ -1194,6 +1291,7 @@ client.on('interactionCreate', async (interaction) => {
             await interaction.editReply({ files: [attachment] });
         } catch (error) {
             console.error("Balance Error: ", error);
+            logError('BALANCE_COMMAND_ERROR', error);
             await interaction.editReply("Could not retrieve balance image.");
         }
     }
@@ -1236,6 +1334,7 @@ client.on('interactionCreate', async (interaction) => {
             await interaction.editReply({ embeds: [successEmbed] });
         } catch (error) {
             console.error(`Error with /give: ${error}`);
+            logError('GIVE_COMMAND_ERROR', error);
             interaction.editReply(`An error occurred.`);
         }
     }
@@ -1272,6 +1371,7 @@ client.on('interactionCreate', async (interaction) => {
             await interaction.editReply({ embeds: [embed], files: [file] });
         } catch (error) {
             console.error(`Error with /coinflip: ${error}`);
+            logError('COINFLIP_COMMAND_ERROR', error);
             interaction.editReply("Something went wrong with the coin toss!");
         }
     }
@@ -1316,7 +1416,8 @@ client.on('interactionCreate', async (interaction) => {
                 await interaction.editReply({ embeds: [embed] });
             }
         } catch (error) {
-            console.error(`Error with /dig: ${error}`);
+            console.error(`Error with /claim: ${error}`);
+            logError('CLAIM_COMMAND_ERROR', error);
             const errorEmbed = new EmbedBuilder()
                 .setTitle('❌ Error')
                 .setDescription('Something went wrong with the shovel. Try again!')
@@ -1359,6 +1460,7 @@ client.on('interactionCreate', async (interaction) => {
             await interaction.editReply({ embeds: [successEmbed] });
         } catch (error) {
             console.error(`Error with /daily: ${error}`);
+            logError('DAILY_COMMAND_ERROR', error);
             interaction.editReply(`An error occurred while claiming your daily reward.`);
         }
     }
@@ -1397,6 +1499,7 @@ client.on('interactionCreate', async (interaction) => {
             await interaction.editReply({ files: [attachment] });
         } catch (error) {
             console.error(`Rank Error: ${error}`);
+            logError('LEVEL_COMMAND_ERROR', error);
             interaction.editReply(`Failed to load rank card. Please try again.`);
         }
     }
@@ -1464,6 +1567,7 @@ client.on('interactionCreate', async (interaction) => {
             await interaction.editReply({ files: [attachment] });
         } catch (error) {
             console.error(`Leaderboard Error: ${error}`);
+            logError('LEADERBOARD_COMMAND_ERROR', error);
             if (!interaction.replied) interaction.editReply("Failed to load the leaderboard image.");
         }
     }
@@ -1513,6 +1617,7 @@ client.on('interactionCreate', async (interaction) => {
             await interaction.editReply({ embeds: [resultEmbed] });
         } catch (error) {
             console.error(`Error with /roulette: ${error}`);
+            logError('ROULETTE_COMMAND_ERROR', error);
             interaction.editReply(`An error occurred. Please try again.`);
         }
     }
@@ -1544,6 +1649,7 @@ client.on('interactionCreate', async (interaction) => {
             }
         } catch (error) {
             console.error(`Error with /slot: ${error}`);
+            logError('SLOT_COMMAND_ERROR', error);
             if (interaction.deferred) interaction.editReply(`Error: ${error.message}`);
         }
     }
@@ -1608,254 +1714,273 @@ client.on('interactionCreate', async (interaction) => {
             return await interaction.editReply({ embeds: [embed] });
         } catch (error) {
             console.error(`Error with /hashdice:`, error);
+            logError('HASHDICE_COMMAND_ERROR', error);
             return interaction.editReply(`Something went wrong. Please try again!`);
         }
     }
 
     if (interaction.commandName === "towers") {
-        if (!interaction.inGuild()) { return interaction.reply({ content: 'You can only run this command inside a server.', flags: [MessageFlags.Ephemeral],}); } 
-        await interaction.deferReply();
-        const result = await db.query("SELECT * FROM towers WHERE userid = ?", [interaction.member.id]);
-        const game = result[0][0];
-        let user = await getuser(interaction.member.id);
-        if (!game) {
-            await db.query('INSERT INTO towers VALUES(?, 0, 0, 1, 1, 1, 1, 1)', [userId]);
-            game = { userid: interaction.member.id, status: 0, bet: 0, item1: 1, item2: 1, item3: 1, item4: 1, item5: 1 };
-        }
-        const multipliers = { 1: 1.2, 2: 1.5, 3: 2, 4: 3.0, 5: 5.0, 6: 10 };
-        const colors = { win: "#00ff00", loss: "#ff0000", progress: "#ffff00", cashout: "#00ffff" };
-        const getRow = (level, bombPos) => {
-            const mult = multipliers[level] ? `[${multipliers[level]}x]` : "";
-            const row = ["⭕", "⭕", "⭕"].map((circle, i) => (i + 1) === Number(bombPos) ? "❌" : circle).join("");
-            return `| ${row} | \`${mult}\``;
-        };
-        const tower = interaction.options.getNumber('tower-choice');
-        const bet = interaction.options.getNumber('bet-amount');
-        const endGame = interaction.options.getNumber('game-end') === 1; 
-        const embed = new EmbedBuilder().setAuthor({ name: `${interaction.user.username}'s Tower`, iconURL: interaction.user.displayAvatarURL() });
-        if (endGame && game.status >= 1) {
-            const winAmount = Math.floor(game.bet * (multipliers[game.status - 1] || 1));
-            const newBal = Number(user.balance) + winAmount;
-            await db.query('UPDATE users SET balance = ? WHERE userid = ?', [newBal, interaction.member.id]);
-            await db.query('UPDATE towers SET status = 0, bet = 0 WHERE userid = ?', [interaction.member.id]);
-            embed.setTitle("💰 Cash Out Success!")
-                .setColor(colors.cashout)
-                .setDescription(`You reached **Level ${game.status - 1}** safely.\n\n**Winnings:** ${numtoemo(winAmount)}\n**New Balance:** ${numtoemo(newBal)}`);
-            return interaction.editReply({ embeds: [embed] });
-        }
-        if (!tower) {
-            return interaction.editReply("Please choose a tower to proceed with.");
-        }
-        const currentLevel = Number(game.status) === 0 ? 1 : Number(game.status);
-        if (Number(game.status) === 0) {
-            if (!bet || Number(bet) < 1) return interaction.editReply("Enter a valid bet.");
-            if (Number(user.balance) < Number(bet)) return interaction.editReply(`Low balance: ${user.balance}💵`);
-            const r = Array.from({ length: 5 }, () => Math.floor(Math.random() * 3) + 1);
-            await db.query('UPDATE towers SET item1 = ?, item2 = ?, item3 = ?, item4 = ?, item5 = ?, bet = ?, status = 1 WHERE userid = ?', [r[0], r[1], r[2], r[3], r[4], Number(bet), interaction.member.id]);
-            game.item1 = r[0]; game.item2 = r[1]; game.item3 = r[2]; 
-            game.item4 = r[3]; game.item5 = r[4]; 
-            game.bet = Number(bet);
-            game.status = 1;
-        }
-        const bombPosition = game[`item${currentLevel}`];
-        let boardArray = [];
-        for (let i = 1; i <= currentLevel; i++) {
-            boardArray.unshift(getRow(i, game[`item${i}`]));
-        }
-        if (tower === bombPosition) {
-            const newBal = Number(user.balance) - Number(game.bet);
-            await db.query('UPDATE towers SET status = 0, bet = 0 WHERE userid = ?', [interaction.member.id]);
-            await db.query('UPDATE users SET balance = ? WHERE userid = ?', [newBal, interaction.member.id]);
-            embed.setTitle("💥 BOMB! Game Over")
-                .setColor(colors.loss)
-                .setDescription(`${boardArray.join("\n")}\n\nYou lost **${game.bet}**.\n**Balance:** ${numtoemo(newBal)}`);
-        } else {
-            const nextStatus = currentLevel + 1;
-            let title = `✅ Level ${currentLevel} Passed`;
-            let desc = `${boardArray.join("\n")}\n\nNext Multiplier: **${multipliers[nextStatus] || '10.0'}x**`;
-            let color = colors.progress;
-            if (currentLevel === 5) {
-                title = "🔥 DOUBLE OR NOTHING UNLOCKED!";
-                desc = `${boardArray.join("\n")}\n\n**Level 5 Cleared!** You are currently at **5.0x**.\nDo you dare try the **Level 6 Bonus?**\n\n⚠️ **WARNING:** Level 6 has **2 BOMBS** and pays **10.0x**!`;
-                color = "#ffaa00";
-            } else if (currentLevel === 6) {
-                const nextStatus = currentLevel - 1;
-                title = "👑 THE ULTIMATE CHAMPION!";
-                desc = `${boardArray.join("\n")}\n\n**You cleared the Bonus Round!**\nMultiplier: **10.0x**!! Cash out now!`;
-                color = "#ff00ff";
+        try {
+            if (!interaction.inGuild()) { return interaction.reply({ content: 'You can only run this command inside a server.', flags: [MessageFlags.Ephemeral],}); } 
+            await interaction.deferReply();
+            const result = await db.query("SELECT * FROM towers WHERE userid = ?", [interaction.member.id]);
+            const game = result[0][0];
+            let user = await getuser(interaction.member.id);
+            if (!game) {
+                await db.query('INSERT INTO towers VALUES(?, 0, 0, 1, 1, 1, 1, 1)', [userId]);
+                game = { userid: interaction.member.id, status: 0, bet: 0, item1: 1, item2: 1, item3: 1, item4: 1, item5: 1 };
             }
-            await db.query('UPDATE towers SET status = ? WHERE userid = ?', [nextStatus, user.userid]);
-            embed.setTitle(title)
-                .setColor(color)
-                .setDescription(desc)
-                .setFooter({ text: `Current Bet: ${numtoemo(game.bet)}` });
+            const multipliers = { 1: 1.2, 2: 1.5, 3: 2, 4: 3.0, 5: 5.0, 6: 10 };
+            const colors = { win: "#00ff00", loss: "#ff0000", progress: "#ffff00", cashout: "#00ffff" };
+            const getRow = (level, bombPos) => {
+                const mult = multipliers[level] ? `[${multipliers[level]}x]` : "";
+                const row = ["⭕", "⭕", "⭕"].map((circle, i) => (i + 1) === Number(bombPos) ? "❌" : circle).join("");
+                return `| ${row} | \`${mult}\``;
+            };
+            const tower = interaction.options.getNumber('tower-choice');
+            const bet = interaction.options.getNumber('bet-amount');
+            const endGame = interaction.options.getNumber('game-end') === 1; 
+            const embed = new EmbedBuilder().setAuthor({ name: `${interaction.user.username}'s Tower`, iconURL: interaction.user.displayAvatarURL() });
+            if (endGame && game.status >= 1) {
+                const winAmount = Math.floor(game.bet * (multipliers[game.status - 1] || 1));
+                const newBal = Number(user.balance) + winAmount;
+                await db.query('UPDATE users SET balance = ? WHERE userid = ?', [newBal, interaction.member.id]);
+                await db.query('UPDATE towers SET status = 0, bet = 0 WHERE userid = ?', [interaction.member.id]);
+                embed.setTitle("💰 Cash Out Success!")
+                    .setColor(colors.cashout)
+                    .setDescription(`You reached **Level ${game.status - 1}** safely.\n\n**Winnings:** ${numtoemo(winAmount)}\n**New Balance:** ${numtoemo(newBal)}`);
+                return interaction.editReply({ embeds: [embed] });
+            }
+            if (!tower) {
+                return interaction.editReply("Please choose a tower to proceed with.");
+            }
+            const currentLevel = Number(game.status) === 0 ? 1 : Number(game.status);
+            if (Number(game.status) === 0) {
+                if (!bet || Number(bet) < 1) return interaction.editReply("Enter a valid bet.");
+                if (Number(user.balance) < Number(bet)) return interaction.editReply(`Low balance: ${user.balance}💵`);
+                const r = Array.from({ length: 5 }, () => Math.floor(Math.random() * 3) + 1);
+                await db.query('UPDATE towers SET item1 = ?, item2 = ?, item3 = ?, item4 = ?, item5 = ?, bet = ?, status = 1 WHERE userid = ?', [r[0], r[1], r[2], r[3], r[4], Number(bet), interaction.member.id]);
+                game.item1 = r[0]; game.item2 = r[1]; game.item3 = r[2]; 
+                game.item4 = r[3]; game.item5 = r[4]; 
+                game.bet = Number(bet);
+                game.status = 1;
+            }
+            const bombPosition = game[`item${currentLevel}`];
+            let boardArray = [];
+            for (let i = 1; i <= currentLevel; i++) {
+                boardArray.unshift(getRow(i, game[`item${i}`]));
+            }
+            if (tower === bombPosition) {
+                const newBal = Number(user.balance) - Number(game.bet);
+                await db.query('UPDATE towers SET status = 0, bet = 0 WHERE userid = ?', [interaction.member.id]);
+                await db.query('UPDATE users SET balance = ? WHERE userid = ?', [newBal, interaction.member.id]);
+                embed.setTitle("💥 BOMB! Game Over")
+                    .setColor(colors.loss)
+                    .setDescription(`${boardArray.join("\n")}\n\nYou lost **${game.bet}**.\n**Balance:** ${numtoemo(newBal)}`);
+            } else {
+                const nextStatus = currentLevel + 1;
+                let title = `✅ Level ${currentLevel} Passed`;
+                let desc = `${boardArray.join("\n")}\n\nNext Multiplier: **${multipliers[nextStatus] || '10.0'}x**`;
+                let color = colors.progress;
+                if (currentLevel === 5) {
+                    title = "🔥 DOUBLE OR NOTHING UNLOCKED!";
+                    desc = `${boardArray.join("\n")}\n\n**Level 5 Cleared!** You are currently at **5.0x**.\nDo you dare try the **Level 6 Bonus?**\n\n⚠️ **WARNING:** Level 6 has **2 BOMBS** and pays **10.0x**!`;
+                    color = "#ffaa00";
+                } else if (currentLevel === 6) {
+                    const nextStatus = currentLevel - 1;
+                    title = "👑 THE ULTIMATE CHAMPION!";
+                    desc = `${boardArray.join("\n")}\n\n**You cleared the Bonus Round!**\nMultiplier: **10.0x**!! Cash out now!`;
+                    color = "#ff00ff";
+                }
+                await db.query('UPDATE towers SET status = ? WHERE userid = ?', [nextStatus, user.userid]);
+                embed.setTitle(title)
+                    .setColor(color)
+                    .setDescription(desc)
+                    .setFooter({ text: `Current Bet: ${numtoemo(game.bet)}` });
+            }
+            return interaction.editReply({ embeds: [embed] });
+        } catch (error) {
+            console.error(`Error with /towers: ${error}`);
+            logError('TOWERS_COMMAND_ERROR', error);
+            return interaction.reply(`An error occurred. Please try again!`);
         }
-        return interaction.editReply({ embeds: [embed] });
     }
 
     if (interaction.commandName === "bj" || interaction.commandName == "blackjack") {
-        if (!interaction.inGuild()) { return interaction.reply({ content: 'You can only run this command inside a server.', flags: [MessageFlags.Ephemeral],}); } 
-        await interaction.deferReply();
-        let user = await getuser(interaction.member.id);
-        const bet = interaction.options.getNumber('bet-amount');
-        if (!bet || bet < 1) return interaction.editReply("Enter a valid bet.");
-        if (Number(user.balance) < bet) return interaction.editReply(`Low balance: ${user.balance}💵`);
-        await db.query("UPDATE users SET balance = balance - ? WHERE userid = ?", [bet, interaction.member.id]);
-        let deck = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
-        let playerHand = [deck[Math.floor(Math.random() * deck.length)], deck[Math.floor(Math.random() * deck.length)]];
-        let dealerHand = [deck[Math.floor(Math.random() * deck.length)]];
-        const generateEmbed = (title, showDealerCard = false) => {
-            const pScore = calculateScore(playerHand);
-            const dScore = calculateScore(dealerHand);
-            return new EmbedBuilder()
-                .setTitle(title)
-                .setColor(0xFF0069)
-                .addFields(
-                    { name: 'Your Hand', value: `${playerHand.join(', ')} (**${pScore}**)`, inline: true },
-                    { name: 'Dealer Hand', value: showDealerCard ? `${dealerHand.join(', ')} (**${dScore}**)` : `${dealerHand[0]}, ?`, inline: true }
-                )
-                .setFooter({ text: pScore > 21 ? 'Busted!' : 'React with 👊 to Hit or ✋ to Stand' });
-        };
-        const playerHasBJ = calculateScore(playerHand) === 21;
-        if (playerHasBJ) {
-            const bjPayout = Math.floor(bet * 2.5);
-            await db.query("UPDATE users SET balance = balance + ? WHERE userid = ?", [bjPayout, interaction.member.id]);
-            const bjEmbed = generateEmbed("BLACKJACK! 🃏", true, 0x00FF00)
-                .setDescription(`Natural 21!\nYou won **+${bjPayout - bet}**!\nNew Balance: **${user.balance - bet + bjPayout}**`);
-            return await interaction.editReply({ embeds: [bjEmbed] });
-        }
-        const gameMessage = await interaction.editReply({ 
-            embeds: [generateEmbed(`${interaction.user.username}'s Blackjack`)], 
-            fetchReply: true 
-        });
-        await gameMessage.react('👊');
-        await gameMessage.react('✋');
-        const filter = (reaction, user) => ['👊', '✋'].includes(reaction.emoji.name) && user.id === interaction.member.id;
-        const collector = gameMessage.createReactionCollector({ filter, time: 60000 });
-        collector.on('collect', async (reaction, user) => {
-            await reaction.users.remove(user.id).catch(() => null);
-            if (reaction.emoji.name === '👊') {
-                playerHand.push(deck[Math.floor(Math.random() * deck.length)]);
-                if (calculateScore(playerHand) > 21) {
-                    return collector.stop('bust');
-                }
-                await interaction.editReply({ embeds: [generateEmbed(`${interaction.user.username}'s Blackjack`)] });
-            } else {
-                collector.stop('stand');
-            }
-        });
-        collector.on('end', async (collected, reason) => {
-            let finalTitle = "";
-            let payout = 0;
-            let winLossMessage = "";
-            if (reason === 'bust') {
-                embedColor = 0xFF0000;
-                finalTitle = "You Busted! 💥 Dealer Wins.";
-            } else if (reason === 'stand') {
-                while (calculateScore(dealerHand) < 17) {
-                    dealerHand.push(deck[Math.floor(Math.random() * deck.length)]);
-                }
+        try {
+            if (!interaction.inGuild()) { return interaction.reply({ content: 'You can only run this command inside a server.', flags: [MessageFlags.Ephemeral],}); } 
+            await interaction.deferReply();
+            let user = await getuser(interaction.member.id);
+            const bet = interaction.options.getNumber('bet-amount');
+            if (!bet || bet < 1) return interaction.editReply("Enter a valid bet.");
+            if (Number(user.balance) < bet) return interaction.editReply(`Low balance: ${user.balance}💵`);
+            await db.query("UPDATE users SET balance = balance - ? WHERE userid = ?", [bet, interaction.member.id]);
+            let deck = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
+            let playerHand = [deck[Math.floor(Math.random() * deck.length)], deck[Math.floor(Math.random() * deck.length)]];
+            let dealerHand = [deck[Math.floor(Math.random() * deck.length)]];
+            const generateEmbed = (title, showDealerCard = false) => {
                 const pScore = calculateScore(playerHand);
                 const dScore = calculateScore(dealerHand);
-                if (dScore > 21) {
-                    embedColor = 0x00FF00;
-                    payout = bet * 2;
-                    finalTitle = "Dealer Busted! You Win! 🎉";
-                    winLossMessage = `+${numtoemo(bet)}`;
-                } else if (pScore > dScore) {
-                    embedColor = 0x00FF00;
-                    payout = bet * 2;
-                    finalTitle = "You Win! 🎉";
-                    winLossMessage = `+${numtoemo(bet)}`;
-                } else if (dScore > pScore) {
-                    embedColor = 0xFF0000;
-                    finalTitle = "Dealer Wins! 🏠";
-                    winLossMessage = `-${numtoemo(bet)}`;
+                return new EmbedBuilder()
+                    .setTitle(title)
+                    .setColor(0xFF0069)
+                    .addFields(
+                        { name: 'Your Hand', value: `${playerHand.join(', ')} (**${pScore}**)`, inline: true },
+                        { name: 'Dealer Hand', value: showDealerCard ? `${dealerHand.join(', ')} (**${dScore}**)` : `${dealerHand[0]}, ?`, inline: true }
+                    )
+                    .setFooter({ text: pScore > 21 ? 'Busted!' : 'React with 👊 to Hit or ✋ to Stand' });
+            };
+            const playerHasBJ = calculateScore(playerHand) === 21;
+            if (playerHasBJ) {
+                const bjPayout = Math.floor(bet * 2.5);
+                await db.query("UPDATE users SET balance = balance + ? WHERE userid = ?", [bjPayout, interaction.member.id]);
+                const bjEmbed = generateEmbed("BLACKJACK! 🃏", true, 0x00FF00)
+                    .setDescription(`Natural 21!\nYou won **+${bjPayout - bet}**!\nNew Balance: **${user.balance - bet + bjPayout}**`);
+                return await interaction.editReply({ embeds: [bjEmbed] });
+            }
+            const gameMessage = await interaction.editReply({ 
+                embeds: [generateEmbed(`${interaction.user.username}'s Blackjack`)], 
+                fetchReply: true 
+            });
+            await gameMessage.react('👊');
+            await gameMessage.react('✋');
+            const filter = (reaction, user) => ['👊', '✋'].includes(reaction.emoji.name) && user.id === interaction.member.id;
+            const collector = gameMessage.createReactionCollector({ filter, time: 60000 });
+            collector.on('collect', async (reaction, user) => {
+                await reaction.users.remove(user.id).catch(() => null);
+                if (reaction.emoji.name === '👊') {
+                    playerHand.push(deck[Math.floor(Math.random() * deck.length)]);
+                    if (calculateScore(playerHand) > 21) {
+                        return collector.stop('bust');
+                    }
+                    await interaction.editReply({ embeds: [generateEmbed(`${interaction.user.username}'s Blackjack`)] });
                 } else {
-                    embedColor = 0xFFFF00;
-                    payout = bet;
-                    finalTitle = "It's a Tie! 🤝";
-                    winLossMessage = `Your ${numtoemo(bet)} was returned.`;
-                }; 
-            } else {
-                embedColor = 0x2f3136;
-                finalTitle = "Game Timed Out! ⏰";
-            }
-            if (payout > 0) {
-                await db.query("UPDATE users SET balance = balance + ? WHERE userid = ?", [payout, interaction.member.id]);
-            }
-            const finalEmbed = generateEmbed(finalTitle, true)
-                .setColor(embedColor)
-                .setFooter(null)
-                .setDescription(`${winLossMessage}\nYour new balance: ${numtoemo(Number(user.balance) - bet + payout)}`);
-            await interaction.editReply({ embeds: [finalEmbed] });
-            await gameMessage.reactions.removeAll().catch(() => null);
-        });
+                    collector.stop('stand');
+                }
+            });
+            collector.on('end', async (collected, reason) => {
+                let finalTitle = "";
+                let payout = 0;
+                let winLossMessage = "";
+                if (reason === 'bust') {
+                    embedColor = 0xFF0000;
+                    finalTitle = "You Busted! 💥 Dealer Wins.";
+                } else if (reason === 'stand') {
+                    while (calculateScore(dealerHand) < 17) {
+                        dealerHand.push(deck[Math.floor(Math.random() * deck.length)]);
+                    }
+                    const pScore = calculateScore(playerHand);
+                    const dScore = calculateScore(dealerHand);
+                    if (dScore > 21) {
+                        embedColor = 0x00FF00;
+                        payout = bet * 2;
+                        finalTitle = "Dealer Busted! You Win! 🎉";
+                        winLossMessage = `+${numtoemo(bet)}`;
+                    } else if (pScore > dScore) {
+                        embedColor = 0x00FF00;
+                        payout = bet * 2;
+                        finalTitle = "You Win! 🎉";
+                        winLossMessage = `+${numtoemo(bet)}`;
+                    } else if (dScore > pScore) {
+                        embedColor = 0xFF0000;
+                        finalTitle = "Dealer Wins! 🏠";
+                        winLossMessage = `-${numtoemo(bet)}`;
+                    } else {
+                        embedColor = 0xFFFF00;
+                        payout = bet;
+                        finalTitle = "It's a Tie! 🤝";
+                        winLossMessage = `Your ${numtoemo(bet)} was returned.`;
+                    }; 
+                } else {
+                    embedColor = 0x2f3136;
+                    finalTitle = "Game Timed Out! ⏰";
+                }
+                if (payout > 0) {
+                    await db.query("UPDATE users SET balance = balance + ? WHERE userid = ?", [payout, interaction.member.id]);
+                }
+                const finalEmbed = generateEmbed(finalTitle, true)
+                    .setColor(embedColor)
+                    .setFooter(null)
+                    .setDescription(`${winLossMessage}\nYour new balance: ${numtoemo(Number(user.balance) - bet + payout)}`);
+                await interaction.editReply({ embeds: [finalEmbed] });
+                await gameMessage.reactions.removeAll().catch(() => null);
+            });
+        } catch (error) {
+            console.error(`Error with /blackjack: ${error}`);
+            logError('BLACKJACK_COMMAND_ERROR', error);
+            interaction.reply(`An error occurred. Please try again!`);
+        }
     }
 
     if (interaction.commandName === "crash") {
-        if (!interaction.inGuild()) { return interaction.reply({ content: 'You can only run this command inside a server.', flags: [MessageFlags.Ephemeral],}); } 
-        await interaction.deferReply();
-        const bet = interaction.options.getNumber('bet-amount');
-        let user = await getuser(interaction.member.id);
-        if (user.balance < bet) {
-            return interaction.editReply(`You don't have enough! Balance: ${numtoemo(user.balance)} 💵`);
+        try {
+            if (!interaction.inGuild()) { return interaction.reply({ content: 'You can only run this command inside a server.', flags: [MessageFlags.Ephemeral],}); } 
+            await interaction.deferReply();
+            const bet = interaction.options.getNumber('bet-amount');
+            let user = await getuser(interaction.member.id);
+            if (user.balance < bet) {
+                return interaction.editReply(`You don't have enough! Balance: ${numtoemo(user.balance)} 💵`);
+            }
+            let currentMultiplier = 1.00;
+            const crashPoint = (0.99 / (1 - Math.random())).toFixed(2);
+            let gameEnded = false;
+            let cashedOut = false;
+            const cashOutBtn = new ActionRowBuilder().addComponents(
+                new ButtonBuilder().setCustomId('cashout').setLabel('🚀 CASH OUT').setStyle(ButtonStyle.Success)
+            );
+            const generateEmbed = (status, color) => {
+                const progress = Math.min(Math.floor((currentMultiplier / 5) * 20), 20);
+                const bar = '🟩'.repeat(progress) + '⬜'.repeat(20 - progress);
+                return new EmbedBuilder()
+                    .setTitle('💫 CRASH GAME')
+                    .setColor(color)
+                    .addFields(
+                        { name: 'Bet Amount', value: `\`${bet.toLocaleString()}\``, inline: true },
+                        { name: 'Multiplier', value: `\`${currentMultiplier.toFixed(2)}x\``, inline: true },
+                        { name: 'Profit', value: `\`+${Math.floor(bet * currentMultiplier - bet).toLocaleString()}\``, inline: true },
+                        { name: 'Final Progress', value: `\`${bar}\`` }
+                    )
+                    .setDescription(status);
+            };
+            const msg = await interaction.editReply({ 
+                embeds: [generateEmbed('🚀 Rocket is flying...', 'Yellow')], 
+                components: [cashOutBtn] 
+            });
+            const collector = msg.createMessageComponentCollector({ time: 60000 });
+            collector.on('collect', async i => {
+                if (i.user.id !== interaction.member.id) return i.reply({ content: "This isn't your game!", flags: [MessageFlags.Ephemeral] });
+                if (i.customId === 'cashout' && !gameEnded) {
+                    cashedOut = true;
+                    gameEnded = true;
+                    const profit = Math.floor(bet * currentMultiplier - bet);
+                    await db.query('UPDATE users SET balance = balance + ? WHERE userid = ?', [profit, interaction.member.id]);
+                    await i.update({ 
+                        embeds: [generateEmbed(`💰 **CASHED OUT!**\nYou won **${profit.toLocaleString()}** 💵\nNew Balance: ${numtoemo(user.balance+profit)}💵`, 'Green')], 
+                        components: [] 
+                    });
+                    collector.stop();
+                }
+            });
+            const gameLoop = setInterval(async () => {
+                if (cashedOut) return clearInterval(gameLoop);
+                currentMultiplier += 0.10 + (currentMultiplier * 0.05);
+                if (currentMultiplier >= crashPoint) {
+                    gameEnded = true;
+                    clearInterval(gameLoop);
+                    collector.stop();
+                    await db.query('UPDATE users SET balance = balance - ? WHERE userid = ?', [bet, interaction.member.id]);
+                    return interaction.editReply({ 
+                        embeds: [generateEmbed(`💥 **ROCKET CRASHED!**\nYou lost **${bet.toLocaleString()}** 💵\nCrash Point: **${crashPoint}x**\nNew Balance: ${numtoemo(user.balance-bet)}💵`, 'Red')], 
+                        components: [] 
+                    });
+                }
+                await interaction.editReply({ embeds: [generateEmbed('🚀 Rocket is flying...', 'Yellow')] }).catch(() => clearInterval(gameLoop));
+            }, 1500);
+        } catch (error) {
+            console.error(`Error with /crash: ${error}`);
+            logError('CRASH_COMMAND_ERROR', error);
+            interaction.reply(`An error occurred. Please try again!`);
         }
-        let currentMultiplier = 1.00;
-        const crashPoint = (0.99 / (1 - Math.random())).toFixed(2);
-        let gameEnded = false;
-        let cashedOut = false;
-        const cashOutBtn = new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId('cashout').setLabel('🚀 CASH OUT').setStyle(ButtonStyle.Success)
-        );
-        const generateEmbed = (status, color) => {
-            const progress = Math.min(Math.floor((currentMultiplier / 5) * 20), 20);
-            const bar = '🟩'.repeat(progress) + '⬜'.repeat(20 - progress);
-            return new EmbedBuilder()
-                .setTitle('💫 CRASH GAME')
-                .setColor(color)
-                .addFields(
-                    { name: 'Bet Amount', value: `\`${bet.toLocaleString()}\``, inline: true },
-                    { name: 'Multiplier', value: `\`${currentMultiplier.toFixed(2)}x\``, inline: true },
-                    { name: 'Profit', value: `\`+${Math.floor(bet * currentMultiplier - bet).toLocaleString()}\``, inline: true },
-                    { name: 'Final Progress', value: `\`${bar}\`` }
-                )
-                .setDescription(status);
-        };
-        const msg = await interaction.editReply({ 
-            embeds: [generateEmbed('🚀 Rocket is flying...', 'Yellow')], 
-            components: [cashOutBtn] 
-        });
-        const collector = msg.createMessageComponentCollector({ time: 60000 });
-        collector.on('collect', async i => {
-            if (i.user.id !== interaction.member.id) return i.reply({ content: "This isn't your game!", flags: [MessageFlags.Ephemeral] });
-            if (i.customId === 'cashout' && !gameEnded) {
-                cashedOut = true;
-                gameEnded = true;
-                const profit = Math.floor(bet * currentMultiplier - bet);
-                await db.query('UPDATE users SET balance = balance + ? WHERE userid = ?', [profit, interaction.member.id]);
-                await i.update({ 
-                    embeds: [generateEmbed(`💰 **CASHED OUT!**\nYou won **${profit.toLocaleString()}** 💵\nNew Balance: ${numtoemo(user.balance+profit)}💵`, 'Green')], 
-                    components: [] 
-                });
-                collector.stop();
-            }
-        });
-        const gameLoop = setInterval(async () => {
-            if (cashedOut) return clearInterval(gameLoop);
-            currentMultiplier += 0.10 + (currentMultiplier * 0.05);
-            if (currentMultiplier >= crashPoint) {
-                gameEnded = true;
-                clearInterval(gameLoop);
-                collector.stop();
-                await db.query('UPDATE users SET balance = balance - ? WHERE userid = ?', [bet, interaction.member.id]);
-                return interaction.editReply({ 
-                    embeds: [generateEmbed(`💥 **ROCKET CRASHED!**\nYou lost **${bet.toLocaleString()}** 💵\nCrash Point: **${crashPoint}x**\nNew Balance: ${numtoemo(user.balance-bet)}💵`, 'Red')], 
-                    components: [] 
-                });
-            }
-            await interaction.editReply({ embeds: [generateEmbed('🚀 Rocket is flying...', 'Yellow')] }).catch(() => clearInterval(gameLoop));
-        }, 1500);
     }
 
     if (interaction.commandName === "dice") {
@@ -1891,133 +2016,146 @@ client.on('interactionCreate', async (interaction) => {
             await interaction.editReply({ embeds: [embed] });
         } catch (error) {
             console.error(error);
+            logError('DICE_COMMAND_ERROR', error);
             interaction.editReply("Something went wrong with the dice roll.");
         }
     }
 
     if (interaction.commandName === "baccarat") {
-        if (!interaction.inGuild()) { return interaction.reply({ content: 'You can only run this command inside a server.', flags: [MessageFlags.Ephemeral],}); } 
-        await interaction.deferReply();
-        const bet = interaction.options.getNumber('bet-amount');
-        const user = await getuser(interaction.member.id);
-        if (user.balance < bet) {
-            return interaction.editReply(`Insufficient funds! Balance: ${numtoemo(user.balance)} 💵`);
-        }
-        const row = new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId('player').setLabel('👤 Player (1:1)').setStyle(ButtonStyle.Primary),
-            new ButtonBuilder().setCustomId('banker').setLabel('🏦 Banker (1:0.95)').setStyle(ButtonStyle.Secondary),
-            new ButtonBuilder().setCustomId('tie').setLabel('👔 Tie (8:1)').setStyle(ButtonStyle.Success)
-        );
-        const embed = new EmbedBuilder()
-            .setTitle('🃏 Baccarat Table')
-            .setColor('Blue')
-            .setDescription(`Place your bet of **${bet.toLocaleString()} 💵** on who will win!`)
-            .setFooter({ text: 'Tens/Faces = 0 | Closest to 9 wins' });
-        const msg = await interaction.editReply({ embeds: [embed], components: [row] });
-        const collector = msg.createMessageComponentCollector({ time: 30000 });
-        collector.on('collect', async i => {
-            if (i.user.id !== interaction.member.id) return i.reply({ content: "Start your own game!", flags: [MessageFlags.Ephemeral] });
-            await i.deferUpdate();
-            const choice = i.customId;
-            const pHand = [Math.floor(Math.random() * 10), Math.floor(Math.random() * 10)];
-            const bHand = [Math.floor(Math.random() * 10), Math.floor(Math.random() * 10)];
-            const pScore = (pHand[0] + pHand[1]) % 10;
-            const bScore = (bHand[0] + bHand[1]) % 10;
-            let result = '';
-            let payout = -bet;
-            let color = 'Red';
-            if (pScore > bScore) {
-                result = 'player';
-                if (choice === 'player') { payout = bet; color = 'Green'; }
-            } else if (bScore > pScore) {
-                result = 'banker';
-                if (choice === 'banker') { payout = Math.floor(bet * 0.95); color = 'Green'; }
-            } else {
-                result = 'tie';
-                if (choice === 'tie') { payout = bet * 8; color = 'Green'; }
+        try {
+            if (!interaction.inGuild()) { return interaction.reply({ content: 'You can only run this command inside a server.', flags: [MessageFlags.Ephemeral],}); } 
+            await interaction.deferReply();
+            const bet = interaction.options.getNumber('bet-amount');
+            const user = await getuser(interaction.member.id);
+            if (user.balance < bet) {
+                return interaction.editReply(`Insufficient funds! Balance: ${numtoemo(user.balance)} 💵`);
             }
-            await db.query('UPDATE users SET balance = balance + ? WHERE userid = ?', [payout, interaction.member.id]); 
-            const resultEmbed = new EmbedBuilder()
-                .setTitle(payout >= 0 ? '💰 Winner!' : '💀 House Wins')
-                .setColor(color)
-                .addFields(
-                    { name: 'Player Hand', value: `\`${pHand.join(' | ')}\` (Total: **${pScore}**)`, inline: true },
-                    { name: 'Banker Hand', value: `\`${bHand.join(' | ')}\` (Total: **${bScore}**)`, inline: true },
-                    { name: 'Your Bet', value: `**${bet}**`, inline: false },
-                    { name: 'Result', value: `**${payout >= 0 ? '+' : ''}${payout.toLocaleString()} 💵**` },
-                    { name: 'New Balance', value: `${numtoemo(user.balance+payout)} 💵` }
-                );
-            await interaction.editReply({ embeds: [resultEmbed], components: [] });
-            collector.stop();
-        });
+            const row = new ActionRowBuilder().addComponents(
+                new ButtonBuilder().setCustomId('player').setLabel('👤 Player (1:1)').setStyle(ButtonStyle.Primary),
+                new ButtonBuilder().setCustomId('banker').setLabel('🏦 Banker (1:0.95)').setStyle(ButtonStyle.Secondary),
+                new ButtonBuilder().setCustomId('tie').setLabel('👔 Tie (8:1)').setStyle(ButtonStyle.Success)
+            );
+            const embed = new EmbedBuilder()
+                .setTitle('🃏 Baccarat Table')
+                .setColor('Blue')
+                .setDescription(`Place your bet of **${bet.toLocaleString()} 💵** on who will win!`)
+                .setFooter({ text: 'Tens/Faces = 0 | Closest to 9 wins' });
+            const msg = await interaction.editReply({ embeds: [embed], components: [row] });
+            const collector = msg.createMessageComponentCollector({ time: 30000 });
+            collector.on('collect', async i => {
+                if (i.user.id !== interaction.member.id) return i.reply({ content: "Start your own game!", flags: [MessageFlags.Ephemeral] });
+                await i.deferUpdate();
+                const choice = i.customId;
+                const pHand = [Math.floor(Math.random() * 10), Math.floor(Math.random() * 10)];
+                const bHand = [Math.floor(Math.random() * 10), Math.floor(Math.random() * 10)];
+                const pScore = (pHand[0] + pHand[1]) % 10;
+                const bScore = (bHand[0] + bHand[1]) % 10;
+                let result = '';
+                let payout = -bet;
+                let color = 'Red';
+                if (pScore > bScore) {
+                    result = 'player';
+                    if (choice === 'player') { payout = bet; color = 'Green'; }
+                } else if (bScore > pScore) {
+                    result = 'banker';
+                    if (choice === 'banker') { payout = Math.floor(bet * 0.95); color = 'Green'; }
+                } else {
+                    result = 'tie';
+                    if (choice === 'tie') { payout = bet * 8; color = 'Green'; }
+                }
+                await db.query('UPDATE users SET balance = balance + ? WHERE userid = ?', [payout, interaction.member.id]); 
+                const resultEmbed = new EmbedBuilder()
+                    .setTitle(payout >= 0 ? '💰 Winner!' : '💀 House Wins')
+                    .setColor(color)
+                    .addFields(
+                        { name: 'Player Hand', value: `\`${pHand.join(' | ')}\` (Total: **${pScore}**)`, inline: true },
+                        { name: 'Banker Hand', value: `\`${bHand.join(' | ')}\` (Total: **${bScore}**)`, inline: true },
+                        { name: 'Your Bet', value: `**${bet}**`, inline: false },
+                        { name: 'Result', value: `**${payout >= 0 ? '+' : ''}${payout.toLocaleString()} 💵**` },
+                        { name: 'New Balance', value: `${numtoemo(user.balance+payout)} 💵` }
+                    );
+                await interaction.editReply({ embeds: [resultEmbed], components: [] });
+                collector.stop();
+            });
+        } catch (error) {
+            console.error(`Error with /baccarat: ${error}`);
+            logError('BACCARAT_COMMAND_ERROR', error);
+            interaction.reply(`An error occurred. Please try again!`);
+        }
     }
 
     if (interaction.commandName === "plinko") {
-        if (!interaction.inGuild()) { return interaction.reply({ content: 'You can only run this command inside a server.', flags: [MessageFlags.Ephemeral],}); } 
-        await interaction.deferReply();
-        const bet = interaction.options.getNumber('bet-amount');
-        const user = await getuser(interaction.member.id);
-        if (user.balance < bet) {
-            return interaction.editReply(`Insufficient funds! Balance: ${numtoemo(user.balance)} 💵`);
-        }
-        const multipliers = [10, 4, 2, 1.2, 0.5, 0.5, 1.2, 2, 4, 10];
-        const rows = 10;
-        let ballPos = 5; 
-        const wait = (ms) => new Promise(res => setTimeout(res, ms));
-        for (let i = 0; i < rows; i++) {
-            const move = Math.random() < 0.5 ? -0.5 : 0.5;
-            ballPos += move;
-            let currentBoard = "";
-            for (let j = 0; j < rows; j++) {
-                const indent = " ".repeat(rows - j);
-                if (j === i) {
-                    const ballIdx = Math.round((ballPos / 10) * j);
-                    let rowStr = "";
-                    for (let p = 0; p <= j; p++) {
-                        rowStr += (p === ballIdx) ? "🔴" : "· ";
+        try {
+            if (!interaction.inGuild()) { return interaction.reply({ content: 'You can only run this command inside a server.', flags: [MessageFlags.Ephemeral],}); } 
+            await interaction.deferReply();
+            const bet = interaction.options.getNumber('bet-amount');
+            const user = await getuser(interaction.member.id);
+            if (user.balance < bet) {
+                return interaction.editReply(`Insufficient funds! Balance: ${numtoemo(user.balance)} 💵`);
+            }
+            const multipliers = [10, 4, 2, 1.2, 0.5, 0.5, 1.2, 2, 4, 10];
+            const rows = 10;
+            let ballPos = 5; 
+            const wait = (ms) => new Promise(res => setTimeout(res, ms));
+            for (let i = 0; i < rows; i++) {
+                const move = Math.random() < 0.5 ? -0.5 : 0.5;
+                ballPos += move;
+                let currentBoard = "";
+                for (let j = 0; j < rows; j++) {
+                    const indent = " ".repeat(rows - j);
+                    if (j === i) {
+                        const ballIdx = Math.round((ballPos / 10) * j);
+                        let rowStr = "";
+                        for (let p = 0; p <= j; p++) {
+                            rowStr += (p === ballIdx) ? "🔴" : "· ";
+                        }
+                        currentBoard += `${indent}${rowStr}\n`;
+                    } else {
+                        currentBoard += `${indent}${"· ".repeat(j + 1)}\n`;
                     }
-                    currentBoard += `${indent}${rowStr}\n`;
+                }
+                const animEmbed = new EmbedBuilder()
+                    .setTitle('🔴 Plinko Drop...')
+                    .setColor('Yellow')
+                    .setDescription(`\`\`\`\n${currentBoard}\n\`\`\``);
+                await interaction.editReply({ embeds: [animEmbed] });
+                await wait(200);
+            }
+            const finalIndex = Math.max(0, Math.min(Math.round(ballPos), multipliers.length - 1));
+            const winMult = multipliers[finalIndex];
+            const payout = Math.floor(bet * winMult) - bet;
+            let finalBoard = "";
+            for (let i = 0; i < rows; i++) {
+                const indent = " ".repeat(rows - i);
+                let rowStr = "";
+                if (i === rows - 1) {
+                    for (let p = 0; p <= i; p++) {
+                        rowStr += (p === finalIndex) ? "🔴" : "· ";
+                    }
                 } else {
-                    currentBoard += `${indent}${"· ".repeat(j + 1)}\n`;
+                    rowStr = "· ".repeat(i + 1);
                 }
+                finalBoard += `${indent}${rowStr}\n`;
             }
-            const animEmbed = new EmbedBuilder()
-                .setTitle('🔴 Plinko Drop...')
-                .setColor('Yellow')
-                .setDescription(`\`\`\`\n${currentBoard}\n\`\`\``);
-            await interaction.editReply({ embeds: [animEmbed] });
-            await wait(200);
+            await db.query('UPDATE users SET balance = balance + ? WHERE userid = ?', [payout, interaction.member.id]);
+            const finalEmbed = new EmbedBuilder()
+                .setTitle('🔴 Plinko Result')
+                .setColor(winMult >= 1 ? 'Green' : 'Red')
+                .setDescription([
+                    '```',
+                    finalBoard,
+                    '```',
+                    `The ball landed on a **${winMult}x** slot!`,
+                    `**Result:** ${payout >= 0 ? '+' : ''}${payout.toLocaleString()} 💵`,
+                    `**New Balance:** ${numtoemo(user.balance+payout)} 💵`
+                ].join('\n'))
+                .setFooter({ text: 'High risk at the edges, low risk in the middle!' });
+            await interaction.editReply({ embeds: [finalEmbed] });
+        } catch (error) {
+            console.error(`Error with /plinko: ${error}`);
+            logError('PLINKO_COMMAND_ERROR', error);
+            interaction.reply(`An error occurred. Please try again!`);
         }
-        const finalIndex = Math.max(0, Math.min(Math.round(ballPos), multipliers.length - 1));
-        const winMult = multipliers[finalIndex];
-        const payout = Math.floor(bet * winMult) - bet;
-        let finalBoard = "";
-        for (let i = 0; i < rows; i++) {
-            const indent = " ".repeat(rows - i);
-            let rowStr = "";
-            if (i === rows - 1) {
-                for (let p = 0; p <= i; p++) {
-                    rowStr += (p === finalIndex) ? "🔴" : "· ";
-                }
-            } else {
-                rowStr = "· ".repeat(i + 1);
-            }
-            finalBoard += `${indent}${rowStr}\n`;
-        }
-        await db.query('UPDATE users SET balance = balance + ? WHERE userid = ?', [payout, interaction.member.id]);
-        const finalEmbed = new EmbedBuilder()
-            .setTitle('🔴 Plinko Result')
-            .setColor(winMult >= 1 ? 'Green' : 'Red')
-            .setDescription([
-                '```',
-                finalBoard,
-                '```',
-                `The ball landed on a **${winMult}x** slot!`,
-                `**Result:** ${payout >= 0 ? '+' : ''}${payout.toLocaleString()} 💵`,
-                `**New Balance:** ${numtoemo(user.balance+payout)} 💵`
-            ].join('\n'))
-            .setFooter({ text: 'High risk at the edges, low risk in the middle!' });
-        await interaction.editReply({ embeds: [finalEmbed] });
     }
 
     if (interaction.commandName === "ai") {
@@ -2038,6 +2176,7 @@ client.on('interactionCreate', async (interaction) => {
             await interaction.editReply({ embeds: [aiEmbed] });
         } catch (error) {
             console.error("AI Error:", error);
+            logError('AI_COMMAND_ERROR', error);
             await interaction.editReply(`❌ **Error:** ${error.message || "An unexpected error occurred."}`);
         }
     }
@@ -2100,11 +2239,13 @@ client.on('interactionCreate', async (interaction) => {
                             await interaction.editReply(`✅ Added **${trackName}** to the queue!`);
                         } catch (err) {
                             console.error("Spotify getData Error:", err);
+                            logError('SPOTIFY_GETDATA_ERROR', err);
                             return interaction.editReply("❌ I couldn't parse that Spotify track. Is the link valid and public?");
                         }
                     }
                 } catch (err) {
                     console.error("Spotify Error:", err);
+                    logError('SPOTIFY_PLAY_ERROR', err);
                     return interaction.editReply("❌ I couldn't load that Spotify link. Is it public?");
                 }
             } else {
@@ -2156,61 +2297,68 @@ client.on('interactionCreate', async (interaction) => {
             await interaction.editReply({ content: msg, flags: [MessageFlags.Ephemeral]});
         } catch (e) {
             console.error(e);
+            logError('PLAY_COMMAND_ERROR', e);
             await interaction.editReply("Error loading music, Make Sure Playlist isnt Private.");
         }
     }
 
     if (interaction.commandName === "queue") {
-        if (!interaction.inGuild()) { return interaction.reply({ content: 'You can only run this command inside a server.', flags: [MessageFlags.Ephemeral],}); } 
-        const serverQueue = musicqueues.get(interaction.guildId);
-        if (!serverQueue || serverQueue.songs.length === 0) { return interaction.reply({ content: "The queue is currently empty.", flags: [MessageFlags.Ephemeral] }); }
-        const songsPerPage = 10;
-        const totalPages = Math.ceil(serverQueue.songs.length / songsPerPage);
-        let currentPage = 0;
-        const generateQueueEmbed = (page) => {
-            const start = page * songsPerPage;
-            const end = start + songsPerPage;
-            const currentSongs = serverQueue.songs.slice(start, end);
-            const embed = new EmbedBuilder()
-                .setTitle(`Queue for ${interaction.guild.name}`)
-                .setColor('#0099ff')
-                .setFooter({ text: `Page ${page + 1} of ${totalPages} • Total Songs: ${serverQueue.songs.length}` });
-            const list = currentSongs.map((song, index) => {
-                const overallIndex = start + index;
-                return `${overallIndex === 0 ? '🎶' : `**${overallIndex}.**`} ${song.title}`;
-            }).join('\n');
-            embed.setDescription(list);
-            return embed;
-        };
-        const row = new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId('prev').setLabel('⬅️ Back').setStyle(ButtonStyle.Primary).setDisabled(true),
-            new ButtonBuilder().setCustomId('next').setLabel('Next ➡️').setStyle(ButtonStyle.Primary).setDisabled(totalPages === 1)
-        );
-        const response = await interaction.reply({
-            embeds: [generateQueueEmbed(0)],
-            components: totalPages > 1 ? [row] : [],
-            flags: [MessageFlags.Ephemeral],
-            fetchReply: true
-        });
-        if (totalPages === 1) return;
-        const collector = response.createMessageComponentCollector({
-            componentType: ComponentType.Button,
-            time: 60000
-        });
-        collector.on('collect', async (i) => {
-            if (i.customId === 'prev') currentPage--;
-            if (i.customId === 'next') currentPage++;
-            row.components[0].setDisabled(currentPage === 0);
-            row.components[1].setDisabled(currentPage === totalPages - 1);
-            await i.update({
-                embeds: [generateQueueEmbed(currentPage)],
-                components: [row]
+        try {
+            if (!interaction.inGuild()) { return interaction.reply({ content: 'You can only run this command inside a server.', flags: [MessageFlags.Ephemeral],}); } 
+            const serverQueue = musicqueues.get(interaction.guildId);
+            if (!serverQueue || serverQueue.songs.length === 0) { return interaction.reply({ content: "The queue is currently empty.", flags: [MessageFlags.Ephemeral] }); }
+            const songsPerPage = 10;
+            const totalPages = Math.ceil(serverQueue.songs.length / songsPerPage);
+            let currentPage = 0;
+            const generateQueueEmbed = (page) => {
+                const start = page * songsPerPage;
+                const end = start + songsPerPage;
+                const currentSongs = serverQueue.songs.slice(start, end);
+                const embed = new EmbedBuilder()
+                    .setTitle(`Queue for ${interaction.guild.name}`)
+                    .setColor('#0099ff')
+                    .setFooter({ text: `Page ${page + 1} of ${totalPages} • Total Songs: ${serverQueue.songs.length}` });
+                const list = currentSongs.map((song, index) => {
+                    const overallIndex = start + index;
+                    return `${overallIndex === 0 ? '🎶' : `**${overallIndex}.**`} ${song.title}`;
+                }).join('\n');
+                embed.setDescription(list);
+                return embed;
+            };
+            const row = new ActionRowBuilder().addComponents(
+                new ButtonBuilder().setCustomId('prev').setLabel('⬅️ Back').setStyle(ButtonStyle.Primary).setDisabled(true),
+                new ButtonBuilder().setCustomId('next').setLabel('Next ➡️').setStyle(ButtonStyle.Primary).setDisabled(totalPages === 1)
+            );
+            const response = await interaction.reply({
+                embeds: [generateQueueEmbed(0)],
+                components: totalPages > 1 ? [row] : [],
+                flags: [MessageFlags.Ephemeral],
+                fetchReply: true
             });
-        });
-        collector.on('end', () => {
-            row.components.forEach(btn => btn.setDisabled(true));
-            interaction.editReply({ components: [row] }).catch(() => null);
-        });
+            if (totalPages === 1) return;
+            const collector = response.createMessageComponentCollector({
+                componentType: ComponentType.Button,
+                time: 60000
+            });
+            collector.on('collect', async (i) => {
+                if (i.customId === 'prev') currentPage--;
+                if (i.customId === 'next') currentPage++;
+                row.components[0].setDisabled(currentPage === 0);
+                row.components[1].setDisabled(currentPage === totalPages - 1);
+                await i.update({
+                    embeds: [generateQueueEmbed(currentPage)],
+                    components: [row]
+                });
+            });
+            collector.on('end', () => {
+                row.components.forEach(btn => btn.setDisabled(true));
+                interaction.editReply({ components: [row] }).catch(() => null);
+            });
+        } catch (e) {
+            console.error(e);
+            logError('QUEUE_COMMAND_ERROR', e);
+            await interaction.reply({ content: "Error displaying queue.", flags: [MessageFlags.Ephemeral] });
+        }
     }
 
     if (interaction.commandName === "eval") {
@@ -2230,6 +2378,7 @@ client.on('interactionCreate', async (interaction) => {
             await interaction.editReply({ embeds: [embed] });
         } catch (error) {
             console.error(`Eval Error: ${error}`);
+            logError('EVAL_COMMAND_ERROR', error);
             const errorEmbed = new EmbedBuilder()
                 .setTitle('❌ Eval Error')
                 .setColor('Red')
@@ -2261,6 +2410,7 @@ client.on('interactionCreate', async (interaction) => {
             });
         } catch(error) {
             console.error(error);
+            logError('TORRENT_COMMAND_ERROR', error);
             await interaction.editReply(`Error:\n\`\`\`${error.message}\`\`\``);
         }
     }
@@ -2279,6 +2429,7 @@ client.on('interactionCreate', async (interaction) => {
             }
         } catch(error) {
             interaction.reply(`Please try the Command Again\n`+error);
+            logError('SAY_COMMAND_ERROR', error);
             console.log(error);
         }
     }
@@ -2289,7 +2440,7 @@ client.on('interactionCreate', async (interaction) => {
             await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
             const voiceChannel = interaction.member.voice.channel;
             if (!voiceChannel) {
-                return interaction.editReply("You need to be in a voice channel to play music!");
+                return interaction.editReply("You need to be in a voice channel to use TTS!");
             }
             const response = interaction.options.getString('response');
             if (!response) {
@@ -2322,6 +2473,7 @@ client.on('interactionCreate', async (interaction) => {
             interaction.editReply(`🎤 Playing your TTS in ${voiceChannel.name}...`);
         } catch(error) {
             interaction.editReply(`Please try the Command Again\n`+error);
+            logError('TTS_COMMAND_ERROR', error);
             console.log(error);
         }
     }
@@ -2341,6 +2493,7 @@ client.on('interactionCreate', async (interaction) => {
             const errorMsg = error?.message || "An unknown error occurred";
             await interaction.editReply(`Error:\n\`\`\`${errorMsg}\`\`\``);
             console.error("Full Error Object:", error);
+            logError('TEST_COMMAND_ERROR', error);
         }
     }
 });
@@ -2362,7 +2515,10 @@ client.on('messageCreate', async (message) => {
             let replacement = message.content.replace(".x.com", ".fixupx.com").replace(".twitter.com", ".fxtwitter.com");
             await message.reply({ content: `${replacement}`, allowedMentions: { repliedUser: false } });
             await message.delete().catch(err => { if (err.code !== 10008) console.error('Delete failed:', err); });
-        } catch (error) { console.error("X-fixer Error:", error); }
+        } catch (error) { 
+            console.error("X-fixer Error:", error); 
+            logError('X_FIXER_ERROR', error);
+        }
     }
 
     if (message.content.includes("instagram.com")) {
@@ -2371,7 +2527,10 @@ client.on('messageCreate', async (message) => {
             const replacement = message.content.replace(".instagram.com", ".kkinstagram.com");
             await message.reply({ content: `${replacement}`, allowedMentions: { repliedUser: false } });
             await message.delete().catch(err => { if (err.code !== 10008) console.error('Delete failed:', err); });
-        } catch (error) { console.error("Instagram fixer Error:", error); }
+        } catch (error) { 
+            console.error("Instagram fixer Error:", error); 
+            logError('INSTAGRAM_FIXER_ERROR', error);
+        }
     }
 
     if (message.content.includes("reddit.com")) {
@@ -2380,7 +2539,10 @@ client.on('messageCreate', async (message) => {
             const replacement = message.content.replace(".reddit.com", ".rxddit.com");
             await message.reply({ content: `${replacement}`, allowedMentions: { repliedUser: false } });
             await message.delete().catch(err => { if (err.code !== 10008) console.error('Delete failed:', err); });
-        } catch (error) { console.error("Reddit Fixer Error:", error); }
+        } catch (error) { 
+            console.error("Reddit Fixer Error:", error); 
+            logError('REDDIT_FIXER_ERROR', error);
+        }
     }
 
     if (message.content.includes("facebook.com")) {
@@ -2389,7 +2551,10 @@ client.on('messageCreate', async (message) => {
             const replacement = message.content.replace(".facebook.com", ".facebed.com");
             await message.reply({ content: `${replacement}`, allowedMentions: { repliedUser: false } });
             await message.delete().catch(err => { if (err.code !== 10008) console.error('Delete failed:', err); });
-        } catch (error) { console.error("Facebook fixer Error:", error); }
+        } catch (error) { 
+            console.error("Facebook fixer Error:", error); 
+            logError('FACEBOOK_FIXER_ERROR', error);
+        }
     }
 });
 
@@ -2503,6 +2668,7 @@ web.post('/claim-daily', checkAuth, async (req, res) => {
         });
     } catch (err) {
         console.error(err);
+        logError('WEB_DAILY_CLAIM_ERROR', err);
         res.status(500).json({ success: false, message: "Server error occurred." });
     }
 });
@@ -2538,6 +2704,7 @@ web.get('/', checkAuth, async (req, res) => {
         });
     } catch (err) {
         console.error(err);
+        logError('WEB_HOME_ERROR', err);
         res.status(500).send("Error loading home");
     }
 });
@@ -2566,6 +2733,7 @@ web.get('/profile', checkAuth, async (req, res) => {
         });
     } catch (err) {
         const avatarUrl = req.user ? getAvatar(req.user.userid, req.user.avatar) : phavatar;
+        logError('WEB_PROFILE_ERROR', err);
         res.status(404).render('404', {
             avatarUrl: avatarUrl,
             errorMessage: "Oops! That User doesn't exist.",
@@ -2609,6 +2777,7 @@ web.get('/portfolio', checkAuth, async (req, res) => {
         });
     } catch (err) {
         console.error("Portfolio Error:", err);
+        logError('WEB_PORTFOLIO_ERROR', err);
         res.status(500).render('404', { errorMessage: "Could not load portfolio." });
     }
 });
@@ -2631,6 +2800,7 @@ web.get('/casino', checkAuth, (req, res) => {
         });
     } catch (err) {
         console.error(err);
+        logError('WEB_CASINO_ERROR', err);
         res.status(500).render('404', { 
             errorCode: '500', 
             errorMessage: "Casino Hub Error", 
@@ -2646,6 +2816,7 @@ web.get('/casino/plinko', checkAuth, (req, res) => {
                    .replaceAll('{{avatarurl}}', getAvatar(req.user.userid, req.user.avatar));
         res.send(html);
     } catch (err) {
+        logError('WEB_CASINO_PLINKO_ERROR', err);
         res.status(500).send("Plinko Error: " + err.message);
     }
 });
@@ -2656,6 +2827,7 @@ web.get('/casino/miniroulette', checkAuth, (req, res) => {
         html = html.replaceAll('{{userid}}', req.user.userid);
         res.send(html);
     } catch (err) {
+        logError('WEB_CASINO_MINI_ROULETTE_ERROR', err);
         res.status(500).send("Mini Roulette Error: " + err.message);
     }
 });
@@ -2666,6 +2838,7 @@ web.get('/casino/luckyslot', checkAuth, (req, res) => {
         html = html.replaceAll('{{userid}}', req.user.userid);
         res.send(html);
     } catch (err) {
+        logError('WEB_CASINO_LUCKYSLOT_ERROR', err);
         res.status(500).send("Lucky Slot Error: " + err.message);
     }
 });
@@ -2676,6 +2849,7 @@ web.get('/casino/blackjack', checkAuth, (req, res) => {
         html = html.replaceAll('{{userid}}', req.user.userid);
         res.send(html);
     } catch (err) {
+        logError('WEB_CASINO_BLACKJACK_ERROR', err);
         res.status(500).send("Blackjack Error: " + err.message);
     }
 });
@@ -2686,6 +2860,7 @@ web.get('/casino/hilow', checkAuth, (req, res) => {
         html = html.replaceAll('{{userid}}', req.user.userid);
         res.send(html);
     } catch (err) {
+        logError('WEB_CASINO_HILOW_ERROR', err);
         res.status(500).send("HighLow Error: " + err.message);
     }
 });
@@ -2696,6 +2871,7 @@ web.get('/casino/baccarat', checkAuth, (req, res) => {
         html = html.replaceAll('{{userid}}', req.user.userid);
         res.send(html);
     } catch (err) {
+        logError('WEB_CASINO_BACCARAT_ERROR', err);
         res.status(500).send("Baccarat Error: " + err.message);
     }
 });
@@ -2706,6 +2882,7 @@ web.get('/casino/junglescratch', checkAuth, (req, res) => {
         html = html.replaceAll('{{userid}}', req.user.userid);
         res.send(html);
     } catch (err) {
+        logError('WEB_CASINO_JUNGLE_SCRATCH_ERROR', err);
         res.status(500).send("Junglescratch Error: " + err.message);
     }
 });
@@ -2716,147 +2893,223 @@ web.get('/casino/bookofra', checkAuth, (req, res) => {
         html = html.replaceAll('{{userid}}', req.user.userid);
         res.send(html);
     } catch (err) {
+        logError('WEB_CASINO_BOOK_OF_RA_ERROR', err);
         res.status(500).send("Book of Ra Error: " + err.message);
     }
 });
 
 web.post('/callback/gameinit', checkAuth, async (req, res, next) => {
-    const [[user]] = await db.query(`SELECT * FROM users WHERE userid = ?`, [req.user.userid]);
-    res.json({ Balance: user.balance });
+    try {
+        const [[user]] = await db.query(`SELECT * FROM users WHERE userid = ?`, [req.user.userid]);
+        res.json({ Balance: user.balance });
+    } catch (err) {
+        logError('CALLBACK_GAME_INIT_ERROR', err);
+        res.status(500).json({ Balance: 0 });
+    }
 });
 
 web.post('/callback/luckyslot', async (req, res, next) => {
-    const [status] = await db.query(`SELECT * FROM gamestatus WHERE userid = ?`, [req.user.userid]);
-    if (!status[0]) { await db.query(`INSERT INTO gamestatus (userid) VALUES (?)`, [req.user.userid])}
-    if (status[0].luckyslot === 1) {
-        await db.query(`UPDATE gamestatus SET luckyslot = ? WHERE userid = ?`, [0, req.user.userid]);
-        res.json({ Status: "success" });
-    } else {
-        if (req.body.value === 0) {
-            const bet = req.body.bet * req.body.payline;
-            await db.query(`UPDATE users SET balance = balance - ? WHERE userid = ?`, [bet, req.user.userid]);
-            await db.query(`UPDATE gamestatus SET luckyslot = ? WHERE userid = ?`, [1, req.user.userid]);
+    try {
+        const [status] = await db.query(`SELECT * FROM gamestatus WHERE userid = ?`, [req.user.userid]);
+        if (!status[0]) { await db.query(`INSERT INTO gamestatus (userid) VALUES (?)`, [req.user.userid])}
+        if (status[0].luckyslot === 1) {
+            await db.query(`UPDATE gamestatus SET luckyslot = ? WHERE userid = ?`, [0, req.user.userid]);
             res.json({ Status: "success" });
         } else {
-            const bet = req.body.bet * req.body.payline;
-            const reward = req.body.value - bet;
-            await db.query(`UPDATE users SET balance = balance + ? WHERE userid = ?`, [reward, req.user.userid]);
-            await db.query(`UPDATE gamestatus SET luckyslot = ? WHERE userid = ?`, [1, req.user.userid]);
-            res.json({ Status: "success" });
+            if (req.body.value === 0) {
+                const bet = req.body.bet * req.body.payline;
+                await db.query(`UPDATE users SET balance = balance - ? WHERE userid = ?`, [bet, req.user.userid]);
+                await db.query(`UPDATE gamestatus SET luckyslot = ? WHERE userid = ?`, [1, req.user.userid]);
+                res.json({ Status: "success" });
+            } else {
+                const bet = req.body.bet * req.body.payline;
+                const reward = req.body.value - bet;
+                await db.query(`UPDATE users SET balance = balance + ? WHERE userid = ?`, [reward, req.user.userid]);
+                await db.query(`UPDATE gamestatus SET luckyslot = ? WHERE userid = ?`, [1, req.user.userid]);
+                res.json({ Status: "success" });
+            }
         }
+    } catch (err) {
+        logError('CALLBACK_LUCKY_SLOT_ERROR', err);
+        res.status(500).json({ Status: "error" });
     }
 });
 
 web.post('/callback/luckyslot/bw', async (req, res, next) => {
-    db.query(`UPDATE users SET balance = ? WHERE userid = ?`, [req.body.value, req.user.userid]);
-    db.query(`UPDATE gamestatus SET luckyslot = ? WHERE userid = ?`, [1, req.user.userid]);
-    res.json({ Status: "success" });
+    try {
+        await db.query(`UPDATE users SET balance = ? WHERE userid = ?`, [req.body.value, req.user.userid]);
+        await db.query(`UPDATE gamestatus SET luckyslot = ? WHERE userid = ?`, [1, req.user.userid]);
+        res.json({ Status: "success" });
+    } catch (err) {
+        logError('CALLBACK_LUCKY_SLOT_BW_ERROR', err);
+        res.status(500).json({ Status: "error" });
+    }
 });
 
 web.post('/callback/plinko/win', async (req, res, next) => {
     const reward = req.body.win - req.body.bet;
-    db.query(`UPDATE users SET balance = balance + ? WHERE userid = ?`, [reward, req.user.userid]);
-    res.json({ Status: "success" });
+    try {
+        await db.query(`UPDATE users SET balance = balance + ? WHERE userid = ?`, [reward, req.user.userid]);
+        res.json({ Status: "success" });
+    } catch (err) {
+        logError('CALLBACK_PLINKO_WIN_ERROR', err);
+        res.status(500).json({ Status: "error" });
+    }
 });
 
 web.post('/callback/plinko/lose', async (req, res, next) => {
-    db.query(`UPDATE users SET balance = balance - ? WHERE userid = ?`, [req.body.bet, req.user.userid]);
-    res.json({ Status: "success" });
+    try {
+        await db.query(`UPDATE users SET balance = balance - ? WHERE userid = ?`, [req.body.bet, req.user.userid]);
+        res.json({ Status: "success" });
+    } catch (err) {
+        logError('CALLBACK_PLINKO_LOSE_ERROR', err);
+        res.status(500).json({ Status: "error" });
+    }
 });
 
 web.post('/callback/bj/lose', async (req, res, next) => {
-    const [user] = await db.query("SELECT * FROM users WHERE userid = ?", [req.user.userid]);
-    if (user[0].balance >= req.body.bet) {
-        await db.query(`UPDATE users SET balance = balance - ? WHERE userid = ?`, [req.body.bet, req.user.userid]);
-        return res.json({ Status: "success" });
+    try {
+        const [user] = await db.query("SELECT * FROM users WHERE userid = ?", [req.user.userid]);
+        if (user[0].balance >= req.body.bet) {
+            await db.query(`UPDATE users SET balance = balance - ? WHERE userid = ?`, [req.body.bet, req.user.userid]);
+            return res.json({ Status: "success" });
+        }
+        res.json({ Status: "fail" });
+    } catch (err) {
+        logError('CALLBACK_BLACKJACK_LOSE_ERROR', err);
+        res.status(500).json({ Status: "error" });
     }
-    res.json({ Status: "fail" });
 });
 
 web.post('/callback/bj/win', async (req, res, next) => {
-    const [user] = await db.query("SELECT * FROM users WHERE userid = ?", [req.user.userid]);
-    if (user[0].balance >= req.body.bet) {
-        if (req.body.bj === 1) {
-            const win = req.body.bet *  1.5;
-            await db.query(`UPDATE users SET balance = balance + ? WHERE userid = ?`, [win, req.user.userid]);
-            return res.json({ Status: "success" });
-        } else {
-            await db.query(`UPDATE users SET balance = balance + ? WHERE userid = ?`, [req.body.bet, req.user.userid]);
-            return res.json({ Status: "success" });
+    try {
+        const [user] = await db.query("SELECT * FROM users WHERE userid = ?", [req.user.userid]);
+        if (user[0].balance >= req.body.bet) {
+            if (req.body.bj === 1) {
+                const win = req.body.bet *  1.5;
+                await db.query(`UPDATE users SET balance = balance + ? WHERE userid = ?`, [win, req.user.userid]);
+                return res.json({ Status: "success" });
+            } else {
+                await db.query(`UPDATE users SET balance = balance + ? WHERE userid = ?`, [req.body.bet, req.user.userid]);
+                return res.json({ Status: "success" });
+            }
         }
+        res.json({ Status: "fail" });
+    } catch (err) {
+        logError('CALLBACK_BLACKJACK_WIN_ERROR', err);
+        res.status(500).json({ Status: "fail" });
     }
-    res.json({ Status: "fail" });
 });
 
 web.post('/callback/hilow/lose', async (req, res, next) => {
-    const [user] = await db.query("SELECT * FROM users WHERE userid = ?", [req.user.userid]);
-    if (user[0].balance >= req.body.bet) {
-        await db.query(`UPDATE users SET balance = balance - ? WHERE userid = ?`, [req.body.bet, req.user.userid]);
-        return res.json({ Status: "success" });
+    try {
+        const [user] = await db.query("SELECT * FROM users WHERE userid = ?", [req.user.userid]);
+        if (user[0].balance >= req.body.bet) {
+            await db.query(`UPDATE users SET balance = balance - ? WHERE userid = ?`, [req.body.bet, req.user.userid]);
+            return res.json({ Status: "success" });
+        }
+        res.json({ Status: "fail" });
+    } catch (err) {
+        logError('CALLBACK_HILOW_LOSE_ERROR', err);
+        res.status(500).json({ Status: "fail" });
     }
-    res.json({ Status: "fail" });
 });
 
 web.post('/callback/hilow/win', async (req, res, next) => {
-    const [user] = await db.query("SELECT * FROM users WHERE userid = ?", [req.user.userid]);
-    if (user[0].balance >= req.body.bet) {
-        if (req.body.bj === 1) {
-            const win = req.body.bet *  1.5;
-            await db.query(`UPDATE users SET balance = balance + ? WHERE userid = ?`, [win, req.user.userid]);
-            return res.json({ Status: "success" });
-        } else {
-            await db.query(`UPDATE users SET balance = balance + ? WHERE userid = ?`, [req.body.bet, req.user.userid]);
-            return res.json({ Status: "success" });
+    try {
+        const [user] = await db.query("SELECT * FROM users WHERE userid = ?", [req.user.userid]);
+        if (user[0].balance >= req.body.bet) {
+            if (req.body.bj === 1) {
+                const win = req.body.bet *  1.5;
+                await db.query(`UPDATE users SET balance = balance + ? WHERE userid = ?`, [win, req.user.userid]);
+                return res.json({ Status: "success" });
+            } else {
+                await db.query(`UPDATE users SET balance = balance + ? WHERE userid = ?`, [req.body.bet, req.user.userid]);
+                return res.json({ Status: "success" });
+            }
         }
+        res.json({ Status: "fail" });
+    } catch (err) {
+        logError('CALLBACK_HILOW_WIN_ERROR', err);
+        res.status(500).json({ Status: "fail" });
     }
-    res.json({ Status: "fail" });
 });
 
 web.post('/callback/baccarat/lose', async (req, res, next) => {
-    const [user] = await db.query("SELECT * FROM users WHERE userid = ?", [req.user.userid]);
-    if (user[0].balance >= req.body.bet[0]) {
-        await db.query(`UPDATE users SET balance = balance - ? WHERE userid = ?`, [req.body.bet[0], req.user.userid]);
-        return res.json({ Status: "success" });
+    try {
+        const [user] = await db.query("SELECT * FROM users WHERE userid = ?", [req.user.userid]);
+        if (user[0].balance >= req.body.bet[0]) {
+            await db.query(`UPDATE users SET balance = balance - ? WHERE userid = ?`, [req.body.bet[0], req.user.userid]);
+            return res.json({ Status: "success" });
+        }
+        res.json({ Status: "fail" });
+    } catch (err) {
+        logError('CALLBACK_BACCARAT_LOSE_ERROR', err);
+        res.status(500).json({ Status: "fail" });
     }
-    res.json({ Status: "fail" });
 });
 
 web.post('/callback/baccarat/win', async (req, res, next) => {
-    const [user] = await db.query("SELECT * FROM users WHERE userid = ?", [req.user.userid]);
-    if (user[0].balance >= req.body.bet[0]) {
-        await db.query(`UPDATE users SET balance = balance + ? WHERE userid = ?`, [req.body.bet[0], req.user.userid]);
-        return res.json({ Status: "success" });
+    try {
+        const [user] = await db.query("SELECT * FROM users WHERE userid = ?", [req.user.userid]);
+        if (user[0].balance >= req.body.bet[0]) {
+            await db.query(`UPDATE users SET balance = balance + ? WHERE userid = ?`, [req.body.bet[0], req.user.userid]);
+            return res.json({ Status: "success" });
+        }
+        res.json({ Status: "fail" });
+    } catch (err) {
+        logError('CALLBACK_BACCARAT_WIN_ERROR', err);
+        res.status(500).json({ Status: "fail" });
     }
-    res.json({ Status: "fail" });
 });
 
 web.post('/callback/miniroulette/bet', async (req, res, next) => {
-    const [user] = await db.query("SELECT * FROM users WHERE userid = ?", [req.user.userid]);
-    if (user[0].balance >= req.body.bet) {
-        await db.query(`UPDATE users SET balance = balance - ? WHERE userid = ?`, [req.body.bet, req.user.userid]);
-        return res.json({ Status: "success" });
+    try {
+        const [user] = await db.query("SELECT * FROM users WHERE userid = ?", [req.user.userid]);
+        if (user[0].balance >= req.body.bet) {
+            await db.query(`UPDATE users SET balance = balance - ? WHERE userid = ?`, [req.body.bet, req.user.userid]);
+            return res.json({ Status: "success" });
+        }
+        res.json({ Status: "fail" });
+    } catch (err) {
+        logError('CALLBACK_MINIROULETTE_BET_ERROR', err);
+        res.status(500).json({ Status: "fail" });
     }
-    res.json({ Status: "fail" });
 });
 
 web.post('/callback/miniroulette/win', async (req, res, next) => {
-    const reward = req.body.bet * req.body.win;
-    await db.query(`UPDATE users SET balance = balance + ? WHERE userid = ?`, [reward, req.user.userid]);
-    return res.json({ Status: "success" });
+    try {
+        const reward = req.body.bet * req.body.win;
+        await db.query(`UPDATE users SET balance = balance + ? WHERE userid = ?`, [reward, req.user.userid]);
+        return res.json({ Status: "success" });
+    } catch (err) {
+        logError('CALLBACK_MINIROULETTE_WIN_ERROR', err);
+        res.status(500).json({ Status: "fail" });
+    }
 });
 
 web.post('/callback/junglescratch/bet', async (req, res, next) => {
-    const [user] = await db.query("SELECT * FROM users WHERE userid = ?", [req.user.userid]);
-    if (user[0].balance >= req.body.bet) {
-        await db.query(`UPDATE users SET balance = balance - ? WHERE userid = ?`, [req.body.bet, req.user.userid]);
-        return res.json({ Status: "success" });
+    try {
+        const [user] = await db.query("SELECT * FROM users WHERE userid = ?", [req.user.userid]);
+        if (user[0].balance >= req.body.bet) {
+            await db.query(`UPDATE users SET balance = balance - ? WHERE userid = ?`, [req.body.bet, req.user.userid]);
+            return res.json({ Status: "success" });
+        }
+        res.json({ Status: "fail" });
+    } catch (err) {
+        logError('CALLBACK_JUNGLESCRATCH_BET_ERROR', err);
+        res.status(500).json({ Status: "fail" });
     }
-    res.json({ Status: "fail" });
 });
 
 web.post('/callback/junglescratch/win', async (req, res, next) => {
-    await db.query(`UPDATE users SET balance = balance + ? WHERE userid = ?`, [req.body.win, req.user.userid]);
-    return res.json({ Status: "success" });
+    try {
+        await db.query(`UPDATE users SET balance = balance + ? WHERE userid = ?`, [req.body.win, req.user.userid]);
+        return res.json({ Status: "success" });
+    } catch (err) {
+        logError('CALLBACK_JUNGLESCRATCH_WIN_ERROR', err);
+        res.status(500).json({ Status: "fail" });
+    }
 });
 
 web.get('/trading', checkAuth, (req, res) => {
@@ -2883,6 +3136,7 @@ web.get('/trading', checkAuth, (req, res) => {
             avatarUrl: getAvatar(req.user.userid, req.user.avatar)
         });
     } catch (err) {
+        logError('WEB_TRADING_HUB_ERROR', err);
         res.status(500).render('404', { errorCode: '500', errorMessage: 'Trading Hub Error' });
     }
 });
@@ -2927,6 +3181,7 @@ web.get('/trading/:symbol', checkAuth, async (req, res) => {
         });
     } catch (err) {
         console.error("Trading Route Error:", err);
+        logError('WEB_TRADING_ROUTE_ERROR', err);
         res.status(500).render('404', { errorCode: '500', errorMessage: 'Trading Error' });
     }
 });
@@ -2957,11 +3212,12 @@ web.post('/trade/buy', checkAuth, async (req, res) => {
             [userid, coinId, 'BUY', amountToBuy, price, marginRequired, leverage, side]);
         res.json({ success: true, message: `Opened ${leverage}x ${side} position!` });
     } catch (err) {
+        logError('CALLBACK_TRADE_BUY_ERROR', err);
         res.status(500).json({ success: false, message: "Server error" });
     }
 });
 
-web.post('/trade/sell', checkAuth, async (req, res) => {
+web.post('/trade/sell', checkAuth, async (req, res) => {    
     try {
         const { coinId, network, contract, amount } = req.body;
         const amountToSell = parseFloat(amount);
@@ -2990,6 +3246,7 @@ web.post('/trade/sell', checkAuth, async (req, res) => {
         );
         res.json({ success: true, message: `Position Closed! Return: 💰${totalReturn.toLocaleString()}` });
     } catch (err) {
+        logError('CALLBACK_TRADE_SELL_ERROR', err);
         res.status(500).json({ success: false, message: "Server error" });
     }
 });
@@ -3001,6 +3258,7 @@ web.post('/trade/update-limits', checkAuth, async (req, res) => {
         await db.query( `UPDATE portfolios SET ${column} = ? WHERE userid = ? AND symbol = ?`, [value ? parseFloat(value) : null, req.user.userid, symbol] );
         res.json({ success: true });
     } catch (err) {
+        logError('CALLBACK_TRADE_UPDATE_LIMITS_ERROR', err);
         res.status(500).json({ success: false });
     }
 });
@@ -3027,6 +3285,7 @@ web.get('/trade/history', checkAuth, async (req, res) => {
         });
     } catch (err) {
         console.error("History Error:", err);
+        logError('WEB_TRADE_HISTORY_ERROR', err);
         res.status(500).render('404', { errorCode: '500', errorMessage: 'Error loading history' });
     }
 });
@@ -3047,6 +3306,7 @@ web.post('/callback/update/:network/:contract', async (req, res) => {
         });
     } catch (err) {
         console.error("Update Route Error:", err);
+        logError('CALLBACK_UPDATE_PRICE_ERROR', err);
         res.status(500).json({ error: "Internal Server Error" });
     }
 });
@@ -3091,47 +3351,65 @@ web.use((err, req, res, next) => {
 
 // API URL's
 apiweb.all('/', async (req, res) => { 
-    const data = {
-        "User Data": {
-            "users": {
-                "All Users": `${process.env.APIDOMAIN}/users`,
-                "Search By Userid": `${process.env.APIDOMAIN}/users?userid=`,
-                "Search By Username": `${process.env.APIDOMAIN}/users?username=`
+    try {
+        const data = {
+            "User Data": {
+                "users": {
+                    "All Users": `${process.env.APIDOMAIN}/users`,
+                    "Search By Userid": `${process.env.APIDOMAIN}/users?userid=`,
+                    "Search By Username": `${process.env.APIDOMAIN}/users?username=`
+                }
+            },
+            "Crypto Trading": {
+                "portfolios": `${process.env.APIDOMAIN}/portfolios`,
+                "stock_logs": `${process.env.APIDOMAIN}/stock_logs`
+            },
+            "Game Data": {
+                "gamestatus": `${process.env.APIDOMAIN}/gamestatus`,
+                "towers": `${process.env.APIDOMAIN}/towers`
+            },
+            "Misc": {
+                "cooldown": `${process.env.APIDOMAIN}/cooldown`,
+                "Discord Guild List": `${process.env.APIDOMAIN}/guilds`
+            },
+            "Error Logs": {
+                "error_logs": `${process.env.APIDOMAIN}/error_logs`
             }
-        },
-        "Crypto Trading": {
-            "portfolios": `${process.env.APIDOMAIN}/portfolios`,
-            "stock_logs": `${process.env.APIDOMAIN}/stock_logs`
-        },
-        "Game Data": {
-            "gamestatus": `${process.env.APIDOMAIN}/gamestatus`,
-            "towers": `${process.env.APIDOMAIN}/towers`
-        },
-        "Misc": {
-            "cooldown": `${process.env.APIDOMAIN}/cooldown`,
-            "Discord Guild List": `${process.env.APIDOMAIN}/guilds`
-        }
-    }; 
-    res.send(data);
+        }; 
+        res.send(data);
+    } catch (err) {
+        logError('API_ROOT_ERROR', err);
+        res.status(500).json({ error: "Internal Server Error" });
+    }
 });
 apiweb.all('/users', async (req, res) => {
-    const { username, userid } = req.query;
-    let query = "SELECT * FROM users";
-    if (username) {
-        const [rows] = await db.query(`${query} WHERE username = ?`, [username]);
-        return res.json(rows.length ? rows : { "Username": "Not Found." });
-    } 
-    if (userid) {
-        const [rows] = await db.query(`${query} WHERE userid = ?`, [userid]);
-        return res.json(rows.length ? rows : { "Userid": "Not Found." });
+    try {
+        const { username, userid } = req.query;
+        let query = "SELECT * FROM users";
+        if (username) {
+            const [rows] = await db.query(`${query} WHERE username = ?`, [username]);
+            return res.json(rows.length ? rows : { "Username": "Not Found." });
+        } 
+        if (userid) {
+            const [rows] = await db.query(`${query} WHERE userid = ?`, [userid]);
+            return res.json(rows.length ? rows : { "Userid": "Not Found." });
+        }
+        const [rows] = await db.query(query);
+        res.json(rows);
+    } catch (err) {
+        logError('API_USERS_ERROR', err);
+        res.status(500).json({ error: "Internal Server Error" });
     }
-    const [rows] = await db.query(query);
-    res.json(rows);
 });
 const autoRoute = (path, table) => {
     apiweb.all(path, async (req, res) => {
-        const [rows] = await db.query(`SELECT * FROM ??`, [table]);
-        res.json(rows);
+        try {
+            const [rows] = await db.query(`SELECT * FROM ??`, [table]);
+            res.json(rows);
+        } catch (err) {
+            logError(`API_AUTOROUTE_${table.toUpperCase()}_ERROR`, err);
+            res.status(500).json({ error: "Internal Server Error" });
+        }
     });
 };
 autoRoute('/cooldown', 'cooldown');
@@ -3139,11 +3417,20 @@ autoRoute('/gamestatus', 'gamestatus');
 autoRoute('/guilds', 'guilds');
 autoRoute('/portfolios', 'portfolios');
 autoRoute('/stock_logs', 'stock_logs');
+autoRoute('/error_logs', 'error_logs');
 autoRoute('/towers', 'towers');
 apiweb.use((req, res) => { res.status(404).json({ error: "API Route Not Found", help: "List of API endpoints at https://api.itsinhaleyo.online/" }); });
 
 // RRM Earthworks URL's
-rrme.get('/', (req, res) => { try { res.render('earthworkslanding'); } catch (err) { console.error(err); res.status(500).send("Error loading Earthworks: " + err.message); } });
+rrme.get('/', (req, res) => {
+    try { 
+        res.render('earthworkslanding'); 
+    } catch (err) { 
+        console.error(err); 
+        logError('RRME_LANDING_PAGE_ERROR', err);
+        res.status(500).send("Error loading Earthworks: " + err.message); 
+    } 
+});
 rrme.post('/contactform', async (req, res) => {
     try {
         const { usersname, formemail, phonenumber, message } = req.body;
@@ -3182,10 +3469,19 @@ rrme.post('/contactform', async (req, res) => {
         });
     } catch (err) {
         console.error(err);
+        logError('RRME_CONTACT_FORM_ERROR', err);
         res.status(500).json({ success: false, message: "Error submitting contact form." });
     }
 });
-rrme.get(`/formsuccess`, (req, res) => { try { res.render('earthworksformsuccess'); } catch (err) { console.error(err); res.status(500).send("Error loading success page: " + err.message); } });
+rrme.get(`/formsuccess`, (req, res) => { 
+    try { 
+        res.render('earthworksformsuccess'); 
+    } catch (err) { 
+        console.error(err); 
+        logError('RRME_FORM_SUCCESS_PAGE_ERROR', err);
+        res.status(500).send("Error loading success page: " + err.message); 
+    } 
+});
 rrme.get('/*any', (req, res) => { res.redirect('/'); });
 
 mainweb.use(vhost(`api.itsinhaleyo.online`, apiweb));
@@ -3216,6 +3512,7 @@ async function handleLeaderboard(req, res, sortColumn, title) {
         });
     } catch (err) {
         console.error(err);
+        logError('HANDLE_LEADERBOARD_ERROR', err);
         res.status(500).render('404', { errorCode: '500', errorMessage: 'Leaderboard Error' });
     }
 }
@@ -3239,6 +3536,7 @@ async function getContract(network, poolAddress) {
         }
         return null;
     } catch (error) {
+        logError('GET_CONTRACT_ERROR', error);
         return priceCache[cacheKey] ? priceCache[cacheKey].price : null;
     }
 }
@@ -3249,20 +3547,26 @@ async function getPosition(userid, contract) {
         if (!resp[0] || resp[0].length === 0) { return { leverage: 0, shares: 0, margin_used: 0 }; }
         return { leverage: resp[0][0].leverage || 0, shares: resp[0][0].shares || 0, margin_used: resp[0][0].margin_used || 0 };
     } catch (error) {
+        logError('GET_POSITION_ERROR', error);
         console.error("Position Fetch Error:", error);
         throw error;
     }
 }
 
 async function executeAutoClose(pos, currentPrice, reason) {
-    const priceDiff = (pos.side === 'SHORT') ? (pos.average_price - currentPrice) : (currentPrice - pos.average_price);
-    const pnl = priceDiff * pos.shares;
-    let totalReturn = Math.round(Number(pos.margin_used) + pnl);
-    if (totalReturn < 0) totalReturn = 0;
-    await db.query('UPDATE users SET balance = balance + ? WHERE userid = ?', [totalReturn, pos.userid]);
-    await db.query('DELETE FROM portfolios WHERE userid = ? AND symbol = ?', [pos.userid, pos.symbol]);
-    const actionLabel = `AUTO-${reason.toUpperCase().replace(' ', '-')}`;
-    await db.query( 'INSERT INTO stock_logs (userid, symbol, action, amount, price_per_share, total_cost, leverage, side, pnl) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)', [pos.userid, pos.symbol, actionLabel, pos.shares, currentPrice, totalReturn, pos.leverage, pos.side, pnl]);
+    try {
+        const priceDiff = (pos.side === 'SHORT') ? (pos.average_price - currentPrice) : (currentPrice - pos.average_price);
+        const pnl = priceDiff * pos.shares;
+        let totalReturn = Math.round(Number(pos.margin_used) + pnl);
+        if (totalReturn < 0) totalReturn = 0;
+        await db.query('UPDATE users SET balance = balance + ? WHERE userid = ?', [totalReturn, pos.userid]);
+        await db.query('DELETE FROM portfolios WHERE userid = ? AND symbol = ?', [pos.userid, pos.symbol]);
+        const actionLabel = `AUTO-${reason.toUpperCase().replace(' ', '-')}`;
+        await db.query( 'INSERT INTO stock_logs (userid, symbol, action, amount, price_per_share, total_cost, leverage, side, pnl) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)', [pos.userid, pos.symbol, actionLabel, pos.shares, currentPrice, totalReturn, pos.leverage, pos.side, pnl]);
+    } catch (err) {
+        logError('EXECUTE_AUTO_CLOSE_ERROR', err);
+        console.error("Auto-Close Error:", err);
+    }
 }
 
 // Run Functions Every 10s
@@ -3283,6 +3587,7 @@ setInterval(async () => {
             }
         }
     } catch (err) {
+        logError('BACKGROUND_MONITOR_ERROR', err);
         console.error("Background Monitor Error:", err);
     }
 }, 10000);
