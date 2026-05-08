@@ -1,5 +1,3 @@
-const { log } = require('console');
-
 require('dotenv').config();
 const { REST, Routes, ActionRowBuilder, MessageFlags, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, ButtonBuilder, ButtonStyle, ComponentType, ActivityType, ApplicationCommandOptionType, Client, GatewayIntentBits, IntentsBitField, EmbedBuilder, AttachmentBuilder, Events } = require('discord.js'),
       { VoiceConnectionStatus, joinVoiceChannel, createAudioPlayer, createAudioResource, getVoiceConnection, StreamType, AudioPlayerStatus, NoSubscriberBehavior } = require('@discordjs/voice'),
@@ -18,10 +16,7 @@ const email = nodemailer.createTransport({
   host: 'smtp.gmail.com',
   port: 465,
   auth: { user: process.env.EMAIL, pass: process.env.EMAIL_PASSWORD }
-}.on('error', (err) => {
-    console.error('Error occurred while sending email:', err);
-    logError('EMAIL_TRANSPORT_ERROR', err);
-}));
+});
 
 // Error Logging to error_logs TABLE
 function logError(code, error) {
@@ -30,11 +25,7 @@ function logError(code, error) {
         error.message || error, 
         error.stack || null
     ];
-    db.query(`INSERT INTO error_logs (code, message, stack) VALUES (?, ?, ?)`, [...values.slice(1)], (err) => {
-        if (err) {
-            console.error('Failed to write to MySQL error log:', err);
-        }
-    });
+    db.query(`INSERT INTO error_logs (code, message, stack) VALUES (?, ?, ?)`, values);
 }
 
 //Audio Player
@@ -1351,7 +1342,6 @@ client.on('interactionCreate', async (interaction) => {
             }
             if (bet >= 1000) giveXp(interaction);
             const flipResult = Math.random() < 0.5 ? 'heads' : 'tails';
-            const file = new AttachmentBuilder(imagePath);
             const win = sideChosen === flipResult;
             const payout = win ? bet : -bet;
             const newBalance = Number(user.balance) + payout;
@@ -1368,7 +1358,7 @@ client.on('interactionCreate', async (interaction) => {
                     `**New Balance:** ${numtoemo(newBalance)} 💵`
                 ].join('\n'))
                 .setTimestamp();
-            await interaction.editReply({ embeds: [embed], files: [file] });
+            await interaction.editReply({ embeds: [embed] });
         } catch (error) {
             console.error(`Error with /coinflip: ${error}`);
             logError('COINFLIP_COMMAND_ERROR', error);
