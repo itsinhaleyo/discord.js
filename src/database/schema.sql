@@ -8,8 +8,9 @@ CREATE TABLE users (
     username VARCHAR(255) NOT NULL,
     avatar VARCHAR(100) NOT NULL,
     xp INT NOT NULL DEFAULT 1,
-    level INT NOT NULL DEFAULT 1
-    autoclaim BOOLEAN NOT NULL DEFAULT false
+    level INT NOT NULL DEFAULT 1,
+    autoclaim BOOLEAN NOT NULL DEFAULT false,
+    autoclaim_expiry DATETIME DEFAULT NULL
 );
 
 CREATE TABLE cooldown (

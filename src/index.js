@@ -29,7 +29,7 @@ function logError(code, error) {
 }
 
 //Audio Player
-const musictimers = new Map(), musicqueues = new Map();
+const musictimers = new Map(), musicqueues = new Map(), ttsqueues = new Map();
 const IDLE_TIME = 5 * 60 * 1000;
 
 async function createMusicCardImage(song, serverQueue, totalMs) {
@@ -307,6 +307,15 @@ async function getuser(userId) {
         console.error("Error fetching user data:", error);
         logError('GETUSER_ERROR', error);
     }
+}
+
+// Play TTS is Discord Channels
+function playTTS(guildId) {
+    const queue = ttsqueues.get(guildId);
+    if (!queue || queue.songs.length === 0) return;
+    const stream = discordTTS.getVoiceStream(queue.songs[0]);
+    const resource = createAudioResource(stream);
+    queue.player.play(resource);
 }
 
 // Function to get a Random Number
@@ -2425,42 +2434,48 @@ client.on('interactionCreate', async (interaction) => {
     }
 
     if (interaction.commandName === "tts") {
-        if (!interaction.inGuild()) { return interaction.reply({ content: 'You can only run this command inside a server.', flags: [MessageFlags.Ephemeral],}); } 
+        if (!interaction.inGuild()) return interaction.reply({ content: 'Servers only!', flags: [MessageFlags.Ephemeral] });
+        await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
         try {
-            await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
             const voiceChannel = interaction.member.voice.channel;
-            if (!voiceChannel) {
-                return interaction.editReply("You need to be in a voice channel to use TTS!");
-            }
-            const response = interaction.options.getString('response');
-            if (!response) {
-                return interaction.editReply("Please provide some text for TTS!");
-            }
-            const connection = joinVoiceChannel({
-                channelId: voiceChannel.id,
-                guildId: voiceChannel.guild.id,
-                adapterCreator: voiceChannel.guild.voiceAdapterCreator,
-            });
-            const stream = discordTTS.getVoiceStream(response);
-            const resource = createAudioResource(stream);
-            const player = createAudioPlayer();
-            player.play(resource);
-            connection.subscribe(player);
-            player.on(AudioPlayerStatus.Idle, () => {        
-                const timer = setTimeout(() => {
-                    const currentConnection = getVoiceConnection(interaction.guildId);
-                    if (currentConnection) {
-                        currentConnection.destroy();
-                        musictimers.delete(interaction.guildId);
+            const text = interaction.options.getString('response');
+            if (!voiceChannel) return interaction.editReply("Join a voice channel first!");
+            if (!text) return interaction.editReply("Provide some text!");
+            let serverQueue = ttsqueues.get(interaction.guildId);
+            if (!serverQueue) {
+                serverQueue = {
+                    player: createAudioPlayer(),
+                    connection: joinVoiceChannel({
+                        channelId: voiceChannel.id,
+                        guildId: voiceChannel.guild.id,
+                        adapterCreator: voiceChannel.guild.voiceAdapterCreator,
+                    }),
+                    songs: [],
+                };
+                serverQueue.connection.subscribe(serverQueue.player);
+                ttsqueues.set(interaction.guildId, serverQueue);
+                serverQueue.player.on(AudioPlayerStatus.Idle, () => {
+                    serverQueue.songs.shift();
+                    if (serverQueue.songs.length > 0) {
+                        playTTS(interaction.guildId);
+                    } else {
+                        const timer = setTimeout(() => {
+                            serverQueue.connection.destroy();
+                            ttsqueues.delete(interaction.guildId);
+                        }, IDLE_TIME);
+                        musictimers.set(interaction.guildId, timer);
                     }
-                }, IDLE_TIME);
-                musictimers.set(interaction.guildId, timer);
-            });
-            player.on('error', error => {
-                console.error(`Error: ${error.message}`);
-                interaction.editReply("There was an error playing the audio.");
-            });
-            interaction.editReply(`🎤 Playing your TTS in ${voiceChannel.name}...`);
+                });
+            }
+            serverQueue.songs.push(text);
+            if (serverQueue.player.state.status === AudioPlayerStatus.Idle) {
+                playTTS(interaction.guildId);
+            }
+            if (serverQueue.player.state.status === AudioPlayerStatus.Playing) {
+                await interaction.editReply(`🎤 Queueing your TTS in ${voiceChannel.name}...`);
+            } else {
+                await interaction.editReply(`🎤 Playing your TTS in ${voiceChannel.name}...`);
+            }
         } catch(error) {
             interaction.editReply(`Please try the Command Again\n`+error);
             logError('TTS_COMMAND_ERROR', error);
@@ -2769,6 +2784,46 @@ web.get('/portfolio', checkAuth, async (req, res) => {
         console.error("Portfolio Error:", err);
         logError('WEB_PORTFOLIO_ERROR', err);
         res.status(500).render('404', { errorMessage: "Could not load portfolio." });
+    }
+});
+
+web.get('/shop', checkAuth, async (req, res) => {
+    try {
+        const items = [
+            { icon: `${process.env.DOMAIN}/images/autoclaim.png`, urlpath: "1-month-autoclaim", name: "1 Month Autoclaim", price: 2500000, description: "Get access to autoclaim for 1 month." },
+            { icon: `${process.env.DOMAIN}/images/lottery.png`, urlpath: "lottery-ticket", name: "Lottery Ticket", price: 10000, description: "Purchase a lottery ticket (coming soon!)" }
+        ];
+        res.render('shop', {
+            items: items,
+            avatarUrl: getAvatar(req.user.userid, req.user.avatar)
+        });
+    } catch (err) {
+        console.log(err);
+        logError('WEB_SHOP_ERROR', err);
+        res.status(500).render('404', { 
+            errorCode: '500', 
+            errorMessage: "Shop Error", 
+            avatarUrl: getAvatar(req.user.userid, req.user.avatar) 
+        });
+    }
+});
+
+web.post('/shop/1-month-autoclaim', checkAuth, async (req, res) => {
+    try {
+        const [user] = await db.query("SELECT * FROM users WHERE userid = ?", [req.user.userid]);
+        if (user[0].autoclaim === 1) { return res.json({ success: false, message: "You already have autoclaim!" }); }
+        if (user[0].balance >= 1) {
+            const now = new Date();
+            const expiryDate = new Date(now.getTime() + (30 * 24 * 60 * 60 * 1000));
+            await db.query("UPDATE users SET balance = balance - 1, autoclaim_expiry = ?, autoclaim = 1 WHERE userid = ?", [expiryDate, user[0].userid]);
+            res.json({ success: true, message: "Purchase successful!" });
+        } else {
+            return res.json({ success: false, message: "You don't have enough balance!" });
+        }
+    } catch (err) {
+        console.error(err);
+        logError('CALLBACK_SHOP_PURCHASE_1-MONTH-AUTOCLAIM_ERROR', err);
+        res.status(500).json({ success: false, message: "Purchase failed." });
     }
 });
 
@@ -3562,8 +3617,13 @@ async function executeAutoClose(pos, currentPrice, reason) {
 async function autoclaim() {
     try {
         const [users] = await db.query(`SELECT * FROM users WHERE autoclaim = 1`);
+        const now = new Date();
         for (const user of users) {
             try {
+                if (user.autoclaim_expiry && now > new Date(user.autoclaim_expiry)) {
+                    console.log(`Subscription expired for ${user.username}. Removing autoclaim.`);
+                    await db.query('UPDATE users SET autoclaim = 0, autoclaim_expiry = NULL WHERE userid = ?', [user.userid]);
+                }
                 console.log(`Processing auto-claim for User ${user.username} (ID: ${user.userid})`);
                 const now = new Date();
                 const currentDate = now.toDateString();
@@ -3576,12 +3636,12 @@ async function autoclaim() {
                 await db.query('UPDATE users SET balance = balance + ?, daily = ?, dailystreak = dailystreak + 1 WHERE userid = ?', [dailyAmount, currentDate, user.userid]);
             } catch (err) {
                 logError(`AUTOCLAIM_USER_${user.userid}_ERROR`, err);
-                console.error(`Auto-Claim Error for User ${user.userid}:`, err);
+                console.log(`Auto-Claim Error for User ${user.userid}:`, err);
             }
         }
     } catch (err) {
         logError('AUTOCLAIM_ERROR', err);
-        console.error("Auto-Claim Error:", err);
+        console.log("Auto-Claim Error:", err);
     }
 }
 
@@ -3611,7 +3671,6 @@ setInterval(async () => {
 // Run Functions Every Day at Midnight
 try {
     cron.schedule('0 0 * * *', async () => {
-        console.log('Running scheduled auto-claim...');
         await autoclaim();
     }, {
         scheduled: true,

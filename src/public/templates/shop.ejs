@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shop</title>
+    <%- include('icon') %>
+    <link rel="stylesheet" href="https://itsinhaleyo.online/css/header.css">
+    <link rel="stylesheet" href="https://itsinhaleyo.online/css/shop.css">
+    <script src="https://itsinhaleyo.online/script/shop.js" defer></script>
+</head>
+<body>
+    <%- include('header') %>
+    <div class="container">
+        <p class="subtitle">Shop</p>
+        <div class="market-grid">
+            <% items.forEach(item => { %>
+                <div class="market-card" onclick="buyItem('<%= item.urlpath %>')">
+                    <div class="market-icon">
+                        <img src="<%= item.icon %>" style="width: 32px; height: 32px; object-fit: contain;" alt="<%= item.name %>">
+                    </div>
+                    <div class="market-info">
+                        <h3><%= item.name %></h3>
+                        <p class="price">$<%= item.price.toLocaleString() %></p>
+                        <p class="description"><%= item.description %></p>
+                    </div>
+                    <div class="market-arrow">➜</div>
+                </div>
+            <% }); %>
+        </div>
+    </div>
+</body>
