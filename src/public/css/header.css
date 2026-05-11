@@ -199,7 +199,7 @@ body {
         background: rgba(88, 101, 242, 0.1);
         color: var(--discord-blue);
     }
-    .casino {
+    .casino .shop {
         border-bottom: 1px solid rgba(255, 255, 255, 0.05);
         width: 100%;
     }

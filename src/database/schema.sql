@@ -13,6 +13,18 @@ CREATE TABLE users (
     autoclaim_expiry DATETIME DEFAULT NULL
 );
 
+CREATE TABLE notifications (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    userid VARCHAR(255) NOT NULL,
+    type VARCHAR(50) NOT NULL,
+    title VARCHAR(255),
+    message TEXT,
+    metadata JSON,
+    is_read TINYINT(1) DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX (userid, is_read, created_at)
+);
+
 CREATE TABLE cooldown (
     userid VARCHAR(100) NOT NULL PRIMARY KEY,
     command VARCHAR(255) NOT NULL,

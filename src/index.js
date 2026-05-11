@@ -3623,9 +3623,9 @@ async function autoclaim() {
                 if (user.autoclaim_expiry && now > new Date(user.autoclaim_expiry)) {
                     console.log(`Subscription expired for ${user.username}. Removing autoclaim.`);
                     await db.query('UPDATE users SET autoclaim = 0, autoclaim_expiry = NULL WHERE userid = ?', [user.userid]);
+                    await db.query(`INSERT INTO notifications (userid, type, title, message) VALUES (?, 'SUBSCRIPTION_EXPIRY', 'Autoclaim Disabled', 'Your autoclaim subscription has expired. Renew it to keep claiming automatically!') `, [user.userid]);
                 }
                 console.log(`Processing auto-claim for User ${user.username} (ID: ${user.userid})`);
-                const now = new Date();
                 const currentDate = now.toDateString();
                 const yesterday = new Date();
                 yesterday.setDate(now.getDate() - 1);
@@ -3634,6 +3634,8 @@ async function autoclaim() {
                 const newStreak = (user.daily === yesterdayDate) ? (user.dailystreak + 1) : 1;
                 const dailyAmount = 10000 * newStreak;
                 await db.query('UPDATE users SET balance = balance + ?, daily = ?, dailystreak = dailystreak + 1 WHERE userid = ?', [dailyAmount, currentDate, user.userid]);
+                const meta = JSON.stringify({ amount: dailyAmount, streak: newStreak });
+                await db.query(`INSERT INTO notifications (userid, type, title, message, metadata) VALUES (?, 'AUTOCLAIM_SUCCESS', 'Daily Reward Claimed!', ?, ?) `, [user.userid, `Successfully claimed ${dailyAmount.toLocaleString()} credits. Your streak is now ${newStreak} days!`, meta]);
             } catch (err) {
                 logError(`AUTOCLAIM_USER_${user.userid}_ERROR`, err);
                 console.log(`Auto-Claim Error for User ${user.userid}:`, err);
@@ -3642,6 +3644,19 @@ async function autoclaim() {
     } catch (err) {
         logError('AUTOCLAIM_ERROR', err);
         console.log("Auto-Claim Error:", err);
+    }
+}
+
+async function cleanupNotifications(daysToKeep = 30) {
+    try {
+        const cutoffDate = new Date();
+        cutoffDate.setDate(cutoffDate.getDate() - daysToKeep);
+        const formattedCutoff = cutoffDate.toISOString().slice(0, 19).replace('T', ' ');
+        const [result] = await db.query('DELETE FROM notifications WHERE created_at < ?', [formattedCutoff]);
+        console.log(`[CLEANUP] Removed ${result.affectedRows} old notifications.`);
+    } catch (err) {
+        logError('CLEANUP_ERROR', err);
+        console.log("Database Cleanup Error:", err);
     }
 }
 
@@ -3672,6 +3687,7 @@ setInterval(async () => {
 try {
     cron.schedule('0 0 * * *', async () => {
         await autoclaim();
+        await cleanupNotifications(30);
     }, {
         scheduled: true,
         timezone: "America/Chicago"
