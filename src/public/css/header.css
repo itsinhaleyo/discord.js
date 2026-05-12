@@ -81,6 +81,41 @@
     padding: 10px 0;
     transition: color 0.2s;
 }
+.notification-wrapper {
+    display: flex;
+    align-items: center;
+    position: relative;
+}
+.notification-bell {
+    color: var(--text-muted);
+    position: relative;
+    display: flex;
+    align-items: center;
+    transition: color 0.2s;
+}
+.notification-bell.has-unread {
+    color: var(--down-red);
+}
+.notification-bell:hover {
+    color: var(--discord-blue);
+}
+.notification-badge {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    background-color: var(--down-red);
+    color: white;
+    font-size: 10px;
+    font-weight: bold;
+    min-width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid var(--bg-dark);
+    padding: 2px;
+}
 @media (min-width: 769px) {
     .dropdown:hover .dropbtn {
         color: var(--discord-blue);
@@ -147,6 +182,11 @@ body {
     padding-top: 80px !important;
 }
 @media (max-width: 768px) {
+    .notification-wrapper {
+        padding: 14px 1.5rem;
+        width: 100%;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
     .hamburger {
         display: flex;
         z-index: 10001;
@@ -199,7 +239,7 @@ body {
         background: rgba(88, 101, 242, 0.1);
         color: var(--discord-blue);
     }
-    .casino .shop {
+    .casino, .shop {
         border-bottom: 1px solid rgba(255, 255, 255, 0.05);
         width: 100%;
     }

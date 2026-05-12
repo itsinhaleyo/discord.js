@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jew | Notifications</title>
+    <%- include('icon') %>
+    <link rel="stylesheet" href="https://itsinhaleyo.online/css/header.css">
+    <link rel="stylesheet" href="https://itsinhaleyo.online/css/notifications.css">
+    <script src="https://itsinhaleyo.online/script/notifications.js" defer></script>
+</head>
+<body>
+    <%- include('header') %>
+    <main class="notifications-container">
+        <div class="notifications-header">
+            <h1>Your Notifications</h1>
+            <% if (unreadCount > 0) { %>
+                <button class="mark-all-read-btn" onclick="markAllAsRead()">Mark all as read</button>
+            <% } %>
+        </div>
+        <div class="notifications-list">
+            <% if (notifications.length === 0) { %>
+                <div class="no-notifications">
+                    <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                        <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                    </svg>
+                    <p>All caught up! No notifications here.</p>
+                </div>
+            <% } else { %>
+                <% notifications.forEach(item => { %>
+                    <div class="notification-item <%= item.is_read ? 'read' : 'unread' %>" id="notif-<%= item.id %>">
+                        <div class="notif-icon-wrapper">
+                            <% if (item.type === 'AUTOCLAIM_SUCCESS') { %>
+                                <span class="notif-type-icon">💰</span>
+                            <% } else if (item.type === 'SUBSCRIPTION_EXPIRY') { %>
+                                <span class="notif-type-icon">⚠️</span>
+                            <% } else { %>
+                                <span class="notif-type-icon">🔔</span>
+                            <% } %>
+                        </div>
+                        <div class="notif-content">
+                            <div class="notif-title-row">
+                                <h3 class="notif-title"><%= item.title %></h3>
+                                <span class="notif-time">
+                                    <%= new Date(item.created_at).toLocaleDateString() %>
+                                </span>
+                            </div>
+                            <p class="notif-message"><%= item.message %></p>
+                        </div>
+                        <button class="delete-notif-btn" onclick="deleteNotification(event, '<%= item.id %>')" title="Delete notification">
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <line x1="18" y1="6" x2="6" y2="18"></line>
+                                <line x1="6" y1="6" x2="18" y2="18"></line>
+                            </svg>
+                        </button>
+                    </div>
+                <% }) %>
+            <% } %>
+        </div>
+    </main>
+</body>
+</html>

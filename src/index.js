@@ -2696,6 +2696,7 @@ web.get('/', checkAuth, async (req, res) => {
         const dailyAmount = 10000 * activeStreak;
         const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
         const msUntilMidnight = midnight - now;
+        const [notificationCount] = await db.query('SELECT COUNT(*) as count FROM notifications WHERE userid = ? AND is_read = 0', [req.user.userid]);
         res.render('home', {
             isAuthenticated: req.isAuthenticated(),
             userCount: userCount.toLocaleString(),
@@ -2705,7 +2706,8 @@ web.get('/', checkAuth, async (req, res) => {
             avatarUrl: user.userid ? getAvatar(user.userid, user.avatar) : phavatar,
             hasClaimed: hasClaimed,
             msUntilMidnight: msUntilMidnight,
-            dailyAmount: dailyAmount
+            dailyAmount: dailyAmount, 
+            unreadCount: notificationCount[0].count 
         });
     } catch (err) {
         console.error(err);
@@ -2715,6 +2717,7 @@ web.get('/', checkAuth, async (req, res) => {
 });
 
 web.get('/profile', checkAuth, async (req, res) => {
+    const [notificationCount] = await db.query('SELECT COUNT(*) as count FROM notifications WHERE userid = ? AND is_read = 0', [req.user.userid]);
     try {
         const { userid, username } = req.query;
         let user;
@@ -2734,7 +2737,8 @@ web.get('/profile', checkAuth, async (req, res) => {
             balance: userData.balance.toLocaleString(),
             level: userData.level,
             avatarUrl: getAvatar(userData.userid, userData.avatar),
-            useravatarUrl: getAvatar(req.user.userid, req.user.avatar)
+            useravatarUrl: getAvatar(req.user.userid, req.user.avatar), 
+            unreadCount: notificationCount[0].count 
         });
     } catch (err) {
         const avatarUrl = req.user ? getAvatar(req.user.userid, req.user.avatar) : phavatar;
@@ -2742,7 +2746,8 @@ web.get('/profile', checkAuth, async (req, res) => {
         res.status(404).render('404', {
             avatarUrl: avatarUrl,
             errorMessage: "Oops! That User doesn't exist.",
-            errorCode: "User Not Found"
+            errorCode: "User Not Found", 
+            unreadCount: notificationCount[0].count 
         });
     }
 });
@@ -2771,6 +2776,7 @@ web.get('/portfolio', checkAuth, async (req, res) => {
         }));
         const totalPnlAmount = totalValue - totalCostBasis;
         const totalPnlPercent = totalCostBasis > 0 ? ((totalPnlAmount / totalCostBasis) * 100).toFixed(2) : "0.00";
+        const [notificationCount] = await db.query('SELECT COUNT(*) as count FROM notifications WHERE userid = ? AND is_read = 0', [req.user.userid]);
         res.render('portfolio', {
             user,
             avatarUrl: getAvatar(user.userid, user.avatar),
@@ -2778,12 +2784,64 @@ web.get('/portfolio', checkAuth, async (req, res) => {
             assetValue: Math.round(totalValue).toLocaleString(),
             totalPnlAmount,
             totalPnlPercent,
-            holdings: list
+            holdings: list, 
+            unreadCount: notificationCount[0].count 
         });
     } catch (err) {
         console.error("Portfolio Error:", err);
         logError('WEB_PORTFOLIO_ERROR', err);
         res.status(500).render('404', { errorMessage: "Could not load portfolio." });
+    }
+});
+
+web.get('/notifications', checkAuth, async (req, res) => {
+    try {
+        const [notificationCount] = await db.query('SELECT COUNT(*) as count FROM notifications WHERE userid = ? AND is_read = 0', [req.user.userid]);
+        const [notifications] = await db.query('SELECT * FROM notifications WHERE userid = ? ORDER BY created_at DESC LIMIT 50', [req.user.userid]);
+        res.render('notifications', {
+            avatarUrl: getAvatar(req.user.userid, req.user.avatar), 
+            unreadCount: notificationCount[0].count,
+            notifications: notifications
+        });
+    } catch (err) {
+        console.log(err);
+        logError('WEB_NOTIFICATIONS_ERROR', err);
+        res.status(500).render('404', { 
+            errorCode: '500', 
+            errorMessage: "Notifications Error", 
+            avatarUrl: getAvatar(req.user.userid, req.user.avatar) 
+        });
+    }
+});
+
+web.post('/notifications/read-all', checkAuth, async (req, res) => {
+    try {
+        const [result] = await db.query('UPDATE notifications SET is_read = 1 WHERE userid = ? AND is_read = 0', [req.user.userid]);
+        res.status(200).json({ 
+            success: true, 
+            message: 'All notifications marked as read', 
+            updatedCount: result.affectedRows 
+        });
+    } catch (err) {
+        console.error('Error marking notifications as read:', err);
+        logError('CALLBACK_NOTIFICATIONS_READ_ALL_ERROR', err);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Internal server error occurred while updating notifications' 
+        });
+    }
+});
+
+web.delete('/notifications/delete/:id', checkAuth, async (req, res) => {
+    try {
+        const notifId = req.params.id;
+        const [result] = await db.query( 'DELETE FROM notifications WHERE id = ? AND userid = ?', [notifId, req.user.userid]);
+        if (result.affectedRows === 0) { return res.status(440).json({ success: false, message: 'Notification not found or unauthorized' }); }
+        res.status(200).json({ success: true, message: 'Notification deleted successfully' });
+    } catch (err) {
+        console.error('Error deleting notification:', err);
+        logError('API_NOTIFICATION_DELETE_ERROR', err);
+        res.status(500).json({ success: false, message: 'Internal server error' });
     }
 });
 
@@ -2793,9 +2851,11 @@ web.get('/shop', checkAuth, async (req, res) => {
             { icon: `${process.env.DOMAIN}/images/autoclaim.png`, urlpath: "1-month-autoclaim", name: "1 Month Autoclaim", price: 2500000, description: "Get access to autoclaim for 1 month." },
             { icon: `${process.env.DOMAIN}/images/lottery.png`, urlpath: "lottery-ticket", name: "Lottery Ticket", price: 10000, description: "Purchase a lottery ticket (coming soon!)" }
         ];
+        const [notificationCount] = await db.query('SELECT COUNT(*) as count FROM notifications WHERE userid = ? AND is_read = 0', [req.user.userid]);
         res.render('shop', {
             items: items,
-            avatarUrl: getAvatar(req.user.userid, req.user.avatar)
+            avatarUrl: getAvatar(req.user.userid, req.user.avatar), 
+            unreadCount: notificationCount[0].count 
         });
     } catch (err) {
         console.log(err);
@@ -2811,11 +2871,11 @@ web.get('/shop', checkAuth, async (req, res) => {
 web.post('/shop/1-month-autoclaim', checkAuth, async (req, res) => {
     try {
         const [user] = await db.query("SELECT * FROM users WHERE userid = ?", [req.user.userid]);
-        if (user[0].autoclaim === 1) { return res.json({ success: false, message: "You already have autoclaim!" }); }
-        if (user[0].balance >= 1) {
+        if (user[0].autoclaim === 2500000) { return res.json({ success: false, message: "You already have autoclaim!" }); }
+        if (user[0].balance >= 2500000) {
             const now = new Date();
             const expiryDate = new Date(now.getTime() + (30 * 24 * 60 * 60 * 1000));
-            await db.query("UPDATE users SET balance = balance - 1, autoclaim_expiry = ?, autoclaim = 1 WHERE userid = ?", [expiryDate, user[0].userid]);
+            await db.query("UPDATE users SET balance = balance - 2500000, autoclaim_expiry = ?, autoclaim = 1 WHERE userid = ?", [expiryDate, user[0].userid]);
             res.json({ success: true, message: "Purchase successful!" });
         } else {
             return res.json({ success: false, message: "You don't have enough balance!" });
@@ -2827,7 +2887,7 @@ web.post('/shop/1-month-autoclaim', checkAuth, async (req, res) => {
     }
 });
 
-web.get('/casino', checkAuth, (req, res) => {
+web.get('/casino', checkAuth, async (req, res) => {
     try {
         const games = [
             { name: "Plinko", symbol: "plinko", icon: `${process.env.DOMAIN}/games/plinko/favicon.ico` },
@@ -2839,9 +2899,11 @@ web.get('/casino', checkAuth, (req, res) => {
             { name: "Jungle Scratch", symbol: "junglescratch", icon: `${process.env.DOMAIN}/games/junglescratch/icon.ico`},
             //{ name: "Book of Ra", symbol: "bookofra", icon: `${process.env.DOMAIN}/games/bookofra/icon256.png`}
         ];
+        const [notificationCount] = await db.query('SELECT COUNT(*) as count FROM notifications WHERE userid = ? AND is_read = 0', [req.user.userid]);
         res.render('casino', {
             games: games,
-            avatarUrl: getAvatar(req.user.userid, req.user.avatar)
+            avatarUrl: getAvatar(req.user.userid, req.user.avatar), 
+            unreadCount: notificationCount[0].count 
         });
     } catch (err) {
         console.error(err);
@@ -3157,7 +3219,7 @@ web.post('/callback/junglescratch/win', async (req, res, next) => {
     }
 });
 
-web.get('/trading', checkAuth, (req, res) => {
+web.get('/trading', checkAuth, async (req, res) => {
     try {
         const markets = [
             { name: "Bitcoin", symbol: "btc", icon: `${process.env.DOMAIN}/images/btcicon.png` },
@@ -3176,9 +3238,11 @@ web.get('/trading', checkAuth, (req, res) => {
             { name: "Aave", symbol: "aave", icon: `${process.env.DOMAIN}/images/aaveicon.png` },
             { name: "Monero", symbol: "xmr", icon: `${process.env.DOMAIN}/images/xmricon.png` },
         ];
+        const [notificationCount] = await db.query('SELECT COUNT(*) as count FROM notifications WHERE userid = ? AND is_read = 0', [req.user.userid]);
         res.render('trading_hub', {
             markets,
-            avatarUrl: getAvatar(req.user.userid, req.user.avatar)
+            avatarUrl: getAvatar(req.user.userid, req.user.avatar), 
+            unreadCount: notificationCount[0].count 
         });
     } catch (err) {
         logError('WEB_TRADING_HUB_ERROR', err);
@@ -3213,6 +3277,7 @@ web.get('/trading/:symbol', checkAuth, async (req, res) => {
         const [holding] = await db.query('SELECT shares FROM portfolios WHERE userid = ? AND symbol = ?', [user.userid, requestedSymbol]);
         const [allHoldings] = await db.query('SELECT * FROM portfolios WHERE userid = ?', [user.userid]);
         const userShares = holding.length > 0 ? holding[0].shares : 0;
+        const [notificationCount] = await db.query('SELECT COUNT(*) as count FROM notifications WHERE userid = ? AND is_read = 0', [req.user.userid]);
         res.render('trading', {
             share: requestedSymbol,
             coin: coin,
@@ -3222,7 +3287,8 @@ web.get('/trading/:symbol', checkAuth, async (req, res) => {
             allHoldings: allHoldings,
             user: user,
             price: 0,
-            avatarUrl: getAvatar(user.userid, user.avatar)
+            avatarUrl: getAvatar(user.userid, user.avatar), 
+            unreadCount: notificationCount[0].count 
         });
     } catch (err) {
         console.error("Trading Route Error:", err);
@@ -3320,13 +3386,15 @@ web.get('/trade/history', checkAuth, async (req, res) => {
         const wins = closingTrades.filter(log => Number(log.pnl) > 0).length;
         const winRate = closingTrades.length > 0 ? ((wins / closingTrades.length) * 100).toFixed(1) : 0;
         const uniqueSymbols = [...new Set(logs.map(log => log.symbol.toUpperCase()))];
+        const [notificationCount] = await db.query('SELECT COUNT(*) as count FROM notifications WHERE userid = ? AND is_read = 0', [req.user.userid]);
         res.render('tradehistory', {
             avatarUrl: getAvatar(user.userid, user.avatar),
             totalPnL,
             winRate,
             totalTrades: closingTrades.length,
             uniqueSymbols,
-            logs
+            logs,
+            unreadCount: notificationCount[0].count
         });
     } catch (err) {
         console.error("History Error:", err);
@@ -3375,22 +3443,26 @@ web.get('/auth/discord/callback', (req, res, next) => {
     })(req, res, next);
 });
 
-web.use((req, res) => {
+web.use(async (req, res) => {
     const avatarUrl = req.user ? getAvatar(req.user.userid, req.user.avatar) : phavatar;
+    const [notificationCount] = await db.query('SELECT COUNT(*) as count FROM notifications WHERE userid = ? AND is_read = 0', [req.user.userid]);
     res.status(404).render('404', {
         avatarUrl: avatarUrl,
         title: "Page Not Found",
-        errorCode: "404"
+        errorCode: "404",
+        unreadCount: notificationCount[0].count
     });
 });
 
-web.use((err, req, res, next) => {
+web.use(async (err, req, res, next) => {
     console.error("DEBUG - Server Error:", err.stack);
     const avatarUrl = (req.user) ? getAvatar(req.user.userid, req.user.avatar) : phavatar;
+    const [notificationCount] = await db.query('SELECT COUNT(*) as count FROM notifications WHERE userid = ? AND is_read = 0', [req.user.userid]);
     res.status(500).render('404', {
         avatarUrl: avatarUrl,
         title: "Internal Server Error",
-        errorCode: "500"
+        errorCode: "500", 
+        unreadCount: notificationCount[0].count 
     });
 });
 
@@ -3403,7 +3475,8 @@ apiweb.all('/', async (req, res) => {
                     "All Users": `${process.env.APIDOMAIN}/users`,
                     "Search By Userid": `${process.env.APIDOMAIN}/users?userid=`,
                     "Search By Username": `${process.env.APIDOMAIN}/users?username=`
-                }
+                },
+                "notifications": `${process.env.APIDOMAIN}/notifications`
             },
             "Crypto Trading": {
                 "portfolios": `${process.env.APIDOMAIN}/portfolios`,
@@ -3460,6 +3533,7 @@ const autoRoute = (path, table) => {
 autoRoute('/cooldown', 'cooldown');
 autoRoute('/gamestatus', 'gamestatus');
 autoRoute('/guilds', 'guilds');
+autoRoute('/notifications', 'notifications');
 autoRoute('/portfolios', 'portfolios');
 autoRoute('/stock_logs', 'stock_logs');
 autoRoute('/error_logs', 'error_logs');
@@ -3549,9 +3623,11 @@ async function handleLeaderboard(req, res, sortColumn, title) {
                      ORDER BY ${sortColumn} DESC LIMIT 10`;
         }
         const [rows] = await db.query(query, queryParams);
+        const [notificationCount] = await db.query('SELECT COUNT(*) as count FROM notifications WHERE userid = ? AND is_read = 0', [req.user.userid]);
         res.render('leaderboard', {
             title: title,
-            rows: rows,
+            rows: rows, 
+            unreadCount: notificationCount[0].count,
             avatarUrl: getAvatar(req.user.userid, req.user.avatar),
             getAvatar: getAvatar
         });

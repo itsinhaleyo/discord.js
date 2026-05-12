@@ -1,0 +1,221 @@
+body { 
+    font-family: 'Segoe UI', sans-serif; 
+    background: radial-gradient(circle at top right, #1e293b, var(--bg-dark)); 
+    color: var(--text-main); 
+    margin: 0; 
+    padding-top: 120px; 
+    display: flex; 
+    flex-direction: column; 
+    align-items: center; 
+    min-height: 100vh; 
+}
+.notifications-container { 
+    width: 90%; 
+    max-width: 900px; 
+    box-sizing: border-box;
+}
+.notifications-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 40px;
+    width: 100%;
+}
+.notifications-header h1 { 
+    margin: 0; 
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--text-main);
+}
+.mark-all-read-btn {
+    background: var(--discord-blue);
+    border: none;
+    color: white;
+    padding: 10px 20px;
+    border-radius: 12px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.9rem;
+    transition: all 0.2s ease;
+}
+.mark-all-read-btn:hover {
+    filter: brightness(1.1);
+    transform: translateY(-2px);
+    box-shadow: 0 10px 20px -10px rgba(88, 101, 242, 0.5);
+}
+.notifications-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    width: 100%;
+}
+.notification-item {
+    background: rgba(30, 41, 59, 0.7);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 1.5rem;
+    border-radius: 24px;
+    display: flex;
+    align-items: center;
+    text-align: left;
+    transition: all 0.3s ease;
+    box-sizing: border-box;
+}
+.notification-item:hover {
+    transform: translateY(-3px);
+    background: rgba(88, 101, 242, 0.1);
+    border-color: var(--discord-blue);
+    box-shadow: 0 20px 40px -12px rgba(0, 0, 0, 0.5);
+}
+.notification-item:hover .delete-notif-btn {
+    opacity: 1;
+}
+.delete-notif-btn:hover {
+    background: rgba(239, 68, 68, 0.1);
+    color: var(--down-red);
+}
+.notification-item.unread {
+    border-left: 4px solid var(--up-green);
+}
+.notification-item.read {
+    opacity: 0.5;
+}
+.notif-icon-wrapper {
+    flex-shrink: 0;
+    background: rgba(15, 23, 42, 0.5);
+    width: 54px;
+    height: 54px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 16px;
+    margin-right: 15px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+.notif-status-dot {
+    display: block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background-color: var(--text-muted);
+    transition: background-color 0.3s;
+}
+.notification-item.unread .notif-status-dot {
+    background-color: var(--up-green);
+    box-shadow: 0 0 8px var(--up-green);
+}
+.notif-content {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.notif-title-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+}
+.notif-title { 
+    margin: 0; 
+    font-size: 1.1rem; 
+    color: #fff; 
+    font-weight: 600;
+}
+.notif-time {
+    font-size: 0.8rem; 
+    color: var(--text-muted);
+    font-weight: normal;
+}
+.notif-message {
+    margin: 0;
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.6);
+    line-height: 1.4;
+}
+.no-notifications {
+    background: rgba(30, 41, 59, 0.7);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 3.5rem 2rem;
+    border-radius: 24px;
+    text-align: center;
+    color: var(--text-muted);
+    width: 100%;
+    box-sizing: border-box;
+}
+.no-notifications svg {
+    stroke: var(--text-muted);
+    margin-bottom: 15px;
+    opacity: 0.7;
+}
+.no-notifications p {
+    margin: 0;
+    font-size: 1.1rem;
+}
+.notif-type-icon {
+    font-size: 1.5rem;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.3));
+}
+.delete-notif-btn {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 6px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: 10px;
+    align-self: center;
+    transition: background 0.2s, color 0.2s;
+    opacity: 0.4;
+}
+@media (max-width: 600px) {
+    .notifications-container {
+        width: 95%;
+        padding: 0 10px;
+    }
+    .notifications-header {
+        margin-bottom: 25px;
+    }
+    .notifications-header h1 {
+        font-size: 1.5rem;
+    }
+    .delete-notif-btn {
+        position: absolute;
+        top: 15px;
+        right: 15px;
+        margin-left: 0;
+    }
+    .notification-item {
+        padding: 1.25rem 1rem;
+        flex-direction: column; 
+        align-items: flex-start;
+        gap: 12px;
+        position: relative;
+    }
+    .notif-icon-wrapper {
+        width: 40px;
+        height: 40px;
+        margin-right: 0;
+        border-radius: 10px;
+    }
+    .notif-title-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 2px;
+    }
+    .notif-time {
+        order: 2;
+    }
+    .notif-type-icon {
+        font-size: 1.2rem;
+    }
+}
