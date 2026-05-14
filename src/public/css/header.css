@@ -52,10 +52,16 @@
     transform: scale(1.1);
     border-color: var(--discord-blue);
 }
+.header-controls {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+}
 .nav-links {
     display: flex;
     align-items: center;
     gap: 2rem;
+    margin-left: auto;
 }
 .nav-links a {
     text-decoration: none;
@@ -116,13 +122,18 @@
     border: 2px solid var(--bg-dark);
     padding: 2px;
 }
-@media (min-width: 769px) {
-    .dropdown:hover .dropbtn {
-        color: var(--discord-blue);
-    }
-    .dropdown:hover .dropdown-content {
-        display: block;
-    }
+.nav-login-btn {
+    background: var(--discord-blue);
+    color: white !important;
+    padding: 8px 18px;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    text-decoration: none;
+    transition: filter 0.2s ease, transform 0.1s ease;
+}
+.nav-login-btn:hover {
+    filter: brightness(1.1);
 }
 .dropdown-content {
     display: none;
@@ -169,7 +180,6 @@
     cursor: pointer;
     gap: 6px;
     padding: 8px;
-    margin-right: -8px;
 }
 .hamburger span {
     width: 25px;
@@ -181,11 +191,50 @@
 body {
     padding-top: 80px !important;
 }
+@media (min-width: 769px) {
+    .dropdown:hover .dropbtn {
+        color: var(--discord-blue);
+    }
+    .dropdown:hover .dropdown-content {
+        display: block;
+    }
+    .nav-container {
+        position: relative;
+        display: flex;
+        align-items: center;
+    }
+    .nav-links {
+        margin-left: auto;
+        display: flex;
+        align-items: center;
+        gap: 1.25rem;
+        padding-right: 5.5rem;
+    }
+    .header-controls {
+        position: absolute;
+        right: 4.75rem;
+        top: 50%;
+        transform: translateY(-50%);
+        gap: 0;
+    }
+    .nav-avatar-link {
+        position: absolute;
+        right: 2rem; 
+        top: 50%;
+        transform: translateY(-50%);
+    }
+}
 @media (max-width: 768px) {
-    .notification-wrapper {
-        padding: 14px 1.5rem;
+    .nav-login-btn {
+        margin: 1rem 1.5rem;
+        display: inline-block;
+        text-align: center;
+    }
+    .nav-container {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
         width: 100%;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
     }
     .hamburger {
         display: flex;

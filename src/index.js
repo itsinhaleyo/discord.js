@@ -3015,7 +3015,7 @@ web.post('/callback/gameinit', checkAuth, async (req, res, next) => {
     }
 });
 
-web.post('/callback/luckyslot', async (req, res, next) => {
+web.post('/callback/luckyslot', checkAuth, async (req, res, next) => {
     try {
         const [status] = await db.query(`SELECT * FROM gamestatus WHERE userid = ?`, [req.user.userid]);
         if (!status[0]) { await db.query(`INSERT INTO gamestatus (userid) VALUES (?)`, [req.user.userid])}
@@ -3042,7 +3042,7 @@ web.post('/callback/luckyslot', async (req, res, next) => {
     }
 });
 
-web.post('/callback/luckyslot/bw', async (req, res, next) => {
+web.post('/callback/luckyslot/bw', checkAuth, async (req, res, next) => {
     try {
         await db.query(`UPDATE users SET balance = ? WHERE userid = ?`, [req.body.value, req.user.userid]);
         await db.query(`UPDATE gamestatus SET luckyslot = ? WHERE userid = ?`, [1, req.user.userid]);
@@ -3053,7 +3053,7 @@ web.post('/callback/luckyslot/bw', async (req, res, next) => {
     }
 });
 
-web.post('/callback/plinko/win', async (req, res, next) => {
+web.post('/callback/plinko/win', checkAuth, async (req, res, next) => {
     const reward = req.body.win - req.body.bet;
     try {
         await db.query(`UPDATE users SET balance = balance + ? WHERE userid = ?`, [reward, req.user.userid]);
@@ -3064,7 +3064,7 @@ web.post('/callback/plinko/win', async (req, res, next) => {
     }
 });
 
-web.post('/callback/plinko/lose', async (req, res, next) => {
+web.post('/callback/plinko/lose', checkAuth, async (req, res, next) => {
     try {
         await db.query(`UPDATE users SET balance = balance - ? WHERE userid = ?`, [req.body.bet, req.user.userid]);
         res.json({ Status: "success" });
@@ -3074,7 +3074,7 @@ web.post('/callback/plinko/lose', async (req, res, next) => {
     }
 });
 
-web.post('/callback/bj/lose', async (req, res, next) => {
+web.post('/callback/bj/lose', checkAuth, async (req, res, next) => {
     try {
         const [user] = await db.query("SELECT * FROM users WHERE userid = ?", [req.user.userid]);
         if (user[0].balance >= req.body.bet) {
@@ -3088,7 +3088,7 @@ web.post('/callback/bj/lose', async (req, res, next) => {
     }
 });
 
-web.post('/callback/bj/win', async (req, res, next) => {
+web.post('/callback/bj/win', checkAuth, async (req, res, next) => {
     try {
         const [user] = await db.query("SELECT * FROM users WHERE userid = ?", [req.user.userid]);
         if (user[0].balance >= req.body.bet) {
@@ -3108,7 +3108,7 @@ web.post('/callback/bj/win', async (req, res, next) => {
     }
 });
 
-web.post('/callback/hilow/lose', async (req, res, next) => {
+web.post('/callback/hilow/lose', checkAuth, async (req, res, next) => {
     try {
         const [user] = await db.query("SELECT * FROM users WHERE userid = ?", [req.user.userid]);
         if (user[0].balance >= req.body.bet) {
@@ -3122,7 +3122,7 @@ web.post('/callback/hilow/lose', async (req, res, next) => {
     }
 });
 
-web.post('/callback/hilow/win', async (req, res, next) => {
+web.post('/callback/hilow/win', checkAuth, async (req, res, next) => {
     try {
         const [user] = await db.query("SELECT * FROM users WHERE userid = ?", [req.user.userid]);
         if (user[0].balance >= req.body.bet) {
@@ -3142,7 +3142,7 @@ web.post('/callback/hilow/win', async (req, res, next) => {
     }
 });
 
-web.post('/callback/baccarat/lose', async (req, res, next) => {
+web.post('/callback/baccarat/lose', checkAuth, async (req, res, next) => {
     try {
         const [user] = await db.query("SELECT * FROM users WHERE userid = ?", [req.user.userid]);
         if (user[0].balance >= req.body.bet[0]) {
@@ -3156,7 +3156,7 @@ web.post('/callback/baccarat/lose', async (req, res, next) => {
     }
 });
 
-web.post('/callback/baccarat/win', async (req, res, next) => {
+web.post('/callback/baccarat/win', checkAuth, async (req, res, next) => {
     try {
         const [user] = await db.query("SELECT * FROM users WHERE userid = ?", [req.user.userid]);
         if (user[0].balance >= req.body.bet[0]) {
@@ -3170,7 +3170,7 @@ web.post('/callback/baccarat/win', async (req, res, next) => {
     }
 });
 
-web.post('/callback/miniroulette/bet', async (req, res, next) => {
+web.post('/callback/miniroulette/bet', checkAuth, async (req, res, next) => {
     try {
         const [user] = await db.query("SELECT * FROM users WHERE userid = ?", [req.user.userid]);
         if (user[0].balance >= req.body.bet) {
@@ -3184,7 +3184,7 @@ web.post('/callback/miniroulette/bet', async (req, res, next) => {
     }
 });
 
-web.post('/callback/miniroulette/win', async (req, res, next) => {
+web.post('/callback/miniroulette/win', checkAuth, async (req, res, next) => {
     try {
         const reward = req.body.bet * req.body.win;
         await db.query(`UPDATE users SET balance = balance + ? WHERE userid = ?`, [reward, req.user.userid]);
@@ -3195,7 +3195,7 @@ web.post('/callback/miniroulette/win', async (req, res, next) => {
     }
 });
 
-web.post('/callback/junglescratch/bet', async (req, res, next) => {
+web.post('/callback/junglescratch/bet', checkAuth, async (req, res, next) => {
     try {
         const [user] = await db.query("SELECT * FROM users WHERE userid = ?", [req.user.userid]);
         if (user[0].balance >= req.body.bet) {
@@ -3209,7 +3209,7 @@ web.post('/callback/junglescratch/bet', async (req, res, next) => {
     }
 });
 
-web.post('/callback/junglescratch/win', async (req, res, next) => {
+web.post('/callback/junglescratch/win', checkAuth, async (req, res, next) => {
     try {
         await db.query(`UPDATE users SET balance = balance + ? WHERE userid = ?`, [req.body.win, req.user.userid]);
         return res.json({ Status: "success" });
@@ -3445,24 +3445,40 @@ web.get('/auth/discord/callback', (req, res, next) => {
 
 web.use(async (req, res) => {
     const avatarUrl = req.user ? getAvatar(req.user.userid, req.user.avatar) : phavatar;
-    const [notificationCount] = await db.query('SELECT COUNT(*) as count FROM notifications WHERE userid = ? AND is_read = 0', [req.user.userid]);
+    let unreadCount = 0;
+    if (req.user && req.user.userid) {
+        try {
+            const [notificationCount] = await db.query('SELECT COUNT(*) as count FROM notifications WHERE userid = ? AND is_read = 0', [req.user.userid]);
+            unreadCount = notificationCount[0].count;
+        } catch (dbErr) {
+            console.error("Failed to fetch unread count for 404 page:", dbErr);
+        }
+    }
     res.status(404).render('404', {
         avatarUrl: avatarUrl,
         title: "Page Not Found",
         errorCode: "404",
-        unreadCount: notificationCount[0].count
+        unreadCount: unreadCount
     });
 });
 
 web.use(async (err, req, res, next) => {
     console.error("DEBUG - Server Error:", err.stack);
-    const avatarUrl = (req.user) ? getAvatar(req.user.userid, req.user.avatar) : phavatar;
-    const [notificationCount] = await db.query('SELECT COUNT(*) as count FROM notifications WHERE userid = ? AND is_read = 0', [req.user.userid]);
+    const avatarUrl = req.user ? getAvatar(req.user.userid, req.user.avatar) : phavatar;
+    let unreadCount = 0;
+    if (req.user && req.user.userid) {
+        try {
+            const [notificationCount] = await db.query('SELECT COUNT(*) as count FROM notifications WHERE userid = ? AND is_read = 0', [req.user.userid]);
+            unreadCount = notificationCount[0].count;
+        } catch (dbErr) {
+            console.error("Failed to fetch unread count for 500 page:", dbErr);
+        }
+    }
     res.status(500).render('404', {
         avatarUrl: avatarUrl,
         title: "Internal Server Error",
         errorCode: "500", 
-        unreadCount: notificationCount[0].count 
+        unreadCount: unreadCount 
     });
 });
 
@@ -3476,7 +3492,11 @@ apiweb.all('/', async (req, res) => {
                     "Search By Userid": `${process.env.APIDOMAIN}/users?userid=`,
                     "Search By Username": `${process.env.APIDOMAIN}/users?username=`
                 },
-                "notifications": `${process.env.APIDOMAIN}/notifications`
+                "notifications": {
+                    "All Notifications": `${process.env.APIDOMAIN}/notifications`,
+                    "Search By Userid": `${process.env.APIDOMAIN}/notifications?userid=`,
+                    "Search By Username": `${process.env.APIDOMAIN}/notifications?username=`
+                }
             },
             "Crypto Trading": {
                 "portfolios": `${process.env.APIDOMAIN}/portfolios`,
@@ -3519,6 +3539,25 @@ apiweb.all('/users', async (req, res) => {
         res.status(500).json({ error: "Internal Server Error" });
     }
 });
+apiweb.all('/notifications', async (req, res) => {
+    try {
+        const { username, userid } = req.query;
+        let query = "SELECT * FROM notifications";
+        if (username) {
+            const [rows] = await db.query(`${query} WHERE username = ?`, [username]);
+            return res.json(rows.length ? rows : { "Username": "Not Found." });
+        } 
+        if (userid) {
+            const [rows] = await db.query(`${query} WHERE userid = ?`, [userid]);
+            return res.json(rows.length ? rows : { "Userid": "Not Found." });
+        }
+        const [rows] = await db.query(query);
+        res.json(rows);
+    } catch (err) {
+        logError('API_NOTIFICATIONS_ERROR', err);
+        res.status(500).json({ error: "Internal Server Error" });
+    }
+});
 const autoRoute = (path, table) => {
     apiweb.all(path, async (req, res) => {
         try {
@@ -3533,7 +3572,6 @@ const autoRoute = (path, table) => {
 autoRoute('/cooldown', 'cooldown');
 autoRoute('/gamestatus', 'gamestatus');
 autoRoute('/guilds', 'guilds');
-autoRoute('/notifications', 'notifications');
 autoRoute('/portfolios', 'portfolios');
 autoRoute('/stock_logs', 'stock_logs');
 autoRoute('/error_logs', 'error_logs');
@@ -3684,6 +3722,21 @@ async function executeAutoClose(pos, currentPrice, reason) {
         await db.query('DELETE FROM portfolios WHERE userid = ? AND symbol = ?', [pos.userid, pos.symbol]);
         const actionLabel = `AUTO-${reason.toUpperCase().replace(' ', '-')}`;
         await db.query( 'INSERT INTO stock_logs (userid, symbol, action, amount, price_per_share, total_cost, leverage, side, pnl) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)', [pos.userid, pos.symbol, actionLabel, pos.shares, currentPrice, totalReturn, pos.leverage, pos.side, pnl]);
+        let notifTitle = '';
+        let iconEmoji = '📈';
+        const formattedPnL = (pnl >= 0 ? `+$${pnl.toLocaleString()}` : `-$${Math.abs(pnl).toLocaleString()}`);
+        if (reason === "Take Profit") {
+            notifTitle = `🎯 Take Profit Triggered: ${pos.symbol}`;
+            iconEmoji = '💰';
+        } else if (reason === "Stop Loss") {
+            notifTitle = `🛑 Stop Loss Triggered: ${pos.symbol}`;
+            iconEmoji = '📉';
+        } else if (reason === "Liquidation") {
+            notifTitle = `💥 Position Liquidated: ${pos.symbol}`;
+            iconEmoji = '💀';
+        }
+        const notifMessage = `Your ${pos.side} position on ${pos.symbol} (${pos.leverage}x) was closed automatically via ${reason} at a price of $${currentPrice.toLocaleString()}. Final PnL: ${formattedPnL}.`;
+        await db.query(`INSERT INTO notifications (userid, type, title, message, is_read) VALUES (?, 'TRADE_AUTO_CLOSE', ?, ?, 0)`, [pos.userid, notifTitle, notifMessage]);
     } catch (err) {
         logError('EXECUTE_AUTO_CLOSE_ERROR', err);
         console.error("Auto-Close Error:", err);
@@ -3735,6 +3788,46 @@ async function cleanupNotifications(daysToKeep = 30) {
         console.log("Database Cleanup Error:", err);
     }
 }
+
+async function createTestNotification(userid, type) {
+    try {
+        let title = 'System Update';
+        let message = 'Your account status has been updated.';
+        if (type === 'AUTOCLAIM_SUCCESS') {
+            title = 'Daily Reward Claimed!';
+            message = 'Successfully claimed 10,000 credits. Your streak is now 1 day!';
+        }
+        else if (type === 'SUBSCRIPTION_EXPIRY') {
+            title = 'Autoclaim Disabled';
+            message = 'Your autoclaim subscription has expired. Renew it to keep claiming automatically!';
+        }
+        else if (type === 'TAKE_PROFIT') {
+            type = 'TRADE_AUTO_CLOSE'; 
+            title = '🎯 Take Profit Triggered: BTC';
+            message = 'Your LONG position on BTC (10x) was closed automatically via Take Profit at a price of $64,250. Final PnL: +$1,250.';
+        }
+        else if (type === 'STOP_LOSS') {
+            type = 'TRADE_AUTO_CLOSE';
+            title = '🛑 Stop Loss Triggered: ETH';
+            message = 'Your SHORT position on ETH (5x) was closed automatically via Stop Loss at a price of $3,450. Final PnL: -$420.';
+        }
+        else if (type === 'LIQUIDATION') {
+            type = 'TRADE_AUTO_CLOSE';
+            title = '💥 Position Liquidated: SOL';
+            message = 'Your LONG position on SOL (20x) was closed automatically via Liquidation at a price of $135. Final PnL: -$500.';
+        }
+        const [result] = await db.query(
+            `INSERT INTO notifications (userid, type, title, message, is_read) VALUES (?, ?, ?, ?, 0)`, 
+            [userid, type, title, message]
+        );
+        console.log(`[TEST] Notification created successfully! ID: ${result.insertId} (Type: ${type})`);
+        return result.insertId;
+    } catch (err) {
+        console.error('[TEST ERROR] Failed to create notification:', err);
+    }
+}
+// Run Test Notification Using:
+//createTestNotification('YOUR_DISCORD_USER_ID', 'SUBSCRIPTION_EXPIRY' *OR* 'AUTOCLAIM_SUCCESS' *OR* 'TAKE_PROFIT' *OR* 'STOP_LOSS' *OR* 'LIQUIDATION');
 
 // Run Functions Every 10s
 setInterval(async () => {
