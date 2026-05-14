@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jew | Daily Lottery</title>
+    <%- include('icon') %>
+    <link rel="stylesheet" href="https://itsinhaleyo.online/css/header.css">
+    <link rel="stylesheet" href="https://itsinhaleyo.online/css/lottery.css">
+    <script src="https://itsinhaleyo.online/script/lottery.js" defer></script>
+</head>
+<body>
+    <%- include('header') %>
+    <div class="container">
+        <h1><span style="-webkit-text-fill-color: initial; background: none; font-family: 'Segoe UI Emoji', sans-serif;">🎟️</span> Daily Lottery</h1>
+        <p class="status-badge">Draws automatically every midnight CST</p>
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-label">Current Prize Pool</div>
+                <div class="stat-value" style="color: #fbbf24;">💰 <%= prizePool %></div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Tickets Entered</div>
+                <div class="stat-value">🎟️ <%= totalTickets %></div>
+            </div>
+        </div>
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-label">Your Tickets</div>
+                <div class="stat-value">✨ <%= myTickets %></div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Your Win Chance</div>
+                <div class="stat-value" style="color: var(--up-green);"><%= winChance %>%</div>
+            </div>
+        </div>
+        <div class="purchase-box">
+            <h3>Purchase Entry Tickets</h3>
+            <p>Tickets cost 10,000 credits each. Buying more increases your daily win odds weighting.</p>
+            <button class="btn-discord" onclick="buyTicket()">Buy 1x Lottery Ticket (💰 10,000)</button>
+        </div>
+        <div class="history-section">
+            <h3>📜 Past Winners</h3>
+            <% if (history.length === 0) { %>
+                <p class="history-empty">The drawing history archive records are empty today.</p>
+            <% } else { %>
+                <% history.forEach(past => { %>
+                    <div class="history-row">
+                        <div class="history-winner">🎉 <strong><%= past.winner_username %></strong></div>
+                        <div class="history-prize">+💰 <%= past.prize_pool.toLocaleString() %></div>
+                    </div>
+                <% }) %>
+            <% } %>
+        </div>
+    </div>
+</body>
+</html>

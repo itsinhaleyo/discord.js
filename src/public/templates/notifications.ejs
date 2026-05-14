@@ -35,6 +35,8 @@
                                 <span class="notif-type-icon">💰</span>
                             <% } else if (item.type === 'SUBSCRIPTION_EXPIRY') { %>
                                 <span class="notif-type-icon">⚠️</span>
+                            <% } else if (item.type === 'LOTTERY_WIN') { %>
+                                <span class="notif-type-icon">🎉</span>
                             <% } else if (item.type === 'TRADE_AUTO_CLOSE') { %>
                                 <% if (item.title.includes('Take Profit')) { %>
                                     <span class="notif-type-icon">💰</span>

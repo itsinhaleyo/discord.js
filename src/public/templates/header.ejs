@@ -26,11 +26,15 @@
             </button>
         </div>
         <nav class="nav-links" id="nav-links">
-            <div class="casino">
-                <a href="/casino">Casino</a>
-            </div>
             <div class="shop">
                 <a href="/shop">Shop</a>
+            </div>
+            <div class="dropdown">
+                <button class="dropbtn" onclick="toggleDropdown(event, this)">Casino ▾</button>
+                <div class="dropdown-content">
+                    <a href="/lottery">🎫 Lottery</a>
+                    <a href="/casino">🎰 Games</a>
+                </div>
             </div>
             <div class="dropdown">
                 <button class="dropbtn" onclick="toggleDropdown(event, this)">Crypto ▾</button>

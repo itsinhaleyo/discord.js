@@ -2732,10 +2732,23 @@ web.get('/profile', checkAuth, async (req, res) => {
         }
         if (!user) return res.status(404).send("User not found");
         const userData = Array.isArray(user) ? user[0] : user;
+        let expiryString = "Inactive";
+        if (userData.autoclaim === 1 && userData.autoclaim_expiry) {
+            const diff = new Date(userData.autoclaim_expiry) - new Date();
+            if (diff > 0) {
+                const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+                const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                expiryString = days > 0 ? `${days}d ${hours}h left` : `${hours}h left`;
+            } else {
+                expiryString = "Expired";
+            }
+        }
         res.render(path.join(__dirname, 'public', 'templates', 'profile.ejs'), {
             username: userData.username || 'Member',
             balance: userData.balance.toLocaleString(),
             level: userData.level,
+            streak: userData.dailystreak || 0,
+            autoclaimLeft: expiryString,
             avatarUrl: getAvatar(userData.userid, userData.avatar),
             useravatarUrl: getAvatar(req.user.userid, req.user.avatar), 
             unreadCount: notificationCount[0].count 
@@ -2845,11 +2858,42 @@ web.delete('/notifications/delete/:id', checkAuth, async (req, res) => {
     }
 });
 
+web.get('/lottery', checkAuth, async (req, res) => {
+    try {
+        const [countRows] = await db.query('SELECT COUNT(*) as count FROM notifications WHERE userid = ? AND is_read = 0', [req.user.userid]);
+        const [poolStats] = await db.query('SELECT SUM(tickets_bought) as total_tickets FROM lottery_tickets');
+        const totalTickets = poolStats[0].total_tickets || 0;
+        const basePrize = 100000;
+        const prizePool = basePrize + (totalTickets * 10000);
+        const [userStats] = await db.query('SELECT tickets_bought FROM lottery_tickets WHERE userid = ?', [req.user.userid]);
+        const myTickets = userStats[0] ? userStats[0].tickets_bought : 0;
+        const [history] = await db.query('SELECT * FROM lottery_history ORDER BY drawn_at DESC LIMIT 5');
+        res.render(path.join(__dirname, 'public', 'templates', 'lottery.ejs'), {
+            avatarUrl: getAvatar(req.user.userid, req.user.avatar),
+            unreadCount: countRows[0].count,
+            prizePool: prizePool.toLocaleString(),
+            totalTickets: totalTickets,
+            myTickets: myTickets,
+            winChance: totalTickets > 0 ? ((myTickets / totalTickets) * 100).toFixed(2) : "0.00",
+            history: history
+        });
+    } catch (err) {
+        console.error("Lottery Route Error:", err);
+        logError('LOTTERY_ROUTE_ERROR', err);
+        res.status(500).render('404', { 
+            errorCode: '500', 
+            errorMessage: "Lottery System Error", 
+            avatarUrl: req.user ? getAvatar(req.user.userid, req.user.avatar) : phavatar, 
+            unreadCount: 0 
+        });
+    }
+});
+
 web.get('/shop', checkAuth, async (req, res) => {
     try {
         const items = [
             { icon: `${process.env.DOMAIN}/images/autoclaim.png`, urlpath: "1-month-autoclaim", name: "1 Month Autoclaim", price: 2500000, description: "Get access to autoclaim for 1 month." },
-            { icon: `${process.env.DOMAIN}/images/lottery.png`, urlpath: "lottery-ticket", name: "Lottery Ticket", price: 10000, description: "Purchase a lottery ticket (coming soon!)" }
+            { icon: `${process.env.DOMAIN}/images/lottery.png`, urlpath: "lottery-ticket", name: "Lottery Ticket", price: 10000, description: "Purchase a lottery ticket" }
         ];
         const [notificationCount] = await db.query('SELECT COUNT(*) as count FROM notifications WHERE userid = ? AND is_read = 0', [req.user.userid]);
         res.render('shop', {
@@ -2871,7 +2915,7 @@ web.get('/shop', checkAuth, async (req, res) => {
 web.post('/shop/1-month-autoclaim', checkAuth, async (req, res) => {
     try {
         const [user] = await db.query("SELECT * FROM users WHERE userid = ?", [req.user.userid]);
-        if (user[0].autoclaim === 2500000) { return res.json({ success: false, message: "You already have autoclaim!" }); }
+        if (user[0].autoclaim === 1) { return res.json({ success: false, message: "You already have autoclaim!" }); }
         if (user[0].balance >= 2500000) {
             const now = new Date();
             const expiryDate = new Date(now.getTime() + (30 * 24 * 60 * 60 * 1000));
@@ -2884,6 +2928,27 @@ web.post('/shop/1-month-autoclaim', checkAuth, async (req, res) => {
         console.error(err);
         logError('CALLBACK_SHOP_PURCHASE_1-MONTH-AUTOCLAIM_ERROR', err);
         res.status(500).json({ success: false, message: "Purchase failed." });
+    }
+});
+
+web.post('/shop/lottery-ticket', checkAuth, async (req, res) => {
+    try {
+        const ticketCost = 10000;
+        const [userRows] = await db.query("SELECT balance, userid FROM users WHERE userid = ?", [req.user.userid]);
+        if (userRows.length === 0) { return res.status(404).json({ success: false, message: "User profile not found." }); }
+        const userData = userRows[0];
+        if (userData.balance < ticketCost) { return res.json({ success: false, message: "You don't have enough balance! (Requires 💰 10,000)" }); }
+        await db.query("UPDATE users SET balance = balance - ? WHERE userid = ?", [ticketCost, req.user.userid]);
+        await db.query(`INSERT INTO lottery_tickets (userid, tickets_bought) VALUES (?, 1) ON DUPLICATE KEY UPDATE tickets_bought = tickets_bought + 1`, [req.user.userid]);
+        await db.query(`INSERT INTO stock_logs (userid, symbol, action, amount, price_per_share, total_cost) VALUES (?, 'LOTTERY', 'BUY-TICKET', 1, ?, ?)`, [req.user.userid, ticketCost, ticketCost]);
+        res.json({ 
+            success: true, 
+            message: "Successfully purchased 1x Lottery Ticket! Good luck!" 
+        });
+    } catch (err) {
+        console.error("Lottery Ticket Purchase Error:", err);
+        logError('CALLBACK_SHOP_PURCHASE_LOTTERY_TICKET_ERROR', err);
+        res.status(500).json({ success: false, message: "An internal error occurred during your purchase." });
     }
 });
 
@@ -3776,6 +3841,43 @@ async function autoclaim() {
     }
 }
 
+async function drawDailyLottery() {
+    try {
+        const [poolStats] = await db.query('SELECT SUM(tickets_bought) as total_tickets FROM lottery_tickets');
+        const totalTickets = poolStats[0].total_tickets || 0;
+        if (totalTickets === 0) {
+            console.log('[LOTTERY] No tickets bought today. Rolling over.');
+            return;
+        }
+        const winningTicketIndex = Math.floor(Math.random() * totalTickets);
+        const [tickets] = await db.query('SELECT userid, tickets_bought FROM lottery_tickets WHERE tickets_bought > 0');
+        let currentCount = 0;
+        let winnerId = null;
+        for (const entry of tickets) {
+            currentCount += entry.tickets_bought;
+            if (winningTicketIndex < currentCount) {
+                winnerId = entry.userid;
+                break;
+            }
+        }
+        if (!winnerId) {
+            console.log('[LOTTERY] Draw error: Winner resolving failed.');
+            return;
+        }
+        const totalPrize = 100000 + (totalTickets * 10000);
+        const [userRows] = await db.query('SELECT username FROM users WHERE userid = ?', [winnerId]);
+        const winnerUsername = userRows.length > 0 ? userRows[0].username : 'Unknown Member';
+        await db.query('UPDATE users SET balance = balance + ? WHERE userid = ?', [totalPrize, winnerId]);
+        await db.query('INSERT INTO lottery_history (winner_id, winner_username, prize_pool) VALUES (?, ?, ?)', [winnerId, winnerUsername, totalPrize]);
+        await db.query('DELETE FROM lottery_tickets');
+        await db.query(`INSERT INTO notifications (userid, type, title, message, is_read) VALUES (?, 'LOTTERY_WIN', 'You Won the Lottery!', ?, 0)`, [winnerId, `Congratulations! Your ticket was drawn as today's winner! You have been awarded $${totalPrize.toLocaleString()} credits.`]);
+        console.log(`[LOTTERY DRAW WINNER SUCCESS] User ${winnerUsername} (${winnerId}) won $${totalPrize.toLocaleString()} credits.`);
+    } catch (err) {
+        console.error('[LOTTERY CRON ERROR]', err);
+        logError('LOTTERY_CRON_ERROR', err);
+    }
+}
+
 async function cleanupNotifications(daysToKeep = 30) {
     try {
         const cutoffDate = new Date();
@@ -3827,7 +3929,9 @@ async function createTestNotification(userid, type) {
     }
 }
 // Run Test Notification Using:
-//createTestNotification('YOUR_DISCORD_USER_ID', 'SUBSCRIPTION_EXPIRY' *OR* 'AUTOCLAIM_SUCCESS' *OR* 'TAKE_PROFIT' *OR* 'STOP_LOSS' *OR* 'LIQUIDATION');
+//createTestNotification('YOUR_DISCORD_USER_ID', 'SUBSCRIPTION_EXPIRY' *OR* 'AUTOCLAIM_SUCCESS' *OR* 'TAKE_PROFIT' *OR* 'STOP_LOSS' *OR* 'LIQUIDATION' *OR* 'LOTTERY_WIN');
+
+drawDailyLottery();
 
 // Run Functions Every 10s
 setInterval(async () => {
@@ -3856,6 +3960,7 @@ setInterval(async () => {
 try {
     cron.schedule('0 0 * * *', async () => {
         await autoclaim();
+        await drawDailyLottery()
         await cleanupNotifications(30);
     }, {
         scheduled: true,

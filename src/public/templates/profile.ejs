@@ -7,6 +7,7 @@
     <%- include('icon') %>
     <link rel="stylesheet" href="https://itsinhaleyo.online/css/header.css">
     <link rel="stylesheet" href="https://itsinhaleyo.online/css/profile.css">
+    <script src="https://itsinhaleyo.online/script/profile.js" defer></script>
 </head>
 <body>
     <%- include('header') %>
@@ -25,6 +26,16 @@
                     <div class="stat-value">⭐ <%= level %></div>
                 </div>
             </div>
+            <div class="stats-grid" style="margin-top: 20px;">
+                <div class="stat-card">
+                    <div class="stat-label">Claim Streak</div>
+                    <div class="stat-value">🔥 <%= streak %> days</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Auto-Claim</div>
+                    <div class="stat-value <%= autoclaimLeft !== 'Inactive' && autoclaimLeft !== 'Expired' ? 'active-sub' : 'inactive-sub' %>">⏱️ <%= autoclaimLeft %></div>
+                </div>
+            </div>
         </div>
         <div class="logout-section" style="margin-top: 2rem; padding-top: 2rem; border-top: 1px solid rgba(255,255,255,0.05);">
             <form action="/logout" method="POST">
@@ -39,6 +50,19 @@
         <a class="api-link" href="https://api.itsinhaleyo.online/">
             API Endpoints Available
         </a>
+    </div>
+    <div id="logout-modal" class="modal-overlay">
+        <div class="modal-card">
+            <div class="modal-icon">⚠️</div>
+            <h2>Sign Out of Session?</h2>
+            <p>Are you sure you want to end your active dashboard session on this device?</p>
+            <div class="modal-actions">
+                <button class="modal-btn-cancel" onclick="closeLogoutModal()">Cancel</button>
+                <form action="/logout" method="POST" style="margin: 0; flex: 1;">
+                    <button type="submit" class="modal-btn-confirm">Yes, Sign Out</button>
+                </form>
+            </div>
+        </div>
     </div>
 </body>
 </html>

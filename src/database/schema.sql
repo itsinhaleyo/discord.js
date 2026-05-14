@@ -94,3 +94,19 @@ CREATE TABLE error_logs (
     message TEXT,
     stack TEXT
 );
+
+CREATE TABLE lottery_tickets (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    userid VARCHAR(255) NOT NULL,
+    tickets_bought INT DEFAULT 1,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY unique_user (userid)
+);
+
+CREATE TABLE lottery_history (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    winner_id VARCHAR(255) NOT NULL,
+    winner_username VARCHAR(255) NOT NULL,
+    prize_pool INT NOT NULL,
+    drawn_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
