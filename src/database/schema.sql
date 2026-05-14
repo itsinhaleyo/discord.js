@@ -10,7 +10,8 @@ CREATE TABLE users (
     xp INT NOT NULL DEFAULT 1,
     level INT NOT NULL DEFAULT 1,
     autoclaim BOOLEAN NOT NULL DEFAULT false,
-    autoclaim_expiry DATETIME DEFAULT NULL
+    autoclaim_expiry DATETIME DEFAULT NULL,
+    is_admin TINYINT(1) NOT NULL DEFAULT 0
 );
 
 CREATE TABLE notifications (

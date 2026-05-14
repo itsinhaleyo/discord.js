@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jew | Admin Lottery Controls</title>
+    <link rel="stylesheet" href="https://admin.itsinhaleyo.online/css/admin.css">
+    <script src="https://admin.itsinhaleyo.online/script/admin.js" defer></script>
+</head>
+<body>
+    <div class="container admin-container">
+        <h1>⚙️ Lottery Management</h1>
+        <div class="purchase-box admin-controls">
+            <button class="btn-discord admin-btn-draw" onclick="triggerManualDraw()">⚡ Force Draw Now</button>
+            <button class="btn-discord admin-btn-danger" onclick="clearHistoryLogs()">🗑️ Clear History Logs</button>
+        </div>
+        <div class="history-section">
+            <h3>🎟️ Active Ticket Entries Today</h3>
+            <div class="admin-table-wrapper">
+                <table class="admin-table">
+                    <thead>
+                        <tr>
+                            <th>Username</th>
+                            <th>User ID</th>
+                            <th>Tickets Owned</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <% if (tickets.length === 0) { %>
+                            <tr><td colspan="3" class="table-empty">No active entries in queue today.</td></tr>
+                        <% } else { %>
+                            <% tickets.forEach(row => { %>
+                                <tr>
+                                    <td class="winner-name"><%= row.username || 'Unknown' %></td>
+                                    <td><code class="admin-id-badge"><%= row.userid %></code></td>
+                                    <td class="ticket-count">🎟️ <%= row.tickets_bought %></td>
+                                </tr>
+                            <% }) %>
+                        <% } %>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="history-section">
+            <h3>📜 System Draw Records History</h3>
+            <div class="admin-table-wrapper">
+                <table class="admin-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Winner Name</th>
+                            <th>Prize Disbursed</th>
+                            <th>Timestamp</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <% if (history.length === 0) { %>
+                            <tr><td colspan="4" class="table-empty">The drawing records table is empty.</td></tr>
+                        <% } else { %>
+                            <% history.forEach(past => { %>
+                                <tr>
+                                    <td class="log-id">#<%= past.id %></td>
+                                    <td class="winner-name">🎉 <%= past.winner_username %></td>
+                                    <td class="prize-value">💰 <%= past.prize_pool.toLocaleString() %></td>
+                                    <td class="log-timestamp"><%= new Date(past.drawn_at).toLocaleString() %></td>
+                                </tr>
+                            <% }) %>
+                        <% } %>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

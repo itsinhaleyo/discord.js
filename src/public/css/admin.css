@@ -1,0 +1,122 @@
+:root {
+    --bg-dark: #0f172a;
+    --text-main: #f8fafc;
+    --text-muted: #94a3b8;
+    --up-green: #10b981;
+    --down-red: #ef4444;
+    --discord-blue: #5865F2;
+}
+body {
+    font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    background: radial-gradient(circle at top right, #1e293b, var(--bg-dark, #0f172a)); 
+    color: var(--text-main, #f8fafc);
+    margin: 0;
+    padding-top: 60px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+    box-sizing: border-box;
+}
+.container.admin-container {
+    max-width: 900px !important;
+    text-align: left;
+}
+.purchase-box.admin-controls {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    margin-bottom: 2.5rem;
+    background: rgba(15, 23, 42, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    padding: 1.5rem;
+    border-radius: 16px;
+    box-sizing: border-box;
+}
+.admin-btn-draw { 
+    background: var(--up-green) !important; 
+    color: #ffffff !important; 
+    margin: 0 !important;
+}
+.admin-btn-danger { 
+    background: var(--down-red) !important; 
+    color: #ffffff !important; 
+    margin: 0 !important;
+}
+.admin-table-wrapper {
+    background: rgba(15, 23, 42, 0.4);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 16px;
+    padding: 0.5rem 1rem;
+    margin-top: 1rem;
+    margin-bottom: 2.5rem;
+    width: 100%;
+    box-sizing: border-box;
+    overflow-x: auto;
+}
+.admin-table { 
+    width: 100%; 
+    border-collapse: collapse; 
+    text-align: left; 
+}
+.admin-table th, 
+.admin-table td { 
+    padding: 14px 16px; 
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05); 
+    font-size: 0.9rem; 
+}
+.admin-table tr:last-child td {
+    border-bottom: none;
+}
+.admin-table th { 
+    color: var(--text-muted); 
+    text-transform: uppercase; 
+    font-size: 0.75rem; 
+    letter-spacing: 0.05em;
+    font-weight: 600;
+}
+.table-empty {
+    text-align: center; 
+    color: var(--text-muted); 
+    padding: 2.5rem !important;
+}
+.winner-name {
+    color: #ffffff; 
+    font-weight: 600;
+}
+.ticket-count {
+    color: #fbbf24; 
+    font-weight: bold;
+}
+.prize-value {
+    color: #fbbf24; 
+    font-weight: bold;
+}
+.log-id {
+    color: var(--text-muted);
+}
+.log-timestamp {
+    font-size: 0.85rem; 
+    color: var(--text-muted);
+}
+.admin-id-badge {
+    background: rgba(0, 0, 0, 0.2); 
+    padding: 4px 8px; 
+    border-radius: 6px; 
+    color: var(--text-muted);
+    font-family: monospace;
+}
+@media (max-width: 600px) {
+    .purchase-box.admin-controls {
+        flex-direction: column;
+        gap: 12px;
+        padding: 1rem;
+    }
+    .admin-table th, 
+    .admin-table td {
+        padding: 10px 8px;
+        font-size: 0.8rem;
+    }
+}

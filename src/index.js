@@ -653,6 +653,7 @@ const commands = [
     { name: 'daily', description: 'Collect Money Daily' },
     { name: 'ping', description: 'Replies With the Bots Ping' },
     { name: 'queue', description: 'Displays the current music queue' },
+    //{ name: 'lottery', description: 'View Lottery Information' },
     { 
         name: 'test', 
         description: 'Test Functtion',
@@ -1235,7 +1236,7 @@ client.on('interactionCreate', async (interaction) => {
                     "`/queue - View Current Music Queue`\n"+
                     "### 💰 Economy\n" +
                     "`/balance` • `/give` • `/daily`\n" +
-                    "`/claim`\n" +
+                    "`/claim` • `/lottery (coming soon!)` \n" +
                     "### 🎲 Games\n" +
                     "`/blackjack` • `/slots` • `/roulette`\n" +
                     "`/coinflip` • `/rock/paper/scissors` • `/towers`\n" +
@@ -2565,7 +2566,7 @@ client.on('messageCreate', async (message) => {
 
 //// Website Coding
 // Website Init
-const mainweb = express(), web = express(), apiweb = express(), rrme = express();
+const mainweb = express(), web = express(), admin = express(), apiweb = express(), rrme = express();
 web.set('view engine', 'ejs');
 web.set('views', path.join(__dirname, 'public', 'templates'));
 rrme.set('view engine', 'ejs');
@@ -2576,6 +2577,7 @@ mainweb.set('subdomain offset', 1);
 mainweb.use(express.urlencoded({ extended: false }));
 mainweb.use(express.json());
 mainweb.use(express.static(path.join(__dirname, 'public')));
+admin.use(express.static(path.join(__dirname, 'public')));
 const port = process.env.PORT;
 const sessionStore = new MySQLStore({}, db);
 mainweb.set('trust proxy', 1);
@@ -2587,7 +2589,9 @@ mainweb.use(session({
     proxy: true,
     cookie: { 
         maxAge: 1000 * 60 * 60 * 24,
-        secure: true
+        secure: true,
+        httpOnly: true,
+        domain: '.itsinhaleyo.online' 
     }
 }));
 mainweb.use(passport.initialize());
@@ -2636,6 +2640,7 @@ passport.deserializeUser(async (id, done) => {
 });
 const getAvatar = (id, hash) => { return `https://cdn.discordapp.com/avatars/${id}/${hash}.png`;};
 const checkAuth = (req, res, next) => req.isAuthenticated() ? next() : res.redirect('/login');
+function checkAdmin(req, res, next) { if (req.isAuthenticated && req.isAuthenticated() && req.user.is_admin === 1) { return next(); } return res.status(403).send("Forbidden: Access Denied"); }
 const phavatar = `${process.env.DOMAIN}/images/imageplaceholder.png`;
 
 // Website URL's
@@ -3547,6 +3552,37 @@ web.use(async (err, req, res, next) => {
     });
 });
 
+// ADMIN URL's
+admin.get('/', checkAdmin, async (req, res) => {
+    try {
+        const [tickets] = await db.query(`SELECT t.*, u.username FROM lottery_tickets t LEFT JOIN users u ON t.userid = u.userid ORDER BY t.tickets_bought DESC`);
+        const [history] = await db.query('SELECT * FROM lottery_history ORDER BY drawn_at DESC LIMIT 20');
+        res.render(path.join(__dirname, 'public', 'templates', 'admin.ejs'), {
+            tickets: tickets,
+            history: history
+        });
+    } catch (err) {
+        console.error(err);
+        res.status(500).send("Admin Panel Error");
+    }
+});
+admin.post('/api/admin/lottery/draw', checkAdmin, async (req, res) => {
+    try {
+        await drawDailyLottery(); 
+        res.json({ success: true, message: "Lottery drawn successfully! Winner notified." });
+    } catch (err) {
+        res.status(500).json({ success: false, message: "Draw execution failed." });
+    }
+});
+admin.delete('/api/admin/lottery/clear-history', checkAdmin, async (req, res) => {
+    try {
+        const [result] = await db.query('TRUNCATE TABLE lottery_history');
+        res.json({ success: true, message: "History logs cleared successfully!" });
+    } catch (err) {
+        res.status(500).json({ success: false, message: "Failed to clear records." });
+    }
+});
+
 // API URL's
 apiweb.all('/', async (req, res) => { 
     try {
@@ -3707,6 +3743,7 @@ rrme.get(`/formsuccess`, (req, res) => {
 rrme.get('/*any', (req, res) => { res.redirect('/'); });
 
 mainweb.use(vhost(`api.itsinhaleyo.online`, apiweb));
+mainweb.use(vhost(`admin.itsinhaleyo.online`, admin));
 mainweb.use(vhost(`itsinhaleyo.online`, web));
 mainweb.use(vhost(`rrmearthworks.com`, rrme));
 mainweb.listen(port, () => { console.log(`Websites running on PORT:${port}/`); });
@@ -3930,8 +3967,6 @@ async function createTestNotification(userid, type) {
 }
 // Run Test Notification Using:
 //createTestNotification('YOUR_DISCORD_USER_ID', 'SUBSCRIPTION_EXPIRY' *OR* 'AUTOCLAIM_SUCCESS' *OR* 'TAKE_PROFIT' *OR* 'STOP_LOSS' *OR* 'LIQUIDATION' *OR* 'LOTTERY_WIN');
-
-drawDailyLottery();
 
 // Run Functions Every 10s
 setInterval(async () => {
