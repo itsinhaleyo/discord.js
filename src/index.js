@@ -2515,10 +2515,10 @@ client.on('messageCreate', async (message) => {
 
     if (message.content === 'help') { message.reply({ content: 'Please use / commands.', flags: [MessageFlags.Ephemeral] }); }
 
-    if (message.content.includes("x.com") || message.content.includes("twitter.com")) {
+    if (message.content.includes("/x.com") || message.content.includes("/twitter.com")) {
         if (message.author.bot) return;
         try {
-            let replacement = message.content.replace(".x.com", ".fixupx.com").replace(".twitter.com", ".fxtwitter.com");
+            let replacement = message.content.replace("/x.com", "/fixupx.com").replace("/twitter.com", "/fxtwitter.com");
             await message.reply({ content: `${replacement}`, allowedMentions: { repliedUser: false } });
             await message.delete().catch(err => { if (err.code !== 10008) console.error('Delete failed:', err); });
         } catch (error) { 
@@ -2527,7 +2527,7 @@ client.on('messageCreate', async (message) => {
         }
     }
 
-    if (message.content.includes("instagram.com")) {
+    if (message.content.includes(".instagram.com")) {
         if (message.author.id === client.user.id) return;
         try {
             const replacement = message.content.replace(".instagram.com", ".kkinstagram.com");
@@ -2539,7 +2539,7 @@ client.on('messageCreate', async (message) => {
         }
     }
 
-    if (message.content.includes("reddit.com")) {
+    if (message.content.includes(".reddit.com")) {
         if (message.author.bot) return;
         try {
             const replacement = message.content.replace(".reddit.com", ".rxddit.com");
@@ -2551,7 +2551,7 @@ client.on('messageCreate', async (message) => {
         }
     }
 
-    if (message.content.includes("facebook.com")) {
+    if (message.content.includes(".facebook.com")) {
         if (message.author.bot) return;
         try {
             const replacement = message.content.replace(".facebook.com", ".facebed.com");
@@ -2573,6 +2573,8 @@ rrme.set('view engine', 'ejs');
 rrme.set('views', path.join(__dirname, 'public', 'templates'));
 mainweb.set('view engine', 'ejs');
 mainweb.set('views', path.join(__dirname, 'public', 'templates')); 
+admin.set('view engine', 'ejs');
+admin.set('views', path.join(__dirname, 'public', 'templates')); 
 mainweb.set('subdomain offset', 1);
 mainweb.use(express.urlencoded({ extended: false }));
 mainweb.use(express.json());
@@ -2640,7 +2642,7 @@ passport.deserializeUser(async (id, done) => {
 });
 const getAvatar = (id, hash) => { return `https://cdn.discordapp.com/avatars/${id}/${hash}.png`;};
 const checkAuth = (req, res, next) => req.isAuthenticated() ? next() : res.redirect('/login');
-function checkAdmin(req, res, next) { if (req.isAuthenticated && req.isAuthenticated() && req.user.is_admin === 1) { return next(); } return res.status(403).send("Forbidden: Access Denied"); }
+function checkAdmin(req, res, next) { if (req.isAuthenticated && req.isAuthenticated() && req.user.is_admin === 1) { return next(); } return res.status(403).send(res.redirect('https://itsinhaleyo.online/login')); }
 const phavatar = `${process.env.DOMAIN}/images/imageplaceholder.png`;
 
 // Website URL's
@@ -3557,13 +3559,26 @@ admin.get('/', checkAdmin, async (req, res) => {
     try {
         const [tickets] = await db.query(`SELECT t.*, u.username FROM lottery_tickets t LEFT JOIN users u ON t.userid = u.userid ORDER BY t.tickets_bought DESC`);
         const [history] = await db.query('SELECT * FROM lottery_history ORDER BY drawn_at DESC LIMIT 20');
-        res.render(path.join(__dirname, 'public', 'templates', 'admin.ejs'), {
+        res.render(path.join(__dirname, 'public', 'templates', 'adminlottery.ejs'), {
             tickets: tickets,
             history: history
         });
     } catch (err) {
         console.error(err);
         res.status(500).send("Admin Panel Error");
+    }
+});
+admin.get('/lottery', checkAdmin, async (req, res) => {
+    try {
+        const [tickets] = await db.query(`SELECT t.*, u.username FROM lottery_tickets t LEFT JOIN users u ON t.userid = u.userid ORDER BY t.tickets_bought DESC`);
+        const [history] = await db.query('SELECT * FROM lottery_history ORDER BY drawn_at DESC LIMIT 20');
+        res.render(path.join(__dirname, 'public', 'templates', 'adminlottery.ejs'), {
+            tickets: tickets,
+            history: history
+        });
+    } catch (err) {
+        console.error(err);
+        res.status(500).send("Admin Lottery Error");
     }
 });
 admin.post('/api/admin/lottery/draw', checkAdmin, async (req, res) => {
@@ -3581,6 +3596,19 @@ admin.delete('/api/admin/lottery/clear-history', checkAdmin, async (req, res) =>
     } catch (err) {
         res.status(500).json({ success: false, message: "Failed to clear records." });
     }
+});
+admin.use(checkAdmin, async (req, res) => {
+    res.status(404).render('admin404', {
+        title: "Page Not Found",
+        errorCode: "404"
+    });
+});
+admin.use(checkAdmin, async (err, req, res, next) => {
+    console.error("DEBUG - Server Error:", err.stack);
+    res.status(500).render('admin404', {
+        title: "Internal Server Error",
+        errorCode: "500"
+    });
 });
 
 // API URL's
