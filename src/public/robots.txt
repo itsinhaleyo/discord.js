@@ -30,4 +30,6 @@ Allow: /casino/blackjack
 Allow: /casino/hilow
 Allow: /casino/baccarat
 Allow: /casino/junglescratch
+Allow: /notifications
+Allow: /shop
 Sitemap: https://itsinhaleyo.online/sitemap.xml
