@@ -48,29 +48,32 @@ CREATE TABLE guilds(
 );
 
 CREATE TABLE portfolios (
+    id INT AUTO_INCREMENT PRIMARY KEY,
     userid VARCHAR(100) NOT NULL,
     symbol VARCHAR(20) NOT NULL,
-    shares BIGINT NOT NULL DEFAULT 0,
-    leverage VARCHAR(10) DEFAULT 1,
-    margin_used DOUBLE DEFAULT 0,
-    take_profit DOUBLE DEFAULT NULL,
-    stop_loss DOUBLE DEFAULT NULL,  
-    side ENUM('LONG', 'SHORT') DEFAULT 'LONG',
-    PRIMARY KEY (userid, symbol)
+    side ENUM('LONG', 'SHORT') NOT NULL DEFAULT 'LONG',
+    leverage INT NOT NULL DEFAULT 1,
+    shares DECIMAL(18, 8) NOT NULL DEFAULT 0.00000000,
+    average_price DECIMAL(18, 8) NOT NULL DEFAULT 0.00000000,
+    margin_used DECIMAL(18, 2) NOT NULL DEFAULT 0.00,
+    take_profit DECIMAL(18, 8) DEFAULT NULL,
+    stop_loss DECIMAL(18, 8) DEFAULT NULL,
+    UNIQUE KEY unique_user_position (userid, symbol, side, leverage)
 );
 
 CREATE TABLE stock_logs (
     id INT AUTO_INCREMENT PRIMARY KEY,
     userid VARCHAR(255) NOT NULL,
     symbol VARCHAR(20) NOT NULL,
-    side ENUM('LONG', 'SHORT') DEFAULT 'LONG',
+    side ENUM('LONG', 'SHORT') NOT NULL DEFAULT 'LONG',
     action VARCHAR(50) NOT NULL,
-    amount BIGINT NOT NULL,
+    amount DECIMAL(18, 8) NOT NULL,
     price_per_share DECIMAL(18, 8) NOT NULL,
-    total_cost BIGINT NOT NULL,
-    pnl BIGINT DEFAULT 0,
-    leverage INT DEFAULT 1,
-    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    total_cost DECIMAL(18, 2) NOT NULL,
+    pnl DECIMAL(18, 2) NOT NULL DEFAULT 0.00,
+    leverage INT NOT NULL DEFAULT 1,
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_user_history (userid, timestamp DESC)
 );
 
 CREATE TABLE gamestatus (

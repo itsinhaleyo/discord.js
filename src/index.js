@@ -2775,32 +2775,46 @@ web.get('/profile', checkAuth, async (req, res) => {
 web.get('/portfolio', checkAuth, async (req, res) => {
     try {
         const user = req.user;
-        const [holdings] = await db.query('SELECT * FROM portfolios WHERE userid = ?', [user.userid]);
-        let totalValue = 0;
+        const userid = user.userid;
+        const [userRows] = await db.query('SELECT balance, avatar FROM users WHERE userid = ?', [userid]);
+        const currentBalance = userRows.length ? userRows[0].balance : user.balance;
+        const [holdings] = await db.query('SELECT * FROM portfolios WHERE userid = ?', [userid]);
         let totalCostBasis = 0;
-        const list = await Promise.all(holdings.map(async (stock) => {
+        let totalValue = 0;
+        const list = [];
+        for (const stock of holdings) {
             let currentPrice = await getContract(stock.network, stock.contract);
-            if (!currentPrice || currentPrice === 0) { currentPrice = Number(stock.average_price); }
-            const margin = Number(stock.margin_used);
-            const shares = Number(stock.shares);
-            const entryPrice = Number(stock.average_price);
-            let pnl = stock.side === 'SHORT' ? (entryPrice - currentPrice) * shares : (currentPrice - entryPrice) * shares;
+            if (!currentPrice || currentPrice === 0) { 
+                currentPrice = parseFloat(stock.average_price); 
+            }
+            const margin = parseFloat(stock.margin_used) || 0;
+            const shares = parseFloat(stock.shares) || 0;
+            const entryPrice = parseFloat(stock.average_price) || 0;
+            let pnl = stock.side === 'SHORT' 
+                ? (entryPrice - currentPrice) * shares 
+                : (currentPrice - entryPrice) * shares;
             totalCostBasis += margin;
             totalValue += (margin + pnl);
-            return {
+            list.push({
                 ...stock,
                 symbol: stock.symbol.toUpperCase(),
-                pnl,
+                average_price: entryPrice,
+                shares: shares,
+                margin_used: margin,
+                pnl: pnl,
                 pnlPercent: margin > 0 ? ((pnl / margin) * 100).toFixed(2) : "0.00"
-            };
-        }));
+            });
+        }
         const totalPnlAmount = totalValue - totalCostBasis;
         const totalPnlPercent = totalCostBasis > 0 ? ((totalPnlAmount / totalCostBasis) * 100).toFixed(2) : "0.00";
-        const [notificationCount] = await db.query('SELECT COUNT(*) as count FROM notifications WHERE userid = ? AND is_read = 0', [req.user.userid]);
+        const [notificationCount] = await db.query(
+            'SELECT COUNT(*) as count FROM notifications WHERE userid = ? AND is_read = 0', 
+            [userid]
+        );
         res.render('portfolio', {
-            user,
-            avatarUrl: getAvatar(user.userid, user.avatar),
-            cash: Number(user.balance).toLocaleString(),
+            user: { ...user, balance: currentBalance },
+            avatarUrl: getAvatar(userid, userRows[0]?.avatar || user.avatar),
+            cash: parseFloat(currentBalance).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
             assetValue: Math.round(totalValue).toLocaleString(),
             totalPnlAmount,
             totalPnlPercent,
@@ -2808,7 +2822,7 @@ web.get('/portfolio', checkAuth, async (req, res) => {
             unreadCount: notificationCount[0].count 
         });
     } catch (err) {
-        console.error("Portfolio Error:", err);
+        console.error("Portfolio Route Error:", err);
         logError('WEB_PORTFOLIO_ERROR', err);
         res.status(500).render('404', { errorMessage: "Could not load portfolio." });
     }
@@ -3370,75 +3384,163 @@ web.get('/trading/:symbol', checkAuth, async (req, res) => {
 });
 
 web.post('/trade/buy', checkAuth, async (req, res) => {
+    const connection = await db.getConnection();
     try {
-        const { coinId, network, contract, amount, leverage, side = 'LONG' } = req.body;
+        await connection.beginTransaction();
+        const { coinId, network, contract, amount, leverage: reqLeverage, side = 'LONG' } = req.body;
         const amountToBuy = parseFloat(amount);
+        const leverage = parseInt(reqLeverage) || 1;
         const userid = req.user.userid;
+        if (isNaN(amountToBuy) || amountToBuy <= 0) {
+            await connection.rollback();
+            return res.json({ success: false, message: "Invalid trade amount." });
+        }
         const price = await getContract(network, contract);
-        const totalPositionValue = Math.round(price * amountToBuy);
-        const marginRequired = Math.round(totalPositionValue / leverage);
-        const [userRows] = await db.query('SELECT balance FROM users WHERE userid = ?', [userid]);
-        if (userRows[0].balance < marginRequired) {
+        if (!price || isNaN(price) || price <= 0) {
+            await connection.rollback();
+            return res.json({ success: false, message: "Pricing engine offline. Trade canceled!" });
+        }
+        const totalPositionValue = price * amountToBuy;
+        const marginRequired = totalPositionValue / leverage;
+        const [userRows] = await connection.query('SELECT balance FROM users WHERE userid = ? FOR UPDATE', [userid]);
+        if (!userRows.length || userRows[0].balance < marginRequired) {
+            await connection.rollback();
             return res.json({ success: false, message: "Insufficient Balance!" });
         }
-        await db.query('UPDATE users SET balance = balance - ? WHERE userid = ?', [marginRequired, userid]);
-        await db.query(`
-            INSERT INTO portfolios (userid, symbol, shares, average_price, network, contract, leverage, margin_used, side) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) 
+        await connection.query('UPDATE users SET balance = balance - ? WHERE userid = ?', [marginRequired, userid]);
+        await connection.query(`
+            INSERT INTO portfolios (userid, symbol, side, leverage, shares, average_price, margin_used) 
+            VALUES (?, ?, ?, ?, ?, ?, ?) 
             ON DUPLICATE KEY UPDATE 
-                average_price = (average_price * shares + VALUES(average_price) * VALUES(shares)) / (shares + VALUES(shares)),
-                shares = shares + VALUES(shares),
-                margin_used = margin_used + VALUES(margin_used)`, 
-            [userid, coinId, amountToBuy, price, network, contract, leverage, marginRequired, side]
+                average_price = (average_price * shares + (VALUES(average_price) * VALUES(shares))) / (shares + VALUES(shares)),
+                margin_used = margin_used + VALUES(margin_used),
+                shares = shares + VALUES(shares)`, 
+            [userid, coinId, side, leverage, amountToBuy, price, marginRequired]
         );
-        await db.query('INSERT INTO stock_logs (userid, symbol, action, amount, price_per_share, total_cost, leverage, side) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', 
-            [userid, coinId, 'BUY', amountToBuy, price, marginRequired, leverage, side]);
+        await connection.query(`
+            INSERT INTO stock_logs (userid, symbol, side, action, amount, price_per_share, total_cost, leverage, pnl) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)`, 
+            [userid, coinId, side, 'BUY', amountToBuy, price, marginRequired, leverage]
+        );
+        await connection.commit();
         res.json({ success: true, message: `Opened ${leverage}x ${side} position!` });
     } catch (err) {
+        await connection.rollback();
         logError('CALLBACK_TRADE_BUY_ERROR', err);
         res.status(500).json({ success: false, message: "Server error" });
+    } finally {
+        connection.release();
     }
 });
 
 web.post('/trade/sell', checkAuth, async (req, res) => {    
+    const connection = await db.getConnection();
     try {
-        const { coinId, network, contract, amount } = req.body;
+        await connection.beginTransaction();
+        const { coinId, amount, leverage: reqLeverage, side } = req.body;
+        const coinConfig = {
+            'BTC': { network: "avax", contract: "0x8fef4fe4970a5d6bfa7c65871a2ebfd0f42aa822" },
+            'ETH': { network: "bsc", contract: "0xd0e226f674bbf064f54ab47f42473ff80db98cba" },
+            'ETC': { network: "solana", contract: "Sx3ec3k2tef4Gs2iaozgfx16jPMPBdcaWamePY3BZLp" },
+            'SOL': { network: "base", contract: "0xb30540172f1b37d1ee1d109e49f883e935e69219" },
+            'ZEC': { network: "near", contract: "refv1-6065" },
+            'DOGE': { network: "bsc", contract: "0xce6160bb594fc055c943f59de92cee30b8c6b32c" },
+            'TRX': { network: "solana", contract: "DNspJcdhQzaptzbRR2yx1QxbUJV5JdcqJL65xrkkxx9Y" },
+            'ADA': { network: "bsc", contract: "0x29c5ba7dbb67a4af999a28cc380ad234fe7c1b86" },
+            'LTC': { network: "bsc", contract: "0xe3cbe4dd1bd2f7101f17d586f44bab944091d383" },
+            'WBNB': { network: "bsc", contract: "0x58f876857a02d6762e0101bb5c46a8c1ed44dc16" },
+            'AVAX': { network: "avax", contract: "0xf01449c0ba930b6e2caca3def3ccbd7a3e589534" },
+            'LINK': { network: "eth", contract: "0xa6cc3c2531fdaa6ae1a3ca84c2855806728693e8" },
+            'UNI': { network: "eth", contract: "0x1d42064fc4beb5f8aaf85f4617ae8b3b5b8bd801" },
+            'AAVE': { network: "eth", contract: "0x5ab53ee1d50eef2c1dd3d5402789cd27bb52c1bb" },
+            'XMR': { network: "solana", contract: "CDJtzEhhd3K6Exv9ssw3ZafbmVwEDF6QhNGbYrShyTUc" },
+        };
         const amountToSell = parseFloat(amount);
+        const leverage = parseInt(reqLeverage) || 1;
         const userid = req.user.userid;
-        const [holdings] = await db.query(
-            'SELECT shares, average_price, margin_used, side FROM portfolios WHERE userid = ? AND symbol = ?', 
-            [userid, coinId]
-        );
-        if (holdings.length === 0) return res.json({ success: false, message: "No position found." });
-        const pos = holdings[0];
-        const currentPrice = await getContract(network, contract);
-        let pnl;
-        if (pos.side === 'SHORT') { pnl = (pos.average_price - currentPrice) * amountToSell; } else {  pnl = (currentPrice - pos.average_price) * amountToSell; }
-        const marginToRelease = pos.margin_used * (amountToSell / pos.shares);
-        let totalReturn = Math.round(marginToRelease + pnl);
-        if (totalReturn < 0) totalReturn = 0;
-        await db.query('UPDATE users SET balance = balance + ? WHERE userid = ?', [totalReturn, userid]);
-        if (pos.shares === amountToSell) {
-            await db.query('DELETE FROM portfolios WHERE userid = ? AND symbol = ?', [userid, coinId]);
-        } else {
-            await db.query('UPDATE portfolios SET shares = shares - ?, margin_used = margin_used - ? WHERE userid = ? AND symbol = ?', [amountToSell, marginToRelease, userid, coinId]);
+        if (!side || (side !== 'LONG' && side !== 'SHORT')) {
+            await connection.rollback();
+            return res.json({ success: false, message: "Invalid position side parameter." });
         }
-        await db.query(
-            'INSERT INTO stock_logs (userid, symbol, action, amount, price_per_share, total_cost, leverage, side, pnl) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)', 
-            [userid, coinId, 'SELL', amountToSell, currentPrice, totalReturn, pos.leverage, pos.side, pnl]
+        if (isNaN(amountToSell) || amountToSell <= 0) {
+            await connection.rollback();
+            return res.json({ success: false, message: "Invalid close amount." });
+        }
+        const assetMeta = coinConfig[coinId ? coinId.toUpperCase() : ""];
+        if (!assetMeta) {
+            await connection.rollback();
+            return res.json({ success: false, message: "Asset metadata configuration missing." });
+        }
+        const [holdings] = await connection.query(
+            'SELECT shares, average_price, margin_used FROM portfolios WHERE userid = ? AND symbol = ? AND side = ? AND leverage = ? FOR UPDATE', 
+            [userid, coinId, side, leverage]
         );
-        res.json({ success: true, message: `Position Closed! Return: 💰${totalReturn.toLocaleString()}` });
+        if (holdings.length === 0) {
+            await connection.rollback();
+            return res.json({ success: false, message: "No matching position found." });
+        }
+        const pos = holdings[0];
+        if (amountToSell > pos.shares) {
+            await connection.rollback();
+            return res.json({ success: false, message: "Cannot close more shares than you own." });
+        }
+        const currentPrice = await getContract(assetMeta.network, assetMeta.contract);
+        if (!currentPrice || isNaN(currentPrice) || currentPrice <= 0) {
+            await connection.rollback();
+            return res.json({ success: false, message: "Pricing engine offline. Position close rejected!" });
+        }
+        let pnl;
+        if (side === 'SHORT') { 
+            pnl = (pos.average_price - currentPrice) * amountToSell; 
+        } else {  
+            pnl = (currentPrice - pos.average_price) * amountToSell; 
+        }
+        const marginToRelease = pos.margin_used * (amountToSell / pos.shares);
+        let totalReturn = marginToRelease + pnl;
+        if (totalReturn < 0) totalReturn = 0;
+        await connection.query('UPDATE users SET balance = balance + ? WHERE userid = ?', [totalReturn, userid]);
+        if (Math.abs(pos.shares - amountToSell) < 0.00000001) {
+            await connection.query(
+                'DELETE FROM portfolios WHERE userid = ? AND symbol = ? AND side = ? AND leverage = ?', 
+                [userid, coinId, side, leverage]
+            );
+        } else {
+            await connection.query(`
+                UPDATE portfolios 
+                SET shares = shares - ?, margin_used = margin_used - ? 
+                WHERE userid = ? AND symbol = ? AND side = ? AND leverage = ?`, 
+                [amountToSell, marginToRelease, userid, coinId, side, leverage]
+            );
+        }
+        await connection.query(`
+            INSERT INTO stock_logs (userid, symbol, side, action, amount, price_per_share, total_cost, leverage, pnl) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, 
+            [userid, coinId, side, 'SELL', amountToSell, currentPrice, marginToRelease, leverage, pnl]
+        );
+        await connection.commit();
+        res.json({ success: true, message: `Position Closed! Return: 💰${totalReturn.toFixed(2)}` });
     } catch (err) {
+        await connection.rollback();
         logError('CALLBACK_TRADE_SELL_ERROR', err);
         res.status(500).json({ success: false, message: "Server error" });
+    } finally {
+        connection.release();
     }
 });
 
 web.post('/trade/update-limits', checkAuth, async (req, res) => {
-    const { symbol, value, type } = req.body;
+    const { symbol, value, type, side, leverage } = req.body;
+    if (type !== 'tp' && type !== 'sl') {
+        return res.status(400).json({ success: false, message: "Invalid type" });
+    }
     const column = type === 'tp' ? 'take_profit' : 'stop_loss';
     try {
-        await db.query( `UPDATE portfolios SET ${column} = ? WHERE userid = ? AND symbol = ?`, [value ? parseFloat(value) : null, req.user.userid, symbol] );
+        await db.query(
+            `UPDATE portfolios 
+             SET ${column} = ? 
+             WHERE userid = ? AND symbol = ? AND side = ? AND leverage = ?`, 
+            [value ? parseFloat(value) : null, req.user.userid, symbol, side, parseInt(leverage)]
+        );
         res.json({ success: true });
     } catch (err) {
         logError('CALLBACK_TRADE_UPDATE_LIMITS_ERROR', err);
@@ -3449,45 +3551,52 @@ web.post('/trade/update-limits', checkAuth, async (req, res) => {
 web.get('/trade/history', checkAuth, async (req, res) => {
     try {
         const user = req.user;
-        const [logs] = await db.query( 'SELECT * FROM stock_logs WHERE userid = ? ORDER BY timestamp DESC LIMIT 100', [user.userid]);
-        const closingTrades = logs.filter(log => {
-            const act = log.action.toUpperCase();
-            return act.includes('SELL') || act.includes('CLOSE') || act.includes('STOP') || act.includes('PROFIT');
-        });
-        const totalPnL = closingTrades.reduce((sum, log) => sum + Number(log.pnl), 0);
-        const wins = closingTrades.filter(log => Number(log.pnl) > 0).length;
-        const winRate = closingTrades.length > 0 ? ((wins / closingTrades.length) * 100).toFixed(1) : 0;
+        const userid = user.userid;
+        const [[stats]] = await db.query(`
+            SELECT 
+                SUM(pnl) as totalPnL,
+                COUNT(CASE WHEN pnl > 0 THEN 1 END) as wins,
+                COUNT(*) as totalClosed
+            FROM stock_logs 
+            WHERE userid = ? AND action IN ('SELL', 'CLOSE', 'LIQUIDATION')
+        `, [userid]);
+        const totalPnL = parseFloat(stats.totalPnL) || 0;
+        const totalTrades = stats.totalClosed || 0;
+        const winRate = totalTrades > 0 ? ((stats.wins / totalTrades) * 100).toFixed(1) : "0.0";
+        const [logs] = await db.query(
+            'SELECT * FROM stock_logs WHERE userid = ? ORDER BY timestamp DESC LIMIT 100', 
+            [userid]
+        );
         const uniqueSymbols = [...new Set(logs.map(log => log.symbol.toUpperCase()))];
-        const [notificationCount] = await db.query('SELECT COUNT(*) as count FROM notifications WHERE userid = ? AND is_read = 0', [req.user.userid]);
+        const [notificationCount] = await db.query(
+            'SELECT COUNT(*) as count FROM notifications WHERE userid = ? AND is_read = 0', 
+            [userid]
+        );
         res.render('tradehistory', {
-            avatarUrl: getAvatar(user.userid, user.avatar),
+            avatarUrl: getAvatar(userid, user.avatar),
             totalPnL,
             winRate,
-            totalTrades: closingTrades.length,
+            totalTrades,
             uniqueSymbols,
             logs,
             unreadCount: notificationCount[0].count
         });
     } catch (err) {
-        console.error("History Error:", err);
+        console.error("History Route Error:", err);
         logError('WEB_TRADE_HISTORY_ERROR', err);
         res.status(500).render('404', { errorCode: '500', errorMessage: 'Error loading history' });
     }
 });
 
-web.post('/callback/update/:network/:contract', async (req, res) => {
+web.post('/callback/update/:network/:contract', checkAuth, async (req, res) => {
     const { network, contract } = req.params;
     try {
         const newprice = await getContract(network, contract);
-        const leverage = await getPosition(req.user.userid, contract);
         const [userRows] = await db.query('SELECT balance FROM users WHERE userid = ?', [req.user.userid]);
         const currentBalance = userRows.length > 0 ? userRows[0].balance : 0;
         res.json({ 
             Price: newprice, 
-            Balance: currentBalance,
-            Shares: leverage.shares,
-            Leverage: leverage.leverage,
-            Margin_used: leverage.margin_used
+            Balance: currentBalance
         });
     } catch (err) {
         console.error("Update Route Error:", err);
@@ -3830,11 +3939,22 @@ async function getContract(network, poolAddress) {
     }
 }
 
-async function getPosition(userid, contract) {
+async function getPosition(userid, symbol, side, leverage) {
     try {
-        resp = await db.query(`SELECT * FROM portfolios WHERE userid = ? AND contract = ?`, [userid, contract]);
-        if (!resp[0] || resp[0].length === 0) { return { leverage: 0, shares: 0, margin_used: 0 }; }
-        return { leverage: resp[0][0].leverage || 0, shares: resp[0][0].shares || 0, margin_used: resp[0][0].margin_used || 0 };
+        const [rows] = await db.query(
+            `SELECT * FROM portfolios 
+             WHERE userid = ? AND symbol = ? AND side = ? AND leverage = ?`, 
+            [userid, symbol, side, parseInt(leverage)]
+        );
+        if (!rows || rows.length === 0) { 
+            return { leverage: 0, shares: 0, margin_used: 0, average_price: 0 }; 
+        }
+        return { 
+            leverage: rows[0].leverage || 0, 
+            shares: parseFloat(rows[0].shares) || 0, 
+            margin_used: parseFloat(rows[0].margin_used) || 0,
+            average_price: parseFloat(rows[0].average_price) || 0
+        };
     } catch (error) {
         logError('GET_POSITION_ERROR', error);
         console.error("Position Fetch Error:", error);
@@ -3843,33 +3963,69 @@ async function getPosition(userid, contract) {
 }
 
 async function executeAutoClose(pos, currentPrice, reason) {
+    const connection = await db.getConnection();
     try {
-        const priceDiff = (pos.side === 'SHORT') ? (pos.average_price - currentPrice) : (currentPrice - pos.average_price);
-        const pnl = priceDiff * pos.shares;
-        let totalReturn = Math.round(Number(pos.margin_used) + pnl);
+        await connection.beginTransaction();
+        const [currentPos] = await connection.query(
+            `SELECT shares, average_price, margin_used 
+             FROM portfolios 
+             WHERE userid = ? AND symbol = ? AND side = ? AND leverage = ? 
+             FOR UPDATE`,
+            [pos.userid, pos.symbol, pos.side, parseInt(pos.leverage)]
+        );
+        if (!currentPos.length) {
+            await connection.rollback();
+            return;
+        }
+        const exactPos = currentPos[0];
+        const shares = parseFloat(exactPos.shares);
+        const entryPrice = parseFloat(exactPos.average_price);
+        const marginUsed = parseFloat(exactPos.margin_used);
+        const priceDiff = (pos.side === 'SHORT') ? (entryPrice - currentPrice) : (currentPrice - entryPrice);
+        const pnl = priceDiff * shares;
+        let totalReturn = marginUsed + pnl;
         if (totalReturn < 0) totalReturn = 0;
-        await db.query('UPDATE users SET balance = balance + ? WHERE userid = ?', [totalReturn, pos.userid]);
-        await db.query('DELETE FROM portfolios WHERE userid = ? AND symbol = ?', [pos.userid, pos.symbol]);
-        const actionLabel = `AUTO-${reason.toUpperCase().replace(' ', '-')}`;
-        await db.query( 'INSERT INTO stock_logs (userid, symbol, action, amount, price_per_share, total_cost, leverage, side, pnl) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)', [pos.userid, pos.symbol, actionLabel, pos.shares, currentPrice, totalReturn, pos.leverage, pos.side, pnl]);
+        await connection.query(
+            'UPDATE users SET balance = balance + ? WHERE userid = ?', 
+            [totalReturn, pos.userid]
+        );
+        await connection.query(
+            `DELETE FROM portfolios 
+             WHERE userid = ? AND symbol = ? AND side = ? AND leverage = ?`, 
+            [pos.userid, pos.symbol, pos.side, parseInt(pos.leverage)]
+        );
+        const actionLabel = `AUTO-${reason.toUpperCase().replace(/\s+/g, '-')}`;
+        await connection.query(`
+            INSERT INTO stock_logs (userid, symbol, side, action, amount, price_per_share, total_cost, leverage, pnl) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, 
+            [pos.userid, pos.symbol, pos.side, actionLabel, shares, currentPrice, marginUsed, parseInt(pos.leverage), pnl]
+        );
+        await connection.commit();
         let notifTitle = '';
         let iconEmoji = '📈';
-        const formattedPnL = (pnl >= 0 ? `+$${pnl.toLocaleString()}` : `-$${Math.abs(pnl).toLocaleString()}`);
+        const formattedPnL = (pnl >= 0 ? `+$${pnl.toLocaleString(undefined, {minimumFractionDigits: 2})}` : `-$${Math.abs(pnl).toLocaleString(undefined, {minimumFractionDigits: 2})}`);
         if (reason === "Take Profit") {
-            notifTitle = `🎯 Take Profit Triggered: ${pos.symbol}`;
+            notifTitle = `🎯 Take Profit Triggered: ${pos.symbol.toUpperCase()}`;
             iconEmoji = '💰';
         } else if (reason === "Stop Loss") {
-            notifTitle = `🛑 Stop Loss Triggered: ${pos.symbol}`;
+            notifTitle = `🛑 Stop Loss Triggered: ${pos.symbol.toUpperCase()}`;
             iconEmoji = '📉';
         } else if (reason === "Liquidation") {
-            notifTitle = `💥 Position Liquidated: ${pos.symbol}`;
+            notifTitle = `💥 Position Liquidated: ${pos.symbol.toUpperCase()}`;
             iconEmoji = '💀';
         }
-        const notifMessage = `Your ${pos.side} position on ${pos.symbol} (${pos.leverage}x) was closed automatically via ${reason} at a price of $${currentPrice.toLocaleString()}. Final PnL: ${formattedPnL}.`;
-        await db.query(`INSERT INTO notifications (userid, type, title, message, is_read) VALUES (?, 'TRADE_AUTO_CLOSE', ?, ?, 0)`, [pos.userid, notifTitle, notifMessage]);
+        const notifMessage = `${iconEmoji} Your ${pos.leverage}x ${pos.side} position on ${pos.symbol.toUpperCase()} was closed automatically via ${reason} at a price of $${currentPrice.toLocaleString(undefined, {minimumFractionDigits: 2})}. Final PnL: ${formattedPnL}.`;
+        await db.query(
+            `INSERT INTO notifications (userid, type, title, message, is_read) 
+             VALUES (?, 'TRADE_AUTO_CLOSE', ?, ?, 0)`, 
+            [pos.userid, notifTitle, notifMessage]
+        );
     } catch (err) {
+        await connection.rollback();
         logError('EXECUTE_AUTO_CLOSE_ERROR', err);
-        console.error("Auto-Close Error:", err);
+        console.error("Auto-Close Critical Failure Rollback:", err);
+    } finally {
+        connection.release();
     }
 }
 
@@ -3999,18 +4155,34 @@ async function createTestNotification(userid, type) {
 // Run Functions Every 10s
 setInterval(async () => {
     try {
-        const [positions] = await db.query( 'SELECT * FROM portfolios WHERE take_profit IS NOT NULL OR stop_loss IS NOT NULL' );
+        const [positions] = await db.query('SELECT * FROM portfolios');
         if (positions.length === 0) return;
+        const priceCache = {};
         for (const pos of positions) {
-            const currentPrice = await getContract(pos.network, pos.contract);
+            const cacheKey = `${pos.network}-${pos.contract}`;
+            let currentPrice;
+            if (priceCache[cacheKey]) {
+                currentPrice = priceCache[cacheKey];
+            } else {
+                currentPrice = await getContract(pos.network, pos.contract);
+                priceCache[cacheKey] = currentPrice;
+            }
+            if (!currentPrice || currentPrice <= 0) continue;
             const isLong = pos.side === 'LONG';
-            const isTPHit = isLong ? currentPrice >= pos.take_profit : currentPrice <= pos.take_profit;
-            const isSLHit = isLong ? currentPrice <= pos.stop_loss : currentPrice >= pos.stop_loss;
-            const liqPrice = isLong ? pos.average_price * (1 - (1 / pos.leverage)) : pos.average_price * (1 + (1 / pos.leverage));
+            const leverage = parseInt(pos.leverage) || 1;
+            const entryPrice = parseFloat(pos.average_price);
+            const liqPrice = isLong 
+                ? entryPrice * (1 - (0.8 / leverage)) 
+                : entryPrice * (1 + (0.8 / leverage));
             const isLiqHit = isLong ? currentPrice <= liqPrice : currentPrice >= liqPrice;
-            if ((pos.take_profit && isTPHit) || (pos.stop_loss && isSLHit) || isLiqHit) {
-                const reason = isTPHit ? "Take Profit" : isSLHit ? "Stop Loss" : "Liquidation";
-                await executeAutoClose(pos, currentPrice, reason);
+            const isTPHit = pos.take_profit !== null && (isLong ? currentPrice >= parseFloat(pos.take_profit) : currentPrice <= parseFloat(pos.take_profit));
+            const isSLHit = pos.stop_loss !== null && (isLong ? currentPrice <= parseFloat(pos.stop_loss) : currentPrice >= parseFloat(pos.stop_loss));
+            if (isLiqHit) {
+                await executeAutoClose(pos, currentPrice, "Liquidation");
+            } else if (isTPHit) {
+                await executeAutoClose(pos, currentPrice, "Take Profit");
+            } else if (isSLHit) {
+                await executeAutoClose(pos, currentPrice, "Stop Loss");
             }
         }
     } catch (err) {

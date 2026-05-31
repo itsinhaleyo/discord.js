@@ -8,7 +8,8 @@
     <link rel="stylesheet" href="https://itsinhaleyo.online/css/header.css">
     <link rel="stylesheet" href="https://itsinhaleyo.online/css/trading.css">
     <script src="https://itsinhaleyo.online/script/trading.js" defer></script>
-</head><body>
+</head>
+<body>
     <%- include('header') %>
     <div class="trading-layout">
         <div class="chart-container">
@@ -26,7 +27,7 @@
             </div>
             <div class="stat-card">
                 <div class="stat-label">Market Order</div>
-                <input id="amount" type="number" placeholder="Amount" class="trade-input">
+                <input id="amount" type="number" step="any" placeholder="Amount" class="trade-input">
                 <div class="leverage-container">
                     <div class="leverage-header">
                         <span>Leverage</span>
@@ -36,8 +37,8 @@
                         oninput="document.getElementById('lev-display').innerText = this.value + 'x'">
                 </div>
                 <div class="btn-group">
-                    <button onclick="trade('LONG')" class="btn-buy">Long</button>
-                    <button onclick="trade('SHORT')" class="btn-sell">Short</button>
+                    <button id="submit-trade-btn-long" onclick="trade('LONG')" class="btn-buy">Long</button>
+                    <button id="submit-trade-btn-short" onclick="trade('SHORT')" class="btn-sell">Short</button>
                 </div>
                 <p id="trade-status" style="margin-top: 10px; font-size: 0.8rem; text-align: center;"></p>
             </div>
@@ -65,6 +66,7 @@
             <tbody>
                 <% if (allHoldings && allHoldings.length > 0) { %>
                     <% allHoldings.forEach(pos => { %>
+                        <% const inputSuffix = `${pos.symbol}-${pos.side}-${pos.leverage}`; %>
                         <tr class="position-row" 
                             data-symbol="<%= pos.symbol %>" 
                             data-entry="<%= pos.average_price %>" 
@@ -78,25 +80,25 @@
                                 <div class="symbol-name"><%= pos.symbol.toUpperCase() %></div>
                                 <div class="side-badge <%= pos.side.toLowerCase() %>"><%= pos.side %></div>
                             </td>
-                            <td data-label="Amount"><%= Number(pos.shares).toLocaleString() %></td>
-                            <td data-label="Entry Price">$<%= Number(pos.average_price).toLocaleString() %></td>
+                            <td data-label="Amount"><%= Number(pos.shares).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 8}) %></td>
+                            <td data-label="Entry Price">$<%= Number(pos.average_price).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 4}) %></td>
                             <td data-label="Take Profit">
                                 <div class="limit-input-group">
-                                    <input type="number" id="tp-<%= pos.symbol %>" class="tp-field" placeholder="TP" value="<%= pos.take_profit || '' %>">
-                                    <button class="set-btn tp" onclick="updateLimits('<%= pos.symbol %>', document.getElementById('tp-<%= pos.symbol %>').value, 'tp', this)">SET</button>
+                                    <input type="number" step="any" id="tp-<%= inputSuffix %>" class="tp-field" placeholder="TP" value="<%= pos.take_profit || '' %>">
+                                    <button class="set-btn tp" onclick="updateLimits('<%= pos.symbol %>', document.getElementById('tp-<%= inputSuffix %>').value, 'tp', this, '<%= pos.side %>', <%= pos.leverage %>)">SET</button>
                                 </div>
                             </td>
                             <td data-label="Stop Loss">
                                 <div class="limit-input-group">
-                                    <input type="number" id="sl-<%= pos.symbol %>" class="sl-field" placeholder="SL" value="<%= pos.stop_loss || '' %>">
-                                    <button class="set-btn sl" onclick="updateLimits('<%= pos.symbol %>', document.getElementById('sl-<%= pos.symbol %>').value, 'sl', this)">SET</button>
+                                    <input type="number" step="any" id="sl-<%= inputSuffix %>" class="sl-field" placeholder="SL" value="<%= pos.stop_loss || '' %>">
+                                    <button class="set-btn sl" onclick="updateLimits('<%= pos.symbol %>', document.getElementById('sl-<%= inputSuffix %>').value, 'sl', this, '<%= pos.side %>', <%= pos.leverage %>)">SET</button>
                                 </div>
                             </td>
                             <td data-label="Liq. Price" class="pos-liq" style="color: #f59e0b;">---</td>
                             <td data-label="Leverage"><%= pos.leverage %>x</td>
                             <td data-label="PnL" class="pos-pnl">Calculating...</td>
                             <td class="mobile-action-cell">
-                                <button onclick="closePosition('<%= pos.symbol %>', '<%= pos.network %>', '<%= pos.contract %>', <%= pos.shares %>)" class="btn-close-ghost">
+                                <button onclick="closePosition('<%= pos.symbol %>', '<%= pos.network %>', '<%= pos.contract %>', <%= pos.shares %>, '<%= pos.side %>', <%= pos.leverage %>)" class="btn-close-ghost">
                                     Close Position
                                 </button>
                             </td>
