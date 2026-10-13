@@ -119,10 +119,10 @@ CREATE TABLE mal_anime (
     mal_id INT PRIMARY KEY,
     title VARCHAR(255) NOT NULL,
     english_title VARCHAR(255),
-    type VARCHAR(50),         -- TV, Movie, OVA, Special, etc.
+    type VARCHAR(50),
     episodes INT,
-    status VARCHAR(50),       -- Finished Airing, Currently Airing, etc.
-    score DECIMAL(4,2),       -- Handles scores like 8.54 or 9.12 perfectly
+    status VARCHAR(50),
+    score DECIMAL(4,2),
     synopsis TEXT,
     image_url VARCHAR(500),
     last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP

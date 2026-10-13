@@ -3948,7 +3948,7 @@ rranime.get('/search', async (req, res) => {
              ORDER BY score DESC LIMIT 36`, 
             [`%${searchQuery}%`, `%${searchQuery}%`]
         );
-        res.render('searchresults', {
+        res.render('animesearchresults', {
             searchKeyword: searchQuery,
             animeResults: results
         });
@@ -3956,6 +3956,25 @@ rranime.get('/search', async (req, res) => {
         console.error(err);
         logError('RRANIME_SEARCH_ROUTE_ERROR', err);
         res.status(500).send("Error searching rranime index catalog: " + err.message);
+    }
+});
+
+rranime.get('/api/anime-search', async (req, res) => {
+    const query = req.query.q;
+    if (!query || query.length < 2) return res.json([]);
+    try {
+        const sql = `
+            SELECT title, english_title, type, score, image_url 
+            FROM mal_anime 
+            WHERE title LIKE ? OR english_title LIKE ? 
+            LIMIT 5
+        `;
+        const searchTerm = `%${query}%`;
+        const [results] = await db.execute(sql, [searchTerm, searchTerm]);
+        res.json(results);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Database query failed' });
     }
 });
 
@@ -4113,6 +4132,7 @@ async function fetchAndSaveAllMALAnime() {
             await sleep(1500); 
         }
         console.log("MAL synchronization completed successfully!");
+        await fetchAndSaveAiringMALAnime(true);
     } catch (error) {
         console.error("Critical error processing official MAL data:", error);
     }
@@ -4241,29 +4261,6 @@ async function getContract(network, poolAddress) {
     } catch (error) {
         logError('GET_CONTRACT_ERROR', error);
         return priceCache[cacheKey] ? priceCache[cacheKey].price : null;
-    }
-}
-
-async function getPosition(userid, symbol, side, leverage) {
-    try {
-        const [rows] = await db.query(
-            `SELECT * FROM portfolios 
-             WHERE userid = ? AND symbol = ? AND side = ? AND leverage = ?`, 
-            [userid, symbol, side, parseInt(leverage)]
-        );
-        if (!rows || rows.length === 0) { 
-            return { leverage: 0, shares: 0, margin_used: 0, average_price: 0 }; 
-        }
-        return { 
-            leverage: rows[0].leverage || 0, 
-            shares: parseFloat(rows[0].shares) || 0, 
-            margin_used: parseFloat(rows[0].margin_used) || 0,
-            average_price: parseFloat(rows[0].average_price) || 0
-        };
-    } catch (error) {
-        logError('GET_POSITION_ERROR', error);
-        console.error("Position Fetch Error:", error);
-        throw error;
     }
 }
 
@@ -4509,7 +4506,7 @@ try {
         timezone: "America/Chicago"
     });
     // Run Functions Every Hour
-    cron.schedule('0 * * * *', async () => {
+    cron.schedule('30 * * * *', async () => {
         await fetchAndSaveAiringMALAnime(true);
     }, {
         scheduled: true,
