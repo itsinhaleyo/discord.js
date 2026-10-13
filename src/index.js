@@ -2518,7 +2518,7 @@ client.on('messageCreate', async (message) => {
     if (message.content.includes("/x.com") || message.content.includes("/twitter.com")) {
         if (message.author.bot) return;
         try {
-            let replacement = message.content.replace("/x.com", "/fixupx.com").replace("/twitter.com", "/fxtwitter.com");
+            let replacement = message.content.replace("/x.com", "/vxtwitter.com").replace("/twitter.com", "/vxtwitter.com");
             await message.reply({ content: `${replacement}`, allowedMentions: { repliedUser: false } });
             await message.delete().catch(err => { if (err.code !== 10008) console.error('Delete failed:', err); });
         } catch (error) { 
@@ -2566,11 +2566,13 @@ client.on('messageCreate', async (message) => {
 
 //// Website Coding
 // Website Init
-const mainweb = express(), web = express(), admin = express(), apiweb = express(), rrme = express();
+const mainweb = express(), web = express(), admin = express(), apiweb = express(), rrme = express(), rranime = express();
 web.set('view engine', 'ejs');
 web.set('views', path.join(__dirname, 'public', 'templates'));
 rrme.set('view engine', 'ejs');
 rrme.set('views', path.join(__dirname, 'public', 'templates'));
+rranime.set('view engine', 'ejs');
+rranime.set('views', path.join(__dirname, 'public', 'templates'));
 mainweb.set('view engine', 'ejs');
 mainweb.set('views', path.join(__dirname, 'public', 'templates')); 
 admin.set('view engine', 'ejs');
@@ -3816,6 +3818,147 @@ autoRoute('/error_logs', 'error_logs');
 autoRoute('/towers', 'towers');
 apiweb.use((req, res) => { res.status(404).json({ error: "API Route Not Found", help: "List of API endpoints at https://api.itsinhaleyo.online/" }); });
 
+// RRAnime URL's
+rranime.get('/', async (req, res) => {
+    try {
+        const [trendingTags] = await db.query(
+            `SELECT mal_id, title FROM mal_anime 
+             WHERE score IS NOT NULL 
+             ORDER BY score DESC LIMIT 4`
+        );
+        res.render('rranimelanding', { 
+            trending: trendingTags 
+        });
+    } catch (err) {
+        console.error(err);
+        logError('RRANIME_LANDING_PAGE_ERROR', err);
+        res.status(500).send("Error loading RRA: " + err.message);
+    }
+});
+
+rranime.get('/home', async (req, res) => {
+    try {
+        const [spotlight] = await db.query(
+            `SELECT mal_id, title, english_title, type, episodes, score, synopsis, image_url 
+             FROM mal_anime 
+             WHERE type = 'TV' AND synopsis IS NOT NULL
+             ORDER BY score DESC LIMIT 5`
+        );
+        const [trendingGrid] = await db.query(
+            `SELECT mal_id, title, image_url 
+             FROM mal_anime 
+             ORDER BY score DESC LIMIT 6`
+        );
+        const [latestEpisodes] = await db.query(
+            `SELECT mal_id, title, type, episodes, image_url 
+             FROM mal_anime 
+             ORDER BY last_updated DESC LIMIT 12`
+        );
+        const [sidebarTopAnime] = await db.query(
+            `SELECT mal_id, title, type, score, image_url 
+             FROM mal_anime 
+             ORDER BY score DESC LIMIT 10`
+        );
+        res.render('rranime', {
+            spotlightAnime: spotlight,
+            trendingAnime: trendingGrid,
+            latestAnime: latestEpisodes,
+            sidebarAnime: sidebarTopAnime
+        });
+
+    } catch (err) {
+        console.error(err);
+        logError('RRANIME_HOME_PAGE_ERROR', err);
+        res.status(500).send("Error loading RRA home page: " + err.message);
+    }
+});
+
+rranime.get('/anime/:animeid', async (req, res) => {
+    try {
+        const animeId = req.params.animeid;
+        const [rows] = await db.query(
+            `SELECT mal_id, title, english_title, type, episodes, status, score, synopsis, image_url 
+             FROM mal_anime 
+             WHERE mal_id = ?`, [animeId]
+        );
+        if (rows.length === 0) {
+            return res.status(404).send("Anime Title Not Found");
+        }
+        const animeDetails = rows[0]; 
+        if (!animeDetails.episodes || animeDetails.episodes === 0) {
+            if (parseInt(animeId) === 21 || animeDetails.title.toLowerCase().includes("one piece")) {
+                animeDetails.episodes = 1180;
+            } else {
+                animeDetails.episodes = 24;
+            }
+        }
+        const [recommendedAnime] = await db.query(
+            `SELECT mal_id, title, type, score, image_url 
+             FROM mal_anime 
+             WHERE mal_id != ? AND type = ?
+             ORDER BY score DESC LIMIT 5`, [animeId, animeDetails.type]
+        );
+        res.render('animeview', {
+            anime: animeDetails,
+            recommendations: recommendedAnime
+        });
+    } catch (err) {
+        console.error(err);
+        logError('RRANIME_ANIME_ANIME:ID_ERROR', err);
+        res.status(500).send("Server Error");
+    }
+});
+
+rranime.get('/anime/:animeid/:episode', async (req, res) => {
+    try {
+        const animeId = req.params.animeid;
+        const currentEp = parseInt(req.params.episode) || 1;
+        const [animeRows] = await db.query(
+            `SELECT mal_id, title, english_title, type, episodes, image_url 
+             FROM mal_anime 
+             WHERE mal_id = ?`, [animeId]
+        );
+        if (animeRows.length === 0) {
+            return res.status(404).send("Anime Profile Index Record Not Found.");
+        }
+        const animeDetails = animeRows[0];
+        const totalEpisodesCount = animeDetails.episodes || 12;
+        res.render('animewatch', {
+            anime: animeDetails,
+            currentEpisode: currentEp,
+            totalEpisodes: totalEpisodesCount
+        });
+    } catch (err) {
+        console.error(err);
+        logError('RRANIME_:ANIMEID_:EPISODE_ERROR', err);
+        res.status(500).send("Error compiling video theater streaming canvas: " + err.message);
+    }
+});
+
+rranime.get('/search', async (req, res) => {
+    try {
+        const searchQuery = req.query.keyword || '';
+        if (!searchQuery.trim()) {
+            return res.redirect('/home');
+        }
+        const [results] = await db.query(
+            `SELECT mal_id, title, english_title, type, episodes, score, image_url 
+             FROM mal_anime 
+             WHERE title LIKE ? OR english_title LIKE ?
+             ORDER BY score DESC LIMIT 36`, 
+            [`%${searchQuery}%`, `%${searchQuery}%`]
+        );
+        res.render('searchresults', {
+            searchKeyword: searchQuery,
+            animeResults: results
+        });
+    } catch (err) {
+        console.error(err);
+        logError('RRANIME_SEARCH_ROUTE_ERROR', err);
+        res.status(500).send("Error searching rranime index catalog: " + err.message);
+    }
+});
+
 // RRM Earthworks URL's
 rrme.get('/', (req, res) => {
     try { 
@@ -3883,9 +4026,171 @@ mainweb.use(vhost(`api.itsinhaleyo.online`, apiweb));
 mainweb.use(vhost(`admin.itsinhaleyo.online`, admin));
 mainweb.use(vhost(`itsinhaleyo.online`, web));
 mainweb.use(vhost(`rrmearthworks.com`, rrme));
+mainweb.use(vhost(`rranime.online`, rranime));
 mainweb.listen(port, () => { console.log(`Websites running on PORT:${port}/`); });
 
 // Website Functions
+async function fetchAndSaveAllMALAnime() {
+    const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+    try {
+        let offset = 0;
+        const limit = 500;
+        let downloading = true;
+        console.log(`Starting Official MAL Sync. Resuming from record offset: ${offset}`);
+        while (downloading) {
+            const malClientId = process.env.MAL_ID || process.env.MAL_CLIENT_ID;
+            if (!malClientId) {
+                console.error("MAL client ID is missing. Set MAL_ID or MAL_CLIENT_ID in your environment.");
+                break;
+            }
+            const url = `https://api.myanimelist.net/v2/anime/ranking?ranking_type=all&limit=${limit}&offset=${offset}&fields=alternative_titles,media_type,num_episodes,status,mean,synopsis`;
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    'X-MAL-CLIENT-ID': malClientId,
+                    'Accept': 'application/json'
+                }
+            });
+            if (response.status === 429) {
+                console.log("MAL Rate limit hit! Sleeping for 10 seconds...");
+                await sleep(10000);
+                continue;
+            }
+            if (response.status === 400) {
+                const errorText = await response.text();
+                console.error(`MAL API rejected the request (400). Check endpoint/params. Response: ${errorText}`);
+                break;
+            }
+            if (!response.ok) {
+                console.error(`MAL API Error: Status ${response.status}. Shutting down worker step.`);
+                break;
+            }
+            const payload = await response.json();
+            const edgeList = payload.data || [];
+            if (edgeList.length === 0) {
+                console.log("Database perfectly synced! No more records found.");
+                break;
+            }
+            for (const edge of edgeList) {
+                const node = edge.node;
+                if (!node) continue;
+                const insertSql = `
+                    INSERT INTO mal_anime (mal_id, title, english_title, type, episodes, status, score, synopsis, image_url)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON DUPLICATE KEY UPDATE 
+                        title = VALUES(title),
+                        english_title = VALUES(english_title),
+                        type = VALUES(type),
+                        episodes = VALUES(episodes),
+                        status = VALUES(status),
+                        score = VALUES(score),
+                        synopsis = VALUES(synopsis),
+                        image_url = VALUES(image_url);
+                `;
+                const malId = node.id;
+                const title = node.title;
+                const englishTitle = node.alternative_titles?.en || null;
+                const type = node.media_type || null;
+                const episodes = node.num_episodes || null;
+                const status = node.status || null;
+                const score = node.mean || null; 
+                const synopsis = node.synopsis || null;
+                const imageUrl = node.main_picture?.large || node.main_picture?.medium || null;
+                await db.query(insertSql, [
+                    malId,
+                    title,
+                    englishTitle,
+                    type,
+                    episodes,
+                    status,
+                    score,
+                    synopsis,
+                    imageUrl
+                ]);
+            }
+            console.log(`UPDATED MAL SHOWS [${offset} - ${offset + edgeList.length}] successfully.`);
+            offset += edgeList.length;
+            await sleep(1500); 
+        }
+        console.log("MAL synchronization completed successfully!");
+    } catch (error) {
+        console.error("Critical error processing official MAL data:", error);
+    }
+}
+
+async function fetchAndSaveAiringMALAnime(isHourlyUpdate = false) {
+    const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+    try {
+        let offset = 0;
+        const limit = 500;
+        let downloading = true;
+        const rankingType = isHourlyUpdate ? 'airing' : 'all';
+        console.log(`Starting MAL Sync (${rankingType}). Resuming from record offset: ${offset}`);
+        while (downloading) {
+            const malClientId = process.env.MAL_ID || process.env.MAL_CLIENT_ID;
+            if (!malClientId) {
+                console.error("MAL client ID is missing.");
+                break;
+            }
+            const url = `https://api.myanimelist.net/v2/anime/ranking?ranking_type=airing&limit=${limit}&offset=${offset}&fields=alternative_titles,media_type,num_episodes,status,mean,synopsis`;
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: { 
+                    'X-MAL-CLIENT-ID': malClientId,
+                     'Accept': 'application/json'
+                }
+            });
+            if (response.status === 429) {
+                console.log("MAL Rate limit hit! Sleeping for 10 seconds...");
+                await sleep(10000);
+                continue;
+            }
+            if (!response.ok) {
+                console.error(`MAL API Error: Status ${response.status}.`);
+                break;
+            }
+            const payload = await response.json();
+            const edgeList = payload.data || [];
+            if (edgeList.length === 0) {
+                break;
+            }
+            for (const edge of edgeList) {
+                const node = edge.node;
+                if (!node) continue;
+                const insertSql = `
+                    INSERT INTO mal_anime (mal_id, title, english_title, type, episodes, status, score, synopsis, image_url)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON DUPLICATE KEY UPDATE 
+                        title = VALUES(title),
+                        english_title = VALUES(english_title),
+                        type = VALUES(type),
+                        episodes = VALUES(episodes),
+                        status = VALUES(status),
+                        score = VALUES(score),
+                        synopsis = VALUES(synopsis),
+                        image_url = VALUES(image_url);
+                `;
+                await db.query(insertSql, [
+                    node.id,
+                    node.title,
+                    node.alternative_titles?.en || null,
+                    node.media_type || null,
+                    node.num_episodes || null,
+                    node.status || null,
+                    node.mean || null, 
+                    node.synopsis || null,
+                    node.main_picture?.large || node.main_picture?.medium || null
+                ]);
+            }
+            console.log(`UPDATED MAL SHOWS [${offset} - ${offset + edgeList.length}] successfully.`);
+            offset += edgeList.length;
+            await sleep(1500); 
+        }
+    } catch (error) {
+        console.error("Critical error processing official MAL data:", error);
+    }
+}
+
 async function handleLeaderboard(req, res, sortColumn, title) {
     try {
         const searchTerm = req.query.search || '';
@@ -4191,12 +4496,21 @@ setInterval(async () => {
     }
 }, 10000);
 
-// Run Functions Every Day at Midnight
+// Scheduled Cron Jobs
 try {
+    // Run Functions Every Day at Midnight
     cron.schedule('0 0 * * *', async () => {
         await autoclaim();
         await drawDailyLottery()
         await cleanupNotifications(30);
+        await fetchAndSaveAllMALAnime();
+    }, {
+        scheduled: true,
+        timezone: "America/Chicago"
+    });
+    // Run Functions Every Hour
+    cron.schedule('0 * * * *', async () => {
+        await fetchAndSaveAiringMALAnime(true);
     }, {
         scheduled: true,
         timezone: "America/Chicago"
