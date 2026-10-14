@@ -233,28 +233,16 @@
     transition: color 0.2s ease;
 }
 .drawer-nav-links a:hover { color: var(--accent); }
-@media (max-width: 768px) {
-    .navbar {
-        height: 60px;
-    }
-    .navbar .search-bar, 
-    .navbar .social-icons {
-        display: none !important;
-    }
-    .nav-container {
-        padding: 0 1rem;
-    }
-}
-.drawer-search-wrapper {
-    position: relative;
+.drawer-search-wrapper1 {
+    display: none !important;
 }
 .suggestions-dropdown {
     position: absolute;
     top: 100%;
     left: 0;
     width: 100%;
-    background: #fff;
-    border: 1px solid #ccc;
+    background: #161920;
+    border: 1px solid #1c2029;
     box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     z-index: 1000;
     max-height: 300px;
@@ -265,10 +253,10 @@
     align-items: center;
     padding: 8px 12px;
     cursor: pointer;
-    border-bottom: 1px solid #f0f0f0;
+    border-bottom: 1px solid #1c2029;
 }
 .suggestion-item:hover {
-    background-color: #f5f5f5;
+    background-color: #1c2029;
 }
 .suggestion-thumb {
     width: 35px;
@@ -284,9 +272,58 @@
 .suggestion-title {
     font-size: 14px;
     font-weight: 500;
-    color: #333;
+    color: #ccc;
 }
 .suggestion-meta {
     font-size: 12px;
     color: #777;
+}
+@media (min-width: 769px) {
+    .drawer-search-wrapper2 {
+        position: relative !important;
+        display: inline-block;
+    }
+    #search-suggestions-pc {
+        width: 320px !important;
+        position: absolute !important;
+        top: 100% !important;
+        left: 0 !important;
+        border-radius: 0 0 1rem 1rem;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+        border: 1px solid var(--border-color);
+        background: #161920;
+    }
+}
+@media (max-width: 768px) {
+    .drawer-search-wrapper2 {
+        display: none !important;
+    }
+    .navbar {
+        height: auto !important;
+        padding: 10px 0;
+    }
+    .nav-container {
+        display: flex !important;
+        flex-wrap: wrap !important;
+        justify-content: space-between !important;
+        align-items: center !important;
+        height: auto !important;
+        row-gap: 12px;
+        padding: 0 1rem;
+    }
+    .drawer-search-wrapper1 {
+        display: block !important;
+        width: 100% !important;
+        position: relative !important;
+    }
+    .drawer-search-form {
+        width: 100% !important;
+        box-sizing: border-box;
+        display: flex !important;
+        align-items: center;
+        padding: 0.4rem 1rem;
+    }
+    .drawer-search-form input {
+        width: 100% !important;
+    }
 }

@@ -3826,7 +3826,7 @@ rranime.get('/', async (req, res) => {
              WHERE score IS NOT NULL 
              ORDER BY score DESC LIMIT 4`
         );
-        res.render('rranimelanding', { 
+        res.render('animelanding', { 
             trending: trendingTags 
         });
     } catch (err) {
@@ -3859,7 +3859,7 @@ rranime.get('/home', async (req, res) => {
              FROM mal_anime 
              ORDER BY score DESC LIMIT 10`
         );
-        res.render('rranime', {
+        res.render('animehome', {
             spotlightAnime: spotlight,
             trendingAnime: trendingGrid,
             latestAnime: latestEpisodes,
@@ -3959,7 +3959,7 @@ rranime.get('/search', async (req, res) => {
     }
 });
 
-rranime.get('/api/anime-search', async (req, res) => {
+rranime.get('/api/anime-suggestions', async (req, res) => {
     const query = req.query.q;
     if (!query || query.length < 2) return res.json([]);
     try {
@@ -3977,6 +3977,21 @@ rranime.get('/api/anime-search', async (req, res) => {
         res.status(500).json({ error: 'Database query failed' });
     }
 });
+
+rranime.get('/login', (req, res) => {
+    res.render('animelogin', {});
+});
+
+rranime.post('/login', (req, res) => {
+    const { password } = req.body;
+    if (password === process.env.RRANIME_PASSWORD) {
+        return res.redirect('/home');
+    } else {
+        return res.redirect('/login?error=invalid');
+    }
+});
+
+rranime.get('/*any', (req, res) => { res.redirect('/home'); });
 
 // RRM Earthworks URL's
 rrme.get('/', (req, res) => {

@@ -7,16 +7,23 @@
             <div class="logo">
                 <a href="/home">RR<span>Anime</span></a>
             </div>
-            <div class="drawer-search-wrapper">
+            <div class="drawer-search-wrapper2">
                 <form action="/search" method="GET" class="drawer-search-form">
-                    <input type="text" id="anime-search-input" name="keyword" placeholder="Search anime title..." autocomplete="off" required>
+                    <input type="text" id="anime-search-input-pc" name="keyword" placeholder="Search anime title..." autocomplete="off" required>
                     <button type="submit"><i class="fas fa-search"></i></button>
                 </form>
-                <div id="search-suggestions" class="suggestions-dropdown" style="display: none;"></div>
+                <div id="search-suggestions-pc" class="suggestions-dropdown" style="display: none;"></div>
             </div>
         </div>
         <div class="nav-right">
-            <button class="login-btn">Login</button>
+            <button class="login-btn">Watch List</button>
+        </div>
+        <div class="drawer-search-wrapper1">
+            <form action="/search" method="GET" class="drawer-search-form">
+                <input type="text" id="anime-search-input-mobile" name="keyword" placeholder="Search anime title..." autocomplete="off" required>
+                <button type="submit"><i class="fas fa-search"></i></button>
+            </form>
+            <div id="search-suggestions-mobile" class="suggestions-dropdown" style="display: none;"></div>
         </div>
     </div>
 </header>
@@ -26,13 +33,6 @@
         <div class="drawer-header">
             <div class="drawer-logo">RR<span>Anime</span></div>
             <button class="close-drawer-btn" id="mobile-drawer-close-btn"><i class="fas fa-xmark"></i></button>
-        </div>
-        <div class="drawer-search-wrapper">
-            <form action="/search" method="GET" class="drawer-search-form">
-                <input type="text" id="anime-search-input" name="keyword" placeholder="Search anime title..." autocomplete="off" required>
-                <button type="submit"><i class="fas fa-search"></i></button>
-            </form>
-            <div id="search-suggestions" class="suggestions-dropdown" style="display: none;"></div>
         </div>
         <nav class="drawer-nav-links">
             <a href="/home"><i class="fas fa-house"></i> Home</a>
