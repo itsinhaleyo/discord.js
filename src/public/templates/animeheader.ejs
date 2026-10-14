@@ -1,0 +1,43 @@
+<header class="navbar">
+    <div class="nav-container">
+        <div class="nav-left">
+            <button class="sidebar-toggle" id="mobile-menu-toggle" aria-label="Toggle Sidebar">
+                <i class="fas fa-bars"></i>
+            </button>
+            <div class="logo">
+                <a href="/home">RR<span>Anime</span></a>
+            </div>
+            <div class="drawer-search-wrapper2">
+                <form action="/search" method="GET" class="drawer-search-form">
+                    <input type="text" id="anime-search-input-pc" name="keyword" placeholder="Search anime title..." autocomplete="off" required>
+                    <button type="submit"><i class="fas fa-search"></i></button>
+                </form>
+                <div id="search-suggestions-pc" class="suggestions-dropdown" style="display: none;"></div>
+            </div>
+        </div>
+        <div class="nav-right">
+            <button class="login-btn">Watch List</button>
+        </div>
+        <div class="drawer-search-wrapper1">
+            <form action="/search" method="GET" class="drawer-search-form">
+                <input type="text" id="anime-search-input-mobile" name="keyword" placeholder="Search anime title..." autocomplete="off" required>
+                <button type="submit"><i class="fas fa-search"></i></button>
+            </form>
+            <div id="search-suggestions-mobile" class="suggestions-dropdown" style="display: none;"></div>
+        </div>
+    </div>
+</header>
+<div class="mobile-drawer" id="mobile-sidebar-drawer">
+    <div class="drawer-overlay" id="mobile-drawer-close-mask"></div>
+    <div class="drawer-content">
+        <div class="drawer-header">
+            <div class="drawer-logo">RR<span>Anime</span></div>
+            <button class="close-drawer-btn" id="mobile-drawer-close-btn"><i class="fas fa-xmark"></i></button>
+        </div>
+        <nav class="drawer-nav-links">
+            <a href="/home"><i class="fas fa-house"></i> Home</a>
+            <a href="/search?keyword=one+piece"><i class="fas fa-fire"></i> Trending Titles</a>
+        </nav>
+    </div>
+</div>
+<script src="https://rranime.online/script/animeheader.js" defer></script>

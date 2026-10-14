@@ -52,10 +52,10 @@
                     </tr>
                 </thead>
                 <tbody>
-                    <% if (logs.length > 0) { %>
+                    <% if (logs && logs.length > 0) { %>
                         <% logs.forEach(log => { 
                             const action = log.action.toUpperCase();
-                            const isClose = action.includes('SELL') || action.includes('CLOSE') || action.includes('STOP') || action.includes('PROFIT') || action.includes('AUTO');
+                            const isClose = action.includes('SELL') || action.includes('CLOSE') || action.includes('STOP') || action.includes('PROFIT') || action.includes('AUTO') || action.includes('LIQ');
                             const isBuy = action === 'BUY' || action === 'OPEN';
                             let actionColor = '#94a3b8';
                             if (isBuy || action.includes('TP')) actionColor = '#10b981';
@@ -69,16 +69,26 @@
                                 <td data-label="Asset"><strong><%= log.symbol.toUpperCase() %></strong></td>
                                 <td data-label="Action" style="color: <%= actionColor %>; font-weight: bold;"><%= action %></td>
                                 <td data-label="Side" style="color: <%= log.side === 'LONG' ? '#10b981' : '#ef4444' %>;"><%= log.side %></td>
-                                <td data-label="Size"><%= Number(log.amount).toLocaleString() %></td>
-                                <td data-label="Price">$<%= Number(log.price_per_share).toLocaleString() %></td>
+                                
+                                <!-- Added dynamic decimal precision bounds for token sizes -->
+                                <td data-label="Size">
+                                    <%= Number(log.amount).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 8}) %>
+                                </td>
+                                
+                                <!-- Added proper dollar format precision to asset prices -->
+                                <td data-label="Price">
+                                    $<%= Number(log.price_per_share).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 4}) %>
+                                </td>
+                                
                                 <td data-label="Total/PnL">
                                     <div class="total-cell-wrapper">
                                         <span class="total-cost">
-                                            💰<%= Number(log.total_cost).toLocaleString() %>
+                                            💰<%= Number(log.total_cost).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) %>
                                         </span>
-                                        <% if (isClose) { %>
-                                            <span class="pnl-text" style="color: <%= log.pnl >= 0 ? '#10b981' : '#ef4444' %>;">
-                                                <%= log.pnl >= 0 ? '+' : '-' %>💰<%= Math.round(Math.abs(log.pnl)).toLocaleString() %>
+                                        <% if (isClose && log.pnl !== null && log.pnl !== undefined) { %>
+                                            <!-- Fixed sign formatting bug to prevent double negative output strings -->
+                                            <span class="pnl-text" style="color: <%= Number(log.pnl) >= 0 ? '#10b981' : '#ef4444' %>;">
+                                                <%= Number(log.pnl) >= 0 ? '+' : '-' %>💰<%= Math.round(Math.abs(Number(log.pnl))).toLocaleString() %>
                                             </span>
                                         <% } %>
                                     </div>

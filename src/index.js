@@ -2515,10 +2515,10 @@ client.on('messageCreate', async (message) => {
 
     if (message.content === 'help') { message.reply({ content: 'Please use / commands.', flags: [MessageFlags.Ephemeral] }); }
 
-    if (message.content.includes("x.com") || message.content.includes("twitter.com")) {
+    if (message.content.includes("/x.com") || message.content.includes("/twitter.com")) {
         if (message.author.bot) return;
         try {
-            let replacement = message.content.replace(".x.com", ".fixupx.com").replace(".twitter.com", ".fxtwitter.com");
+            let replacement = message.content.replace("/x.com", "/vxtwitter.com").replace("/twitter.com", "/vxtwitter.com");
             await message.reply({ content: `${replacement}`, allowedMentions: { repliedUser: false } });
             await message.delete().catch(err => { if (err.code !== 10008) console.error('Delete failed:', err); });
         } catch (error) { 
@@ -2527,7 +2527,7 @@ client.on('messageCreate', async (message) => {
         }
     }
 
-    if (message.content.includes("instagram.com")) {
+    if (message.content.includes(".instagram.com")) {
         if (message.author.id === client.user.id) return;
         try {
             const replacement = message.content.replace(".instagram.com", ".kkinstagram.com");
@@ -2539,7 +2539,7 @@ client.on('messageCreate', async (message) => {
         }
     }
 
-    if (message.content.includes("reddit.com")) {
+    if (message.content.includes(".reddit.com")) {
         if (message.author.bot) return;
         try {
             const replacement = message.content.replace(".reddit.com", ".rxddit.com");
@@ -2551,7 +2551,7 @@ client.on('messageCreate', async (message) => {
         }
     }
 
-    if (message.content.includes("facebook.com")) {
+    if (message.content.includes(".facebook.com")) {
         if (message.author.bot) return;
         try {
             const replacement = message.content.replace(".facebook.com", ".facebed.com");
@@ -2566,13 +2566,17 @@ client.on('messageCreate', async (message) => {
 
 //// Website Coding
 // Website Init
-const mainweb = express(), web = express(), admin = express(), apiweb = express(), rrme = express();
+const mainweb = express(), web = express(), admin = express(), apiweb = express(), rrme = express(), rranime = express();
 web.set('view engine', 'ejs');
 web.set('views', path.join(__dirname, 'public', 'templates'));
 rrme.set('view engine', 'ejs');
 rrme.set('views', path.join(__dirname, 'public', 'templates'));
+rranime.set('view engine', 'ejs');
+rranime.set('views', path.join(__dirname, 'public', 'templates'));
 mainweb.set('view engine', 'ejs');
 mainweb.set('views', path.join(__dirname, 'public', 'templates')); 
+admin.set('view engine', 'ejs');
+admin.set('views', path.join(__dirname, 'public', 'templates')); 
 mainweb.set('subdomain offset', 1);
 mainweb.use(express.urlencoded({ extended: false }));
 mainweb.use(express.json());
@@ -2640,7 +2644,7 @@ passport.deserializeUser(async (id, done) => {
 });
 const getAvatar = (id, hash) => { return `https://cdn.discordapp.com/avatars/${id}/${hash}.png`;};
 const checkAuth = (req, res, next) => req.isAuthenticated() ? next() : res.redirect('/login');
-function checkAdmin(req, res, next) { if (req.isAuthenticated && req.isAuthenticated() && req.user.is_admin === 1) { return next(); } return res.status(403).send("Forbidden: Access Denied"); }
+function checkAdmin(req, res, next) { if (req.isAuthenticated && req.isAuthenticated() && req.user.is_admin === 1) { return next(); } return res.status(403).send(res.redirect('https://itsinhaleyo.online/login')); }
 const phavatar = `${process.env.DOMAIN}/images/imageplaceholder.png`;
 
 // Website URL's
@@ -2773,32 +2777,46 @@ web.get('/profile', checkAuth, async (req, res) => {
 web.get('/portfolio', checkAuth, async (req, res) => {
     try {
         const user = req.user;
-        const [holdings] = await db.query('SELECT * FROM portfolios WHERE userid = ?', [user.userid]);
-        let totalValue = 0;
+        const userid = user.userid;
+        const [userRows] = await db.query('SELECT balance, avatar FROM users WHERE userid = ?', [userid]);
+        const currentBalance = userRows.length ? userRows[0].balance : user.balance;
+        const [holdings] = await db.query('SELECT * FROM portfolios WHERE userid = ?', [userid]);
         let totalCostBasis = 0;
-        const list = await Promise.all(holdings.map(async (stock) => {
+        let totalValue = 0;
+        const list = [];
+        for (const stock of holdings) {
             let currentPrice = await getContract(stock.network, stock.contract);
-            if (!currentPrice || currentPrice === 0) { currentPrice = Number(stock.average_price); }
-            const margin = Number(stock.margin_used);
-            const shares = Number(stock.shares);
-            const entryPrice = Number(stock.average_price);
-            let pnl = stock.side === 'SHORT' ? (entryPrice - currentPrice) * shares : (currentPrice - entryPrice) * shares;
+            if (!currentPrice || currentPrice === 0) { 
+                currentPrice = parseFloat(stock.average_price); 
+            }
+            const margin = parseFloat(stock.margin_used) || 0;
+            const shares = parseFloat(stock.shares) || 0;
+            const entryPrice = parseFloat(stock.average_price) || 0;
+            let pnl = stock.side === 'SHORT' 
+                ? (entryPrice - currentPrice) * shares 
+                : (currentPrice - entryPrice) * shares;
             totalCostBasis += margin;
             totalValue += (margin + pnl);
-            return {
+            list.push({
                 ...stock,
                 symbol: stock.symbol.toUpperCase(),
-                pnl,
+                average_price: entryPrice,
+                shares: shares,
+                margin_used: margin,
+                pnl: pnl,
                 pnlPercent: margin > 0 ? ((pnl / margin) * 100).toFixed(2) : "0.00"
-            };
-        }));
+            });
+        }
         const totalPnlAmount = totalValue - totalCostBasis;
         const totalPnlPercent = totalCostBasis > 0 ? ((totalPnlAmount / totalCostBasis) * 100).toFixed(2) : "0.00";
-        const [notificationCount] = await db.query('SELECT COUNT(*) as count FROM notifications WHERE userid = ? AND is_read = 0', [req.user.userid]);
+        const [notificationCount] = await db.query(
+            'SELECT COUNT(*) as count FROM notifications WHERE userid = ? AND is_read = 0', 
+            [userid]
+        );
         res.render('portfolio', {
-            user,
-            avatarUrl: getAvatar(user.userid, user.avatar),
-            cash: Number(user.balance).toLocaleString(),
+            user: { ...user, balance: currentBalance },
+            avatarUrl: getAvatar(userid, userRows[0]?.avatar || user.avatar),
+            cash: parseFloat(currentBalance).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
             assetValue: Math.round(totalValue).toLocaleString(),
             totalPnlAmount,
             totalPnlPercent,
@@ -2806,7 +2824,7 @@ web.get('/portfolio', checkAuth, async (req, res) => {
             unreadCount: notificationCount[0].count 
         });
     } catch (err) {
-        console.error("Portfolio Error:", err);
+        console.error("Portfolio Route Error:", err);
         logError('WEB_PORTFOLIO_ERROR', err);
         res.status(500).render('404', { errorMessage: "Could not load portfolio." });
     }
@@ -3368,75 +3386,163 @@ web.get('/trading/:symbol', checkAuth, async (req, res) => {
 });
 
 web.post('/trade/buy', checkAuth, async (req, res) => {
+    const connection = await db.getConnection();
     try {
-        const { coinId, network, contract, amount, leverage, side = 'LONG' } = req.body;
+        await connection.beginTransaction();
+        const { coinId, network, contract, amount, leverage: reqLeverage, side = 'LONG' } = req.body;
         const amountToBuy = parseFloat(amount);
+        const leverage = parseInt(reqLeverage) || 1;
         const userid = req.user.userid;
+        if (isNaN(amountToBuy) || amountToBuy <= 0) {
+            await connection.rollback();
+            return res.json({ success: false, message: "Invalid trade amount." });
+        }
         const price = await getContract(network, contract);
-        const totalPositionValue = Math.round(price * amountToBuy);
-        const marginRequired = Math.round(totalPositionValue / leverage);
-        const [userRows] = await db.query('SELECT balance FROM users WHERE userid = ?', [userid]);
-        if (userRows[0].balance < marginRequired) {
+        if (!price || isNaN(price) || price <= 0) {
+            await connection.rollback();
+            return res.json({ success: false, message: "Pricing engine offline. Trade canceled!" });
+        }
+        const totalPositionValue = price * amountToBuy;
+        const marginRequired = totalPositionValue / leverage;
+        const [userRows] = await connection.query('SELECT balance FROM users WHERE userid = ? FOR UPDATE', [userid]);
+        if (!userRows.length || userRows[0].balance < marginRequired) {
+            await connection.rollback();
             return res.json({ success: false, message: "Insufficient Balance!" });
         }
-        await db.query('UPDATE users SET balance = balance - ? WHERE userid = ?', [marginRequired, userid]);
-        await db.query(`
-            INSERT INTO portfolios (userid, symbol, shares, average_price, network, contract, leverage, margin_used, side) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) 
+        await connection.query('UPDATE users SET balance = balance - ? WHERE userid = ?', [marginRequired, userid]);
+        await connection.query(`
+            INSERT INTO portfolios (userid, symbol, side, leverage, shares, average_price, margin_used) 
+            VALUES (?, ?, ?, ?, ?, ?, ?) 
             ON DUPLICATE KEY UPDATE 
-                average_price = (average_price * shares + VALUES(average_price) * VALUES(shares)) / (shares + VALUES(shares)),
-                shares = shares + VALUES(shares),
-                margin_used = margin_used + VALUES(margin_used)`, 
-            [userid, coinId, amountToBuy, price, network, contract, leverage, marginRequired, side]
+                average_price = (average_price * shares + (VALUES(average_price) * VALUES(shares))) / (shares + VALUES(shares)),
+                margin_used = margin_used + VALUES(margin_used),
+                shares = shares + VALUES(shares)`, 
+            [userid, coinId, side, leverage, amountToBuy, price, marginRequired]
         );
-        await db.query('INSERT INTO stock_logs (userid, symbol, action, amount, price_per_share, total_cost, leverage, side) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', 
-            [userid, coinId, 'BUY', amountToBuy, price, marginRequired, leverage, side]);
+        await connection.query(`
+            INSERT INTO stock_logs (userid, symbol, side, action, amount, price_per_share, total_cost, leverage, pnl) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)`, 
+            [userid, coinId, side, 'BUY', amountToBuy, price, marginRequired, leverage]
+        );
+        await connection.commit();
         res.json({ success: true, message: `Opened ${leverage}x ${side} position!` });
     } catch (err) {
+        await connection.rollback();
         logError('CALLBACK_TRADE_BUY_ERROR', err);
         res.status(500).json({ success: false, message: "Server error" });
+    } finally {
+        connection.release();
     }
 });
 
 web.post('/trade/sell', checkAuth, async (req, res) => {    
+    const connection = await db.getConnection();
     try {
-        const { coinId, network, contract, amount } = req.body;
+        await connection.beginTransaction();
+        const { coinId, amount, leverage: reqLeverage, side } = req.body;
+        const coinConfig = {
+            'BTC': { network: "avax", contract: "0x8fef4fe4970a5d6bfa7c65871a2ebfd0f42aa822" },
+            'ETH': { network: "bsc", contract: "0xd0e226f674bbf064f54ab47f42473ff80db98cba" },
+            'ETC': { network: "solana", contract: "Sx3ec3k2tef4Gs2iaozgfx16jPMPBdcaWamePY3BZLp" },
+            'SOL': { network: "base", contract: "0xb30540172f1b37d1ee1d109e49f883e935e69219" },
+            'ZEC': { network: "near", contract: "refv1-6065" },
+            'DOGE': { network: "bsc", contract: "0xce6160bb594fc055c943f59de92cee30b8c6b32c" },
+            'TRX': { network: "solana", contract: "DNspJcdhQzaptzbRR2yx1QxbUJV5JdcqJL65xrkkxx9Y" },
+            'ADA': { network: "bsc", contract: "0x29c5ba7dbb67a4af999a28cc380ad234fe7c1b86" },
+            'LTC': { network: "bsc", contract: "0xe3cbe4dd1bd2f7101f17d586f44bab944091d383" },
+            'WBNB': { network: "bsc", contract: "0x58f876857a02d6762e0101bb5c46a8c1ed44dc16" },
+            'AVAX': { network: "avax", contract: "0xf01449c0ba930b6e2caca3def3ccbd7a3e589534" },
+            'LINK': { network: "eth", contract: "0xa6cc3c2531fdaa6ae1a3ca84c2855806728693e8" },
+            'UNI': { network: "eth", contract: "0x1d42064fc4beb5f8aaf85f4617ae8b3b5b8bd801" },
+            'AAVE': { network: "eth", contract: "0x5ab53ee1d50eef2c1dd3d5402789cd27bb52c1bb" },
+            'XMR': { network: "solana", contract: "CDJtzEhhd3K6Exv9ssw3ZafbmVwEDF6QhNGbYrShyTUc" },
+        };
         const amountToSell = parseFloat(amount);
+        const leverage = parseInt(reqLeverage) || 1;
         const userid = req.user.userid;
-        const [holdings] = await db.query(
-            'SELECT shares, average_price, margin_used, side FROM portfolios WHERE userid = ? AND symbol = ?', 
-            [userid, coinId]
-        );
-        if (holdings.length === 0) return res.json({ success: false, message: "No position found." });
-        const pos = holdings[0];
-        const currentPrice = await getContract(network, contract);
-        let pnl;
-        if (pos.side === 'SHORT') { pnl = (pos.average_price - currentPrice) * amountToSell; } else {  pnl = (currentPrice - pos.average_price) * amountToSell; }
-        const marginToRelease = pos.margin_used * (amountToSell / pos.shares);
-        let totalReturn = Math.round(marginToRelease + pnl);
-        if (totalReturn < 0) totalReturn = 0;
-        await db.query('UPDATE users SET balance = balance + ? WHERE userid = ?', [totalReturn, userid]);
-        if (pos.shares === amountToSell) {
-            await db.query('DELETE FROM portfolios WHERE userid = ? AND symbol = ?', [userid, coinId]);
-        } else {
-            await db.query('UPDATE portfolios SET shares = shares - ?, margin_used = margin_used - ? WHERE userid = ? AND symbol = ?', [amountToSell, marginToRelease, userid, coinId]);
+        if (!side || (side !== 'LONG' && side !== 'SHORT')) {
+            await connection.rollback();
+            return res.json({ success: false, message: "Invalid position side parameter." });
         }
-        await db.query(
-            'INSERT INTO stock_logs (userid, symbol, action, amount, price_per_share, total_cost, leverage, side, pnl) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)', 
-            [userid, coinId, 'SELL', amountToSell, currentPrice, totalReturn, pos.leverage, pos.side, pnl]
+        if (isNaN(amountToSell) || amountToSell <= 0) {
+            await connection.rollback();
+            return res.json({ success: false, message: "Invalid close amount." });
+        }
+        const assetMeta = coinConfig[coinId ? coinId.toUpperCase() : ""];
+        if (!assetMeta) {
+            await connection.rollback();
+            return res.json({ success: false, message: "Asset metadata configuration missing." });
+        }
+        const [holdings] = await connection.query(
+            'SELECT shares, average_price, margin_used FROM portfolios WHERE userid = ? AND symbol = ? AND side = ? AND leverage = ? FOR UPDATE', 
+            [userid, coinId, side, leverage]
         );
-        res.json({ success: true, message: `Position Closed! Return: 💰${totalReturn.toLocaleString()}` });
+        if (holdings.length === 0) {
+            await connection.rollback();
+            return res.json({ success: false, message: "No matching position found." });
+        }
+        const pos = holdings[0];
+        if (amountToSell > pos.shares) {
+            await connection.rollback();
+            return res.json({ success: false, message: "Cannot close more shares than you own." });
+        }
+        const currentPrice = await getContract(assetMeta.network, assetMeta.contract);
+        if (!currentPrice || isNaN(currentPrice) || currentPrice <= 0) {
+            await connection.rollback();
+            return res.json({ success: false, message: "Pricing engine offline. Position close rejected!" });
+        }
+        let pnl;
+        if (side === 'SHORT') { 
+            pnl = (pos.average_price - currentPrice) * amountToSell; 
+        } else {  
+            pnl = (currentPrice - pos.average_price) * amountToSell; 
+        }
+        const marginToRelease = pos.margin_used * (amountToSell / pos.shares);
+        let totalReturn = marginToRelease + pnl;
+        if (totalReturn < 0) totalReturn = 0;
+        await connection.query('UPDATE users SET balance = balance + ? WHERE userid = ?', [totalReturn, userid]);
+        if (Math.abs(pos.shares - amountToSell) < 0.00000001) {
+            await connection.query(
+                'DELETE FROM portfolios WHERE userid = ? AND symbol = ? AND side = ? AND leverage = ?', 
+                [userid, coinId, side, leverage]
+            );
+        } else {
+            await connection.query(`
+                UPDATE portfolios 
+                SET shares = shares - ?, margin_used = margin_used - ? 
+                WHERE userid = ? AND symbol = ? AND side = ? AND leverage = ?`, 
+                [amountToSell, marginToRelease, userid, coinId, side, leverage]
+            );
+        }
+        await connection.query(`
+            INSERT INTO stock_logs (userid, symbol, side, action, amount, price_per_share, total_cost, leverage, pnl) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, 
+            [userid, coinId, side, 'SELL', amountToSell, currentPrice, marginToRelease, leverage, pnl]
+        );
+        await connection.commit();
+        res.json({ success: true, message: `Position Closed! Return: 💰${totalReturn.toFixed(2)}` });
     } catch (err) {
+        await connection.rollback();
         logError('CALLBACK_TRADE_SELL_ERROR', err);
         res.status(500).json({ success: false, message: "Server error" });
+    } finally {
+        connection.release();
     }
 });
 
 web.post('/trade/update-limits', checkAuth, async (req, res) => {
-    const { symbol, value, type } = req.body;
+    const { symbol, value, type, side, leverage } = req.body;
+    if (type !== 'tp' && type !== 'sl') {
+        return res.status(400).json({ success: false, message: "Invalid type" });
+    }
     const column = type === 'tp' ? 'take_profit' : 'stop_loss';
     try {
-        await db.query( `UPDATE portfolios SET ${column} = ? WHERE userid = ? AND symbol = ?`, [value ? parseFloat(value) : null, req.user.userid, symbol] );
+        await db.query(
+            `UPDATE portfolios 
+             SET ${column} = ? 
+             WHERE userid = ? AND symbol = ? AND side = ? AND leverage = ?`, 
+            [value ? parseFloat(value) : null, req.user.userid, symbol, side, parseInt(leverage)]
+        );
         res.json({ success: true });
     } catch (err) {
         logError('CALLBACK_TRADE_UPDATE_LIMITS_ERROR', err);
@@ -3447,45 +3553,52 @@ web.post('/trade/update-limits', checkAuth, async (req, res) => {
 web.get('/trade/history', checkAuth, async (req, res) => {
     try {
         const user = req.user;
-        const [logs] = await db.query( 'SELECT * FROM stock_logs WHERE userid = ? ORDER BY timestamp DESC LIMIT 100', [user.userid]);
-        const closingTrades = logs.filter(log => {
-            const act = log.action.toUpperCase();
-            return act.includes('SELL') || act.includes('CLOSE') || act.includes('STOP') || act.includes('PROFIT');
-        });
-        const totalPnL = closingTrades.reduce((sum, log) => sum + Number(log.pnl), 0);
-        const wins = closingTrades.filter(log => Number(log.pnl) > 0).length;
-        const winRate = closingTrades.length > 0 ? ((wins / closingTrades.length) * 100).toFixed(1) : 0;
+        const userid = user.userid;
+        const [[stats]] = await db.query(`
+            SELECT 
+                SUM(pnl) as totalPnL,
+                COUNT(CASE WHEN pnl > 0 THEN 1 END) as wins,
+                COUNT(*) as totalClosed
+            FROM stock_logs 
+            WHERE userid = ? AND action IN ('SELL', 'CLOSE', 'LIQUIDATION')
+        `, [userid]);
+        const totalPnL = parseFloat(stats.totalPnL) || 0;
+        const totalTrades = stats.totalClosed || 0;
+        const winRate = totalTrades > 0 ? ((stats.wins / totalTrades) * 100).toFixed(1) : "0.0";
+        const [logs] = await db.query(
+            'SELECT * FROM stock_logs WHERE userid = ? ORDER BY timestamp DESC LIMIT 100', 
+            [userid]
+        );
         const uniqueSymbols = [...new Set(logs.map(log => log.symbol.toUpperCase()))];
-        const [notificationCount] = await db.query('SELECT COUNT(*) as count FROM notifications WHERE userid = ? AND is_read = 0', [req.user.userid]);
+        const [notificationCount] = await db.query(
+            'SELECT COUNT(*) as count FROM notifications WHERE userid = ? AND is_read = 0', 
+            [userid]
+        );
         res.render('tradehistory', {
-            avatarUrl: getAvatar(user.userid, user.avatar),
+            avatarUrl: getAvatar(userid, user.avatar),
             totalPnL,
             winRate,
-            totalTrades: closingTrades.length,
+            totalTrades,
             uniqueSymbols,
             logs,
             unreadCount: notificationCount[0].count
         });
     } catch (err) {
-        console.error("History Error:", err);
+        console.error("History Route Error:", err);
         logError('WEB_TRADE_HISTORY_ERROR', err);
         res.status(500).render('404', { errorCode: '500', errorMessage: 'Error loading history' });
     }
 });
 
-web.post('/callback/update/:network/:contract', async (req, res) => {
+web.post('/callback/update/:network/:contract', checkAuth, async (req, res) => {
     const { network, contract } = req.params;
     try {
         const newprice = await getContract(network, contract);
-        const leverage = await getPosition(req.user.userid, contract);
         const [userRows] = await db.query('SELECT balance FROM users WHERE userid = ?', [req.user.userid]);
         const currentBalance = userRows.length > 0 ? userRows[0].balance : 0;
         res.json({ 
             Price: newprice, 
-            Balance: currentBalance,
-            Shares: leverage.shares,
-            Leverage: leverage.leverage,
-            Margin_used: leverage.margin_used
+            Balance: currentBalance
         });
     } catch (err) {
         console.error("Update Route Error:", err);
@@ -3557,13 +3670,26 @@ admin.get('/', checkAdmin, async (req, res) => {
     try {
         const [tickets] = await db.query(`SELECT t.*, u.username FROM lottery_tickets t LEFT JOIN users u ON t.userid = u.userid ORDER BY t.tickets_bought DESC`);
         const [history] = await db.query('SELECT * FROM lottery_history ORDER BY drawn_at DESC LIMIT 20');
-        res.render(path.join(__dirname, 'public', 'templates', 'admin.ejs'), {
+        res.render(path.join(__dirname, 'public', 'templates', 'adminlottery.ejs'), {
             tickets: tickets,
             history: history
         });
     } catch (err) {
         console.error(err);
         res.status(500).send("Admin Panel Error");
+    }
+});
+admin.get('/lottery', checkAdmin, async (req, res) => {
+    try {
+        const [tickets] = await db.query(`SELECT t.*, u.username FROM lottery_tickets t LEFT JOIN users u ON t.userid = u.userid ORDER BY t.tickets_bought DESC`);
+        const [history] = await db.query('SELECT * FROM lottery_history ORDER BY drawn_at DESC LIMIT 20');
+        res.render(path.join(__dirname, 'public', 'templates', 'adminlottery.ejs'), {
+            tickets: tickets,
+            history: history
+        });
+    } catch (err) {
+        console.error(err);
+        res.status(500).send("Admin Lottery Error");
     }
 });
 admin.post('/api/admin/lottery/draw', checkAdmin, async (req, res) => {
@@ -3581,6 +3707,19 @@ admin.delete('/api/admin/lottery/clear-history', checkAdmin, async (req, res) =>
     } catch (err) {
         res.status(500).json({ success: false, message: "Failed to clear records." });
     }
+});
+admin.use(checkAdmin, async (req, res) => {
+    res.status(404).render('admin404', {
+        title: "Page Not Found",
+        errorCode: "404"
+    });
+});
+admin.use(checkAdmin, async (err, req, res, next) => {
+    console.error("DEBUG - Server Error:", err.stack);
+    res.status(500).render('admin404', {
+        title: "Internal Server Error",
+        errorCode: "500"
+    });
 });
 
 // API URL's
@@ -3679,6 +3818,181 @@ autoRoute('/error_logs', 'error_logs');
 autoRoute('/towers', 'towers');
 apiweb.use((req, res) => { res.status(404).json({ error: "API Route Not Found", help: "List of API endpoints at https://api.itsinhaleyo.online/" }); });
 
+// RRAnime URL's
+rranime.get('/', async (req, res) => {
+    try {
+        const [trendingTags] = await db.query(
+            `SELECT mal_id, title FROM mal_anime 
+             WHERE score IS NOT NULL 
+             ORDER BY score DESC LIMIT 4`
+        );
+        res.render('animelanding', { 
+            trending: trendingTags 
+        });
+    } catch (err) {
+        console.error(err);
+        logError('RRANIME_LANDING_PAGE_ERROR', err);
+        res.status(500).send("Error loading RRA: " + err.message);
+    }
+});
+
+rranime.get('/home', async (req, res) => {
+    try {
+        const [spotlight] = await db.query(
+            `SELECT mal_id, title, english_title, type, episodes, score, synopsis, image_url 
+             FROM mal_anime 
+             WHERE type = 'TV' AND synopsis IS NOT NULL
+             ORDER BY score DESC LIMIT 5`
+        );
+        const [trendingGrid] = await db.query(
+            `SELECT mal_id, title, image_url 
+             FROM mal_anime 
+             ORDER BY score DESC LIMIT 6`
+        );
+        const [latestEpisodes] = await db.query(
+            `SELECT mal_id, title, type, episodes, image_url 
+             FROM mal_anime 
+             ORDER BY last_updated DESC LIMIT 12`
+        );
+        const [sidebarTopAnime] = await db.query(
+            `SELECT mal_id, title, type, score, image_url 
+             FROM mal_anime 
+             ORDER BY score DESC LIMIT 10`
+        );
+        res.render('animehome', {
+            spotlightAnime: spotlight,
+            trendingAnime: trendingGrid,
+            latestAnime: latestEpisodes,
+            sidebarAnime: sidebarTopAnime
+        });
+
+    } catch (err) {
+        console.error(err);
+        logError('RRANIME_HOME_PAGE_ERROR', err);
+        res.status(500).send("Error loading RRA home page: " + err.message);
+    }
+});
+
+rranime.get('/anime/:animeid', async (req, res) => {
+    try {
+        const animeId = req.params.animeid;
+        const [rows] = await db.query(
+            `SELECT mal_id, title, english_title, type, episodes, status, score, synopsis, image_url 
+             FROM mal_anime 
+             WHERE mal_id = ?`, [animeId]
+        );
+        if (rows.length === 0) {
+            return res.status(404).send("Anime Title Not Found");
+        }
+        const animeDetails = rows[0]; 
+        if (!animeDetails.episodes || animeDetails.episodes === 0) {
+            if (parseInt(animeId) === 21 || animeDetails.title.toLowerCase().includes("one piece")) {
+                animeDetails.episodes = 1180;
+            } else {
+                animeDetails.episodes = 24;
+            }
+        }
+        const [recommendedAnime] = await db.query(
+            `SELECT mal_id, title, type, score, image_url 
+             FROM mal_anime 
+             WHERE mal_id != ? AND type = ?
+             ORDER BY score DESC LIMIT 5`, [animeId, animeDetails.type]
+        );
+        res.render('animeview', {
+            anime: animeDetails,
+            recommendations: recommendedAnime
+        });
+    } catch (err) {
+        console.error(err);
+        logError('RRANIME_ANIME_ANIME:ID_ERROR', err);
+        res.status(500).send("Server Error");
+    }
+});
+
+rranime.get('/anime/:animeid/:episode', async (req, res) => {
+    try {
+        const animeId = req.params.animeid;
+        const currentEp = parseInt(req.params.episode) || 1;
+        const [animeRows] = await db.query(
+            `SELECT mal_id, title, english_title, type, episodes, image_url 
+             FROM mal_anime 
+             WHERE mal_id = ?`, [animeId]
+        );
+        if (animeRows.length === 0) {
+            return res.status(404).send("Anime Profile Index Record Not Found.");
+        }
+        const animeDetails = animeRows[0];
+        const totalEpisodesCount = animeDetails.episodes || 12;
+        res.render('animewatch', {
+            anime: animeDetails,
+            currentEpisode: currentEp,
+            totalEpisodes: totalEpisodesCount
+        });
+    } catch (err) {
+        console.error(err);
+        logError('RRANIME_:ANIMEID_:EPISODE_ERROR', err);
+        res.status(500).send("Error compiling video theater streaming canvas: " + err.message);
+    }
+});
+
+rranime.get('/search', async (req, res) => {
+    try {
+        const searchQuery = req.query.keyword || '';
+        if (!searchQuery.trim()) {
+            return res.redirect('/home');
+        }
+        const [results] = await db.query(
+            `SELECT mal_id, title, english_title, type, episodes, score, image_url 
+             FROM mal_anime 
+             WHERE title LIKE ? OR english_title LIKE ?
+             ORDER BY score DESC LIMIT 36`, 
+            [`%${searchQuery}%`, `%${searchQuery}%`]
+        );
+        res.render('animesearchresults', {
+            searchKeyword: searchQuery,
+            animeResults: results
+        });
+    } catch (err) {
+        console.error(err);
+        logError('RRANIME_SEARCH_ROUTE_ERROR', err);
+        res.status(500).send("Error searching rranime index catalog: " + err.message);
+    }
+});
+
+rranime.get('/api/anime-suggestions', async (req, res) => {
+    const query = req.query.q;
+    if (!query || query.length < 2) return res.json([]);
+    try {
+        const sql = `
+            SELECT title, english_title, type, score, image_url 
+            FROM mal_anime 
+            WHERE title LIKE ? OR english_title LIKE ? 
+            LIMIT 5
+        `;
+        const searchTerm = `%${query}%`;
+        const [results] = await db.execute(sql, [searchTerm, searchTerm]);
+        res.json(results);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Database query failed' });
+    }
+});
+
+rranime.get('/login', (req, res) => {
+    res.render('animelogin', {});
+});
+
+rranime.post('/login', (req, res) => {
+    const { password } = req.body;
+    if (password === process.env.RRANIME_PASSWORD) {
+        return res.redirect('/home');
+    } else {
+        return res.redirect('/login?error=invalid');
+    }
+});
+
+rranime.get('/*any', (req, res) => { res.redirect('/home'); });
+
 // RRM Earthworks URL's
 rrme.get('/', (req, res) => {
     try { 
@@ -3746,9 +4060,172 @@ mainweb.use(vhost(`api.itsinhaleyo.online`, apiweb));
 mainweb.use(vhost(`admin.itsinhaleyo.online`, admin));
 mainweb.use(vhost(`itsinhaleyo.online`, web));
 mainweb.use(vhost(`rrmearthworks.com`, rrme));
+mainweb.use(vhost(`rranime.online`, rranime));
 mainweb.listen(port, () => { console.log(`Websites running on PORT:${port}/`); });
 
 // Website Functions
+async function fetchAndSaveAllMALAnime() {
+    const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+    try {
+        let offset = 0;
+        const limit = 500;
+        let downloading = true;
+        console.log(`Starting Official MAL Sync. Resuming from record offset: ${offset}`);
+        while (downloading) {
+            const malClientId = process.env.MAL_ID || process.env.MAL_CLIENT_ID;
+            if (!malClientId) {
+                console.error("MAL client ID is missing. Set MAL_ID or MAL_CLIENT_ID in your environment.");
+                break;
+            }
+            const url = `https://api.myanimelist.net/v2/anime/ranking?ranking_type=all&limit=${limit}&offset=${offset}&fields=alternative_titles,media_type,num_episodes,status,mean,synopsis`;
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    'X-MAL-CLIENT-ID': malClientId,
+                    'Accept': 'application/json'
+                }
+            });
+            if (response.status === 429) {
+                console.log("MAL Rate limit hit! Sleeping for 10 seconds...");
+                await sleep(10000);
+                continue;
+            }
+            if (response.status === 400) {
+                const errorText = await response.text();
+                console.error(`MAL API rejected the request (400). Check endpoint/params. Response: ${errorText}`);
+                break;
+            }
+            if (!response.ok) {
+                console.error(`MAL API Error: Status ${response.status}. Shutting down worker step.`);
+                break;
+            }
+            const payload = await response.json();
+            const edgeList = payload.data || [];
+            if (edgeList.length === 0) {
+                console.log("Database perfectly synced! No more records found.");
+                break;
+            }
+            for (const edge of edgeList) {
+                const node = edge.node;
+                if (!node) continue;
+                const insertSql = `
+                    INSERT INTO mal_anime (mal_id, title, english_title, type, episodes, status, score, synopsis, image_url)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON DUPLICATE KEY UPDATE 
+                        title = VALUES(title),
+                        english_title = VALUES(english_title),
+                        type = VALUES(type),
+                        episodes = VALUES(episodes),
+                        status = VALUES(status),
+                        score = VALUES(score),
+                        synopsis = VALUES(synopsis),
+                        image_url = VALUES(image_url);
+                `;
+                const malId = node.id;
+                const title = node.title;
+                const englishTitle = node.alternative_titles?.en || null;
+                const type = node.media_type || null;
+                const episodes = node.num_episodes || null;
+                const status = node.status || null;
+                const score = node.mean || null; 
+                const synopsis = node.synopsis || null;
+                const imageUrl = node.main_picture?.large || node.main_picture?.medium || null;
+                await db.query(insertSql, [
+                    malId,
+                    title,
+                    englishTitle,
+                    type,
+                    episodes,
+                    status,
+                    score,
+                    synopsis,
+                    imageUrl
+                ]);
+            }
+            console.log(`UPDATED MAL SHOWS [${offset} - ${offset + edgeList.length}] successfully.`);
+            offset += edgeList.length;
+            await sleep(1500); 
+        }
+        console.log("MAL synchronization completed successfully!");
+        await fetchAndSaveAiringMALAnime(true);
+    } catch (error) {
+        console.error("Critical error processing official MAL data:", error);
+    }
+}
+
+async function fetchAndSaveAiringMALAnime(isHourlyUpdate = false) {
+    const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+    try {
+        let offset = 0;
+        const limit = 500;
+        let downloading = true;
+        const rankingType = isHourlyUpdate ? 'airing' : 'all';
+        console.log(`Starting MAL Sync (${rankingType}). Resuming from record offset: ${offset}`);
+        while (downloading) {
+            const malClientId = process.env.MAL_ID || process.env.MAL_CLIENT_ID;
+            if (!malClientId) {
+                console.error("MAL client ID is missing.");
+                break;
+            }
+            const url = `https://api.myanimelist.net/v2/anime/ranking?ranking_type=airing&limit=${limit}&offset=${offset}&fields=alternative_titles,media_type,num_episodes,status,mean,synopsis`;
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: { 
+                    'X-MAL-CLIENT-ID': malClientId,
+                     'Accept': 'application/json'
+                }
+            });
+            if (response.status === 429) {
+                console.log("MAL Rate limit hit! Sleeping for 10 seconds...");
+                await sleep(10000);
+                continue;
+            }
+            if (!response.ok) {
+                console.error(`MAL API Error: Status ${response.status}.`);
+                break;
+            }
+            const payload = await response.json();
+            const edgeList = payload.data || [];
+            if (edgeList.length === 0) {
+                break;
+            }
+            for (const edge of edgeList) {
+                const node = edge.node;
+                if (!node) continue;
+                const insertSql = `
+                    INSERT INTO mal_anime (mal_id, title, english_title, type, episodes, status, score, synopsis, image_url)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON DUPLICATE KEY UPDATE 
+                        title = VALUES(title),
+                        english_title = VALUES(english_title),
+                        type = VALUES(type),
+                        episodes = VALUES(episodes),
+                        status = VALUES(status),
+                        score = VALUES(score),
+                        synopsis = VALUES(synopsis),
+                        image_url = VALUES(image_url);
+                `;
+                await db.query(insertSql, [
+                    node.id,
+                    node.title,
+                    node.alternative_titles?.en || null,
+                    node.media_type || null,
+                    node.num_episodes || null,
+                    node.status || null,
+                    node.mean || null, 
+                    node.synopsis || null,
+                    node.main_picture?.large || node.main_picture?.medium || null
+                ]);
+            }
+            console.log(`UPDATED MAL SHOWS [${offset} - ${offset + edgeList.length}] successfully.`);
+            offset += edgeList.length;
+            await sleep(1500); 
+        }
+    } catch (error) {
+        console.error("Critical error processing official MAL data:", error);
+    }
+}
+
 async function handleLeaderboard(req, res, sortColumn, title) {
     try {
         const searchTerm = req.query.search || '';
@@ -3802,46 +4279,70 @@ async function getContract(network, poolAddress) {
     }
 }
 
-async function getPosition(userid, contract) {
-    try {
-        resp = await db.query(`SELECT * FROM portfolios WHERE userid = ? AND contract = ?`, [userid, contract]);
-        if (!resp[0] || resp[0].length === 0) { return { leverage: 0, shares: 0, margin_used: 0 }; }
-        return { leverage: resp[0][0].leverage || 0, shares: resp[0][0].shares || 0, margin_used: resp[0][0].margin_used || 0 };
-    } catch (error) {
-        logError('GET_POSITION_ERROR', error);
-        console.error("Position Fetch Error:", error);
-        throw error;
-    }
-}
-
 async function executeAutoClose(pos, currentPrice, reason) {
+    const connection = await db.getConnection();
     try {
-        const priceDiff = (pos.side === 'SHORT') ? (pos.average_price - currentPrice) : (currentPrice - pos.average_price);
-        const pnl = priceDiff * pos.shares;
-        let totalReturn = Math.round(Number(pos.margin_used) + pnl);
+        await connection.beginTransaction();
+        const [currentPos] = await connection.query(
+            `SELECT shares, average_price, margin_used 
+             FROM portfolios 
+             WHERE userid = ? AND symbol = ? AND side = ? AND leverage = ? 
+             FOR UPDATE`,
+            [pos.userid, pos.symbol, pos.side, parseInt(pos.leverage)]
+        );
+        if (!currentPos.length) {
+            await connection.rollback();
+            return;
+        }
+        const exactPos = currentPos[0];
+        const shares = parseFloat(exactPos.shares);
+        const entryPrice = parseFloat(exactPos.average_price);
+        const marginUsed = parseFloat(exactPos.margin_used);
+        const priceDiff = (pos.side === 'SHORT') ? (entryPrice - currentPrice) : (currentPrice - entryPrice);
+        const pnl = priceDiff * shares;
+        let totalReturn = marginUsed + pnl;
         if (totalReturn < 0) totalReturn = 0;
-        await db.query('UPDATE users SET balance = balance + ? WHERE userid = ?', [totalReturn, pos.userid]);
-        await db.query('DELETE FROM portfolios WHERE userid = ? AND symbol = ?', [pos.userid, pos.symbol]);
-        const actionLabel = `AUTO-${reason.toUpperCase().replace(' ', '-')}`;
-        await db.query( 'INSERT INTO stock_logs (userid, symbol, action, amount, price_per_share, total_cost, leverage, side, pnl) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)', [pos.userid, pos.symbol, actionLabel, pos.shares, currentPrice, totalReturn, pos.leverage, pos.side, pnl]);
+        await connection.query(
+            'UPDATE users SET balance = balance + ? WHERE userid = ?', 
+            [totalReturn, pos.userid]
+        );
+        await connection.query(
+            `DELETE FROM portfolios 
+             WHERE userid = ? AND symbol = ? AND side = ? AND leverage = ?`, 
+            [pos.userid, pos.symbol, pos.side, parseInt(pos.leverage)]
+        );
+        const actionLabel = `AUTO-${reason.toUpperCase().replace(/\s+/g, '-')}`;
+        await connection.query(`
+            INSERT INTO stock_logs (userid, symbol, side, action, amount, price_per_share, total_cost, leverage, pnl) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, 
+            [pos.userid, pos.symbol, pos.side, actionLabel, shares, currentPrice, marginUsed, parseInt(pos.leverage), pnl]
+        );
+        await connection.commit();
         let notifTitle = '';
         let iconEmoji = '📈';
-        const formattedPnL = (pnl >= 0 ? `+$${pnl.toLocaleString()}` : `-$${Math.abs(pnl).toLocaleString()}`);
+        const formattedPnL = (pnl >= 0 ? `+$${pnl.toLocaleString(undefined, {minimumFractionDigits: 2})}` : `-$${Math.abs(pnl).toLocaleString(undefined, {minimumFractionDigits: 2})}`);
         if (reason === "Take Profit") {
-            notifTitle = `🎯 Take Profit Triggered: ${pos.symbol}`;
+            notifTitle = `🎯 Take Profit Triggered: ${pos.symbol.toUpperCase()}`;
             iconEmoji = '💰';
         } else if (reason === "Stop Loss") {
-            notifTitle = `🛑 Stop Loss Triggered: ${pos.symbol}`;
+            notifTitle = `🛑 Stop Loss Triggered: ${pos.symbol.toUpperCase()}`;
             iconEmoji = '📉';
         } else if (reason === "Liquidation") {
-            notifTitle = `💥 Position Liquidated: ${pos.symbol}`;
+            notifTitle = `💥 Position Liquidated: ${pos.symbol.toUpperCase()}`;
             iconEmoji = '💀';
         }
-        const notifMessage = `Your ${pos.side} position on ${pos.symbol} (${pos.leverage}x) was closed automatically via ${reason} at a price of $${currentPrice.toLocaleString()}. Final PnL: ${formattedPnL}.`;
-        await db.query(`INSERT INTO notifications (userid, type, title, message, is_read) VALUES (?, 'TRADE_AUTO_CLOSE', ?, ?, 0)`, [pos.userid, notifTitle, notifMessage]);
+        const notifMessage = `${iconEmoji} Your ${pos.leverage}x ${pos.side} position on ${pos.symbol.toUpperCase()} was closed automatically via ${reason} at a price of $${currentPrice.toLocaleString(undefined, {minimumFractionDigits: 2})}. Final PnL: ${formattedPnL}.`;
+        await db.query(
+            `INSERT INTO notifications (userid, type, title, message, is_read) 
+             VALUES (?, 'TRADE_AUTO_CLOSE', ?, ?, 0)`, 
+            [pos.userid, notifTitle, notifMessage]
+        );
     } catch (err) {
+        await connection.rollback();
         logError('EXECUTE_AUTO_CLOSE_ERROR', err);
-        console.error("Auto-Close Error:", err);
+        console.error("Auto-Close Critical Failure Rollback:", err);
+    } finally {
+        connection.release();
     }
 }
 
@@ -3971,18 +4472,34 @@ async function createTestNotification(userid, type) {
 // Run Functions Every 10s
 setInterval(async () => {
     try {
-        const [positions] = await db.query( 'SELECT * FROM portfolios WHERE take_profit IS NOT NULL OR stop_loss IS NOT NULL' );
+        const [positions] = await db.query('SELECT * FROM portfolios');
         if (positions.length === 0) return;
+        const priceCache = {};
         for (const pos of positions) {
-            const currentPrice = await getContract(pos.network, pos.contract);
+            const cacheKey = `${pos.network}-${pos.contract}`;
+            let currentPrice;
+            if (priceCache[cacheKey]) {
+                currentPrice = priceCache[cacheKey];
+            } else {
+                currentPrice = await getContract(pos.network, pos.contract);
+                priceCache[cacheKey] = currentPrice;
+            }
+            if (!currentPrice || currentPrice <= 0) continue;
             const isLong = pos.side === 'LONG';
-            const isTPHit = isLong ? currentPrice >= pos.take_profit : currentPrice <= pos.take_profit;
-            const isSLHit = isLong ? currentPrice <= pos.stop_loss : currentPrice >= pos.stop_loss;
-            const liqPrice = isLong ? pos.average_price * (1 - (1 / pos.leverage)) : pos.average_price * (1 + (1 / pos.leverage));
+            const leverage = parseInt(pos.leverage) || 1;
+            const entryPrice = parseFloat(pos.average_price);
+            const liqPrice = isLong 
+                ? entryPrice * (1 - (0.8 / leverage)) 
+                : entryPrice * (1 + (0.8 / leverage));
             const isLiqHit = isLong ? currentPrice <= liqPrice : currentPrice >= liqPrice;
-            if ((pos.take_profit && isTPHit) || (pos.stop_loss && isSLHit) || isLiqHit) {
-                const reason = isTPHit ? "Take Profit" : isSLHit ? "Stop Loss" : "Liquidation";
-                await executeAutoClose(pos, currentPrice, reason);
+            const isTPHit = pos.take_profit !== null && (isLong ? currentPrice >= parseFloat(pos.take_profit) : currentPrice <= parseFloat(pos.take_profit));
+            const isSLHit = pos.stop_loss !== null && (isLong ? currentPrice <= parseFloat(pos.stop_loss) : currentPrice >= parseFloat(pos.stop_loss));
+            if (isLiqHit) {
+                await executeAutoClose(pos, currentPrice, "Liquidation");
+            } else if (isTPHit) {
+                await executeAutoClose(pos, currentPrice, "Take Profit");
+            } else if (isSLHit) {
+                await executeAutoClose(pos, currentPrice, "Stop Loss");
             }
         }
     } catch (err) {
@@ -3991,12 +4508,21 @@ setInterval(async () => {
     }
 }, 10000);
 
-// Run Functions Every Day at Midnight
+// Scheduled Cron Jobs
 try {
+    // Run Functions Every Day at Midnight
     cron.schedule('0 0 * * *', async () => {
         await autoclaim();
         await drawDailyLottery()
         await cleanupNotifications(30);
+        await fetchAndSaveAllMALAnime();
+    }, {
+        scheduled: true,
+        timezone: "America/Chicago"
+    });
+    // Run Functions Every Hour
+    cron.schedule('30 * * * *', async () => {
+        await fetchAndSaveAiringMALAnime(true);
     }, {
         scheduled: true,
         timezone: "America/Chicago"

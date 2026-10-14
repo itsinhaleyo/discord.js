@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RRAnime - Watch Anime Online</title>
+    <link rel="stylesheet" href="css/animehome.css">
+    <link rel="stylesheet" href="css/animeheader.css">
+    <link rel="stylesheet" href="css/animefooter.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+<%- include('animeheader') %>
+    <div class="main-layout">
+        <main class="content-area">
+            <section class="hero-slider">
+                <% if (spotlightAnime && spotlightAnime.length > 0) { %>
+                    <% let featured = spotlightAnime[0]; %>
+                    <div class="slide">
+                        <div class="slide-overlay"></div>
+                        <img src="<%= featured.image_url %>" alt="<%= featured.title %>" class="slide-bg">
+                        <div class="slide-content">
+                            <span class="spotlight-tag">#1 Spotlight</span>
+                            <h1 class="anime-title"><%= featured.english_title || featured.title %></h1>
+                            <div class="anime-meta">
+                                <span class="meta-item"><i class="fas fa-tv"></i> <%= featured.type || 'TV' %></span>
+                                <span class="meta-item"><i class="fas fa-star text-primary"></i> <%= featured.score || 'N/A' %></span>
+                                <span class="quality-tag">HD</span>
+                                <span class="sub-dub-tag"><i class="fas fa-closed-captioning"></i> <%= featured.episodes || '?' %></span>
+                                <span class="sub-dub-tag dub"><i class="fas fa-microphone"></i> <%= featured.episodes || '?' %></span>
+                            </div>
+                            <p class="anime-description">
+                                <%= featured.synopsis ? featured.synopsis.substring(0, 180) + '...' : 'No description available.' %>
+                            </p>
+                            <div class="slide-buttons">
+                                <a href="/watch/<%= featured.mal_id %>" class="btn-watch"><i class="fas fa-play"></i> Watch Now</a>
+                                <a href="/anime/<%= featured.mal_id %>" class="btn-detail">Detail <i class="fas fa-chevron-right"></i></a>
+                            </div>
+                        </div>
+                    </div>
+                <% } else { %>
+                    <div class="no-data-placeholder">No featured spotlights available</div>
+                <% } %>
+            </section>
+            <section class="trending-section">
+                <h2 class="section-title"><i class="fas fa-fire text-primary"></i> Trending</h2>
+                <div class="trending-grid">
+                    <% if (trendingAnime && trendingAnime.length > 0) { %>
+                        <% trendingAnime.forEach((anime, index) => { %>
+                            <div class="trending-card">
+                                <div class="trending-number">0<%= index + 1 %></div>
+                                <div class="trending-poster">
+                                    <img src="<%= anime.image_url %>" alt="<%= anime.title %>">
+                                </div>
+                                <div class="trending-info">
+                                    <a href="/anime/<%= anime.mal_id %>" class="title-link">
+                                        <h3 class="title-truncate"><%= anime.title %></h3>
+                                    </a>
+                                </div>
+                            </div>
+                        <% }); %>
+                    <% } else { %>
+                        <p class="empty-notice">No trending titles found.</p>
+                    <% } %>
+                </div>
+            </section>
+            <section class="latest-section">
+                <div class="section-header">
+                    <h2 class="section-title"><i class="fas fa-plus-circle text-primary"></i> Latest Episodes</h2>
+                    <div class="tab-filters">
+                        <span class="tab active">All</span>
+                        <span class="tab">Sub</span>
+                        <span class="tab">Dub</span>
+                    </div>
+                </div>
+                <div class="anime-grid">
+                    <% if (latestAnime && latestAnime.length > 0) { %>
+                        <% latestAnime.forEach(anime => { %>
+                            <div class="anime-card">
+                                <a href="/anime/<%= anime.mal_id %>" class="card-inner-link">
+                                    <div class="poster-wrapper">
+                                        <img src="<%= anime.image_url %>" alt="<%= anime.title %>" loading="lazy">
+                                        <div class="card-badges">
+                                            <span class="badge sub"><i class="fas fa-closed-captioning"></i> <%= anime.episodes || '?' %></span>
+                                            <span class="badge dub"><i class="fas fa-microphone"></i> <%= anime.episodes || '?' %></span>
+                                        </div>
+                                        <div class="episode-badge">Ep <%= anime.episodes || '??' %></div>
+                                    </div>
+                                    <div class="card-details">
+                                        <h3 class="anime-grid-title"><%= anime.title %></h3>
+                                    </div>
+                                </a>
+                            </div>
+                        <% }); %>
+                    <% } else { %>
+                        <p class="empty-notice">No recent entries listed.</p>
+                    <% } %>
+                </div>
+            </section>
+        </main>
+        <aside class="sidebar-area">
+            <div class="sidebar-block">
+                <div class="sidebar-header">
+                    <h3>Top Anime</h3>
+                    <div class="sidebar-tabs">
+                        <span class="stab active">Today</span>
+                        <span class="stab">Week</span>
+                        <span class="stab">Month</span>
+                    </div>
+                </div>
+                <ul class="top-list">
+                    <% if (sidebarAnime && sidebarAnime.length > 0) { %>
+                        <% sidebarAnime.forEach((anime, index) => { %>
+                            <li class="top-item">
+                                <span class="rank-num rank-<%= index + 1 %>"><%= index + 1 %></span>
+                                <div class="top-poster">
+                                    <img src="<%= anime.image_url %>" alt="<%= anime.title %>">
+                                </div>
+                                <div class="top-meta">
+                                    <a href="/anime/<%= anime.mal_id %>">
+                                        <h4 class="title-truncate"><%= anime.title %></h4>
+                                    </a>
+                                    <div class="top-counts">
+                                        <span><i class="fas fa-star text-primary"></i> <%= anime.score || '0.0' %></span>
+                                        <span class="dot">•</span>
+                                        <span class="type-mini"><%= anime.type || 'TV' %></span>
+                                    </div>
+                                </div>
+                            </li>
+                        <% }); %>
+                    <% } else { %>
+                        <li class="top-item-empty">No updates available.</li>
+                    <% } %>
+                </ul>
+            </div>
+            <div class="sidebar-block genres-block">
+                <div class="sidebar-header">
+                    <h3>Genres</h3>
+                </div>
+                <div class="genre-cloud">
+                    <a href="/search?keyword=Action" class="genre-item">Action</a>
+                    <a href="/search?keyword=Adventure" class="genre-item">Adventure</a>
+                    <a href="/search?keyword=Comedy" class="genre-item">Comedy</a>
+                    <a href="/search?keyword=Drama" class="genre-item">Drama</a>
+                    <a href="/search?keyword=Fantasy" class="genre-item">Fantasy</a>
+                    <a href="/search?keyword=Horror" class="genre-item">Horror</a>
+                    <a href="/search?keyword=Mystery" class="genre-item">Mystery</a>
+                    <a href="/search?keyword=Romance" class="genre-item">Romance</a>
+                    <a href="/search?keyword=Sci-Fi" class="genre-item">Sci-Fi</a>
+                    <a href="/search?keyword=Shounen" class="genre-item">Shounen</a>
+                    <a href="/search?keyword=Slice+of+Life" class="genre-item">Slice of Life</a>
+                    <a href="/search?keyword=Supernatural" class="genre-item">Supernatural</a>
+                </div>
+            </div>
+        </aside>
+    </div>
+<%- include('animefooter') %>

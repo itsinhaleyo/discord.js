@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>404 - Page Not Found</title>
+    <%- include('icon') %>
+    <link rel="stylesheet" href="/css/header.css">
+    <link rel="stylesheet" href="/css/404.css">
+</head>
+<body>
+    <%- include('adminheader') %>
+    <div class="error-container">
+        <h1 class="error-code"><%= typeof errorCode !== 'undefined' ? errorCode : '404' %></h1>
+        <h2><%= typeof errorMessage !== 'undefined' ? errorMessage : "Oops! This page doesn't exist." %></h2>
+        <a href="/" class="btn-home">Home Page</a>
+        <footer>
+            <div class="status-badge">● Secure via Cloudflare</div>
+        </footer>
+    </div>
+</body>
+</html>

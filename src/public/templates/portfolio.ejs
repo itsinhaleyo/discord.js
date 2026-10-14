@@ -19,8 +19,8 @@
             <div class="p-stat">
                 <div class="p-label">Total P/L</div>
                 <div class="p-value" id="top-pnl">
-                    <span style="color: <%= totalPnlAmount >= 0 ? '#10b981' : '#ef4444' %>">
-                        <%= totalPnlAmount >= 0 ? '+' : '' %><%= Math.round(totalPnlAmount).toLocaleString() %> (<%= totalPnlPercent %>%)
+                    <span id="global-pnl-render" style="color: #94a3b8;">
+                        Calculating...
                     </span>
                 </div>
             </div>
@@ -29,35 +29,42 @@
             <thead>
                 <tr>
                     <th>Asset</th>
-                    <th>Shares</th>
+                    <th>Shares / Position</th>
                     <th>Profit/Loss</th>
                 </tr>
             </thead>
             <tbody>
-                <% if (holdings.length > 0) { %>
+                <% if (holdings && holdings.length > 0) { %>
                     <% holdings.forEach(stock => { %>
                         <tr class="portfolio-row" 
+                            data-symbol="<%= stock.symbol.toUpperCase() %>"
                             data-network="<%= stock.network %>" 
                             data-contract="<%= stock.contract %>" 
                             data-shares="<%= stock.shares %>" 
                             data-entry="<%= stock.average_price %>"
                             data-margin="<%= stock.margin_used %>"
+                            data-leverage="<%= stock.leverage %>"
                             data-side="<%= stock.side %>">
                             <td>
-                                <%= stock.symbol %><br>
-                                <small style="color: <%= stock.side === 'LONG' ? '#10b981' : '#ef4444' %>; font-size: 0.7rem;">
-                                    <%= stock.side %>
+                                <strong><%= stock.symbol.toUpperCase() %></strong><br>
+                                <small style="color: <%= stock.side === 'LONG' ? '#10b981' : '#ef4444' %>; font-size: 0.7rem; font-weight: bold;">
+                                    <%= stock.leverage %>x <%= stock.side %>
                                 </small>
                             </td>
-                            <td><%= Number(stock.shares).toLocaleString() %></td>
-                            <td class="pos-pnl" style="color: <%= stock.pnl >= 0 ? '#10b981' : '#ef4444' %>">
-                                <%= stock.pnl >= 0 ? '+' : '' %>💰<%= Math.round(stock.pnl).toLocaleString() %>
-                                <div class="pnl-percent" style="font-size: 0.7rem; opacity: 0.8;">(<%= stock.pnlPercent %>%)</div>
+                            <td>
+                                <%= Number(stock.shares).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 8}) %><br>
+                                <small style="color: var(--text-muted); font-size: 0.7rem;">
+                                    Entry: $<%= Number(stock.average_price).toLocaleString(undefined, {minimumFractionDigits: 2}) %>
+                                </small>
+                            </td>
+                            <td class="pos-pnl" style="color: #94a3b8; font-weight: bold;">
+                                <span class="pnl-cash-value">Calculating...</span>
+                                <div class="pnl-percent" style="font-size: 0.7rem; opacity: 0.8; font-weight: normal;">(--%)</div>
                             </td>
                         </tr>
                     <% }); %>
                 <% } else { %>
-                    <tr><td colspan="3">No holdings found</td></tr>
+                    <tr><td colspan="3" style="text-align: center; padding: 20px; color: var(--text-muted);">No holdings found</td></tr>
                 <% } %>
             </tbody>
         </table>
