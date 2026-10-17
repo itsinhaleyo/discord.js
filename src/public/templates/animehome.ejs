@@ -43,10 +43,10 @@
                 <% } %>
             </section>
             <section class="trending-section">
-                <h2 class="section-title"><i class="fas fa-fire text-primary"></i> Trending</h2>
+                <h2 class="section-title"><i class="fas fa-fire text-primary"></i> Airing Now</h2>
                 <div class="trending-grid">
-                    <% if (trendingAnime && trendingAnime.length > 0) { %>
-                        <% trendingAnime.forEach((anime, index) => { %>
+                    <% if (airingAnime && airingAnime.length > 0) { %>
+                        <% airingAnime.forEach((anime, index) => { %>
                             <div class="trending-card">
                                 <div class="trending-number">0<%= index + 1 %></div>
                                 <div class="trending-poster">

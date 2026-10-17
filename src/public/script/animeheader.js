@@ -19,15 +19,10 @@ document.addEventListener('DOMContentLoaded', () => {
         searchBar.addEventListener('click', (e) => {
             const item = e.target.closest('.suggestion-item');
             if (item) {
-                searchInput.value = item.dataset.title;
+                const animeId = item.dataset.id;
                 searchBar.innerHTML = '';
                 searchBar.style.display = 'none';
-                const parentForm = searchInput.closest('form');
-                if (parentForm) {
-                    parentForm.submit();
-                } else {
-                    console.error("Could not find parent form element to submit search.");
-                }
+                window.location.href = `/anime/${animeId}`; 
             }
         });
     }
@@ -40,7 +35,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
             searchBarContainer.innerHTML = animeList.map(anime => `
-                <div class="suggestion-item" data-title="${anime.title}">
+                <div class="suggestion-item" data-id="${anime.mal_id}" data-title="${anime.title}">
                     <img src="${anime.image_url}" alt="${anime.title}" class="suggestion-thumb">
                     <div class="suggestion-info">
                         <span class="suggestion-title">${anime.title}</span>

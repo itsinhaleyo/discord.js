@@ -10,6 +10,7 @@ const { REST, Routes, ActionRowBuilder, MessageFlags, StringSelectMenuBuilder, S
       songsDir = path.join(__dirname, 'songs'), torrentDir = path.join(__dirname, 'torrents');
 Font.loadDefault();
 const priceCache = {};
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 // Email Transporter
 const email = nodemailer.createTransport({
@@ -3844,11 +3845,6 @@ rranime.get('/home', async (req, res) => {
              WHERE type = 'TV' AND synopsis IS NOT NULL
              ORDER BY score DESC LIMIT 5`
         );
-        const [trendingGrid] = await db.query(
-            `SELECT mal_id, title, image_url 
-             FROM mal_anime 
-             ORDER BY score DESC LIMIT 6`
-        );
         const [latestEpisodes] = await db.query(
             `SELECT mal_id, title, type, episodes, image_url 
              FROM mal_anime 
@@ -3859,9 +3855,16 @@ rranime.get('/home', async (req, res) => {
              FROM mal_anime 
              ORDER BY score DESC LIMIT 10`
         );
+        const [airingAnime] = await db.execute(`
+            SELECT mal_id, title, english_title, type, episodes, score, image_url 
+            FROM mal_anime 
+            WHERE status = 'currently_airing'
+            ORDER BY score DESC
+            LIMIT 12
+        `);
         res.render('animehome', {
+            airingAnime: airingAnime,
             spotlightAnime: spotlight,
-            trendingAnime: trendingGrid,
             latestAnime: latestEpisodes,
             sidebarAnime: sidebarTopAnime
         });
@@ -3881,15 +3884,18 @@ rranime.get('/anime/:animeid', async (req, res) => {
              FROM mal_anime 
              WHERE mal_id = ?`, [animeId]
         );
-        if (rows.length === 0) {
-            return res.status(404).send("Anime Title Not Found");
-        }
-        const animeDetails = rows[0]; 
-        if (!animeDetails.episodes || animeDetails.episodes === 0) {
-            if (parseInt(animeId) === 21 || animeDetails.title.toLowerCase().includes("one piece")) {
-                animeDetails.episodes = 1180;
-            } else {
-                animeDetails.episodes = 24;
+        if (rows.length === 0) return res.status(404).send("Anime Title Not Found");
+        let animeDetails = rows[0];
+        if (!animeDetails.episodes || animeDetails.episodes === 0 || animeDetails.status === 'currently_airing') {
+            const anilistData = await fetchEpisodesFromAniList(animeDetails.mal_id);
+            if (anilistData && anilistData.episodes > 0) {
+                animeDetails.episodes = anilistData.episodes;
+                await db.query(
+                    `UPDATE mal_anime SET episodes = ? WHERE mal_id = ?`,
+                    [anilistData.episodes, animeDetails.mal_id]
+                );
+            } else if (!animeDetails.episodes) {
+                animeDetails.episodes = 12; 
             }
         }
         const [recommendedAnime] = await db.query(
@@ -3904,7 +3910,6 @@ rranime.get('/anime/:animeid', async (req, res) => {
         });
     } catch (err) {
         console.error(err);
-        logError('RRANIME_ANIME_ANIME:ID_ERROR', err);
         res.status(500).send("Server Error");
     }
 });
@@ -3932,6 +3937,23 @@ rranime.get('/anime/:animeid/:episode', async (req, res) => {
         console.error(err);
         logError('RRANIME_:ANIMEID_:EPISODE_ERROR', err);
         res.status(500).send("Error compiling video theater streaming canvas: " + err.message);
+    }
+});
+
+rranime.get('/airing', async (req, res) => {
+    try {
+        const [airingAnime] = await db.execute(`
+            SELECT mal_id, title, english_title, type, episodes, score, image_url 
+            FROM mal_anime 
+            WHERE status = 'currently_airing'
+            ORDER BY score DESC
+        `);
+        res.render('animeairing', { 
+            animeList: airingAnime 
+        });
+    } catch (err) {
+        console.error("Error loading currently airing anime page:", err);
+        res.status(500).send("Server Error loading airing schedules.");
     }
 });
 
@@ -3964,7 +3986,7 @@ rranime.get('/api/anime-suggestions', async (req, res) => {
     if (!query || query.length < 2) return res.json([]);
     try {
         const sql = `
-            SELECT title, english_title, type, score, image_url 
+            SELECT mal_id, title, english_title, type, score, image_url 
             FROM mal_anime 
             WHERE title LIKE ? OR english_title LIKE ? 
             LIMIT 5
@@ -4223,6 +4245,51 @@ async function fetchAndSaveAiringMALAnime(isHourlyUpdate = false) {
         }
     } catch (error) {
         console.error("Critical error processing official MAL data:", error);
+    }
+}
+
+async function fetchEpisodesFromAniList(malId) {
+    const query = `
+        query ($idMal: Int) {
+            Media (idMal: $idMal, type: ANIME) {
+                id
+                status
+                episodes
+                nextAiringEpisode {
+                    episode
+                    timeUntilAiring
+                }
+            }
+        }
+    `;
+    const variables = { idMal: parseInt(malId) };
+    try {
+        const response = await axios.post('https://graphql.anilist.co', {
+            query: query,
+            variables: variables
+        }, {
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+            }
+        });
+        const media = response.data?.data?.Media;
+        if (!media) return null;
+        let totalEpisodes = media.episodes;
+        if (media.status === 'RELEASING' && media.nextAiringEpisode) {
+            totalEpisodes = media.nextAiringEpisode.episode - 1;
+        }
+        return {
+            status: media.status,
+            episodes: totalEpisodes || 0
+        };
+    } catch (error) {
+        if (error.response && error.response.status === 404) {
+            console.warn(`MAL ID ${malId} does not exist on AniList's schema framework.`);
+        } else {
+            console.error("Anilist Graphql Communication Failure:", error.message);
+        }
+        return null;
     }
 }
 

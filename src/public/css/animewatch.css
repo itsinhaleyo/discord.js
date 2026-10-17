@@ -537,3 +537,25 @@ Responsive Adaptability Engine
 .directory-strip-row { padding: 0.6rem 0.75rem; font-size: 0.8rem; }
 .footer-links { flex-wrap: wrap; justify-content: center; gap: 1rem; }
 }
+
+body, .main-layout, .sidebar-area, .comments-block-wrapper, .server-switching-block {
+    transition: background-color 0.4s ease, opacity 0.4s ease;
+}
+
+/* Dim background down when active while keeping video theater workspace element highlighted */
+body.theater-mode-dimmed {
+    background-color: #090b0e !important;
+}
+
+body.theater-mode-dimmed .sidebar-area,
+body.theater-mode-dimmed .server-switching-block,
+body.theater-mode-dimmed .comments-block-wrapper {
+    opacity: 0.15; /* Subtly hides sidebars so focus locks natively on the active iframe */
+    pointer-events: none; /* Prevents stray clicks while theater viewing layout states remain active */
+}
+
+body.theater-mode-dimmed .video-theater-wrapper {
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8);
+    position: relative;
+    z-index: 1010; /* Forces video wrapper above background dark layers */
+}
