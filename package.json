@@ -33,7 +33,7 @@
     "passport-discord": "^0.1.4",
     "passport-local": "^1.0.0",
     "pretty-ms": "^9.3.0",
-    "spotify-url-info": "^3.3.0",
+    "spotify-url-info": "^3.3.3",
     "vhost": "^3.0.2",
     "webtorrent": "^2.8.5",
     "youtube-dl-exec": "^3.1.7",
