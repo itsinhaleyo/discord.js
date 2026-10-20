@@ -668,6 +668,18 @@ const commands = [
         ]
     },
     { 
+        name: 'r34', 
+        description: 'Fetch Rule34 Posts',
+        options: [
+            {
+                name: 'query',
+                description: `the search query`,
+                type: ApplicationCommandOptionType.String,
+                required: true
+            }
+        ]
+    },
+    { 
         name: 'say', 
         description: `Makes ${process.env.BOTUSER} Say Something in a Text Channel`,
         options: [
@@ -1250,6 +1262,23 @@ client.on('interactionCreate', async (interaction) => {
             logError('HELP_COMMAND_ERROR', error);
             interaction.reply({ content: 'An error occurred while fetching the help message.', flags: [MessageFlags.Ephemeral] });
         }
+    }
+
+    if (interaction.commandName === 'r34') {
+        try{
+            await interaction.deferReply();
+            const query = interaction.options.getString('query');
+            if (!query) {
+                return interaction.editReply("Please provide a search query.");
+            }
+            const rand = Math.floor(Math.random() * 10);
+            const posts = await fetchRule34Posts(query);
+            interaction.editReply(posts[rand].file_url);
+        } catch (error) {
+            console.error(`Error with /r34: ${error}`);
+            logError('R34_COMMAND_ERROR', error);
+            interaction.editReply({ content: 'An error occurred while fetching the Rule34 posts.\n'+error.message , flags: [MessageFlags.Ephemeral] });
+        }   
     }
 
     if (interaction.commandName === 'ping') {
@@ -3848,7 +3877,8 @@ rranime.get('/home', async (req, res) => {
         const [latestEpisodes] = await db.query(
             `SELECT mal_id, title, type, episodes, image_url 
              FROM mal_anime 
-             ORDER BY last_updated DESC LIMIT 12`
+             WHERE status = 'currently_airing' and rating != 'rx'
+             ORDER BY last_updated DESC LIMIT 15`
         );
         const [sidebarTopAnime] = await db.query(
             `SELECT mal_id, title, type, score, image_url 
@@ -3858,7 +3888,7 @@ rranime.get('/home', async (req, res) => {
         const [airingAnime] = await db.execute(`
             SELECT mal_id, title, english_title, type, episodes, score, image_url 
             FROM mal_anime 
-            WHERE status = 'currently_airing'
+            WHERE status = 'currently_airing' and rating != 'rx'
             ORDER BY score DESC
             LIMIT 12
         `);
@@ -3880,9 +3910,13 @@ rranime.get('/anime/:animeid', async (req, res) => {
     try {
         const animeId = req.params.animeid;
         const [rows] = await db.query(
-            `SELECT mal_id, title, english_title, type, episodes, status, score, synopsis, image_url 
-             FROM mal_anime 
-             WHERE mal_id = ?`, [animeId]
+            `SELECT a.mal_id, a.title, a.english_title, a.type, a.episodes, a.status, a.score, a.synopsis, a.image_url, a.rating,
+                    GROUP_CONCAT(g.genre_name SEPARATOR ', ') AS genres
+             FROM mal_anime a
+             LEFT JOIN anime_genres_mapping ag ON a.mal_id = ag.anime_id
+             LEFT JOIN mal_genres g ON ag.genre_id = g.genre_id
+             WHERE a.mal_id = ?
+             GROUP BY a.mal_id`, [animeId]
         );
         if (rows.length === 0) return res.status(404).send("Anime Title Not Found");
         let animeDetails = rows[0];
@@ -3919,7 +3953,7 @@ rranime.get('/anime/:animeid/:episode', async (req, res) => {
         const animeId = req.params.animeid;
         const currentEp = parseInt(req.params.episode) || 1;
         const [animeRows] = await db.query(
-            `SELECT mal_id, title, english_title, type, episodes, image_url 
+            `SELECT mal_id, title, english_title, status, type, episodes, image_url 
              FROM mal_anime 
              WHERE mal_id = ?`, [animeId]
         );
@@ -3927,6 +3961,18 @@ rranime.get('/anime/:animeid/:episode', async (req, res) => {
             return res.status(404).send("Anime Profile Index Record Not Found.");
         }
         const animeDetails = animeRows[0];
+        if (!animeDetails.episodes || animeDetails.episodes === 0 || animeDetails.status === 'currently_airing') {
+            const anilistData = await fetchEpisodesFromAniList(animeDetails.mal_id);
+            if (anilistData && anilistData.episodes > 0) {
+                animeDetails.episodes = anilistData.episodes;
+                await db.query(
+                    `UPDATE mal_anime SET episodes = ? WHERE mal_id = ?`,
+                    [anilistData.episodes, animeDetails.mal_id]
+                );
+            } else if (!animeDetails.episodes) {
+                animeDetails.episodes = 12; 
+            }
+        }
         const totalEpisodesCount = animeDetails.episodes || 12;
         res.render('animewatch', {
             anime: animeDetails,
@@ -3943,17 +3989,106 @@ rranime.get('/anime/:animeid/:episode', async (req, res) => {
 rranime.get('/airing', async (req, res) => {
     try {
         const [airingAnime] = await db.execute(`
-            SELECT mal_id, title, english_title, type, episodes, score, image_url 
+            SELECT mal_id, title, english_title, type, episodes, score, image_url, rating
             FROM mal_anime 
-            WHERE status = 'currently_airing'
-            ORDER BY score DESC
+            WHERE status = 'currently_airing' and rating != 'rx'
+            ORDER BY last_updated DESC
         `);
         res.render('animeairing', { 
-            animeList: airingAnime 
+            animeList: airingAnime,
+            Data: { title: "Currently Airing", title2: `<h2><i class="fas fa-clock"></i> Latest Updated</h2>`, icon: `fa-satellite-dish` }
         });
     } catch (err) {
         console.error("Error loading currently airing anime page:", err);
         res.status(500).send("Server Error loading airing schedules.");
+    }
+});
+
+rranime.get('/trending', async (req, res) => {
+    try {
+        const [airingAnime] = await db.execute(`
+            SELECT mal_id, title, english_title, type, episodes, score, image_url 
+            FROM mal_anime 
+            WHERE status = 'currently_airing' and rating != 'rx'
+            ORDER BY score DESC
+        `);
+        res.render('animeairing', { 
+            animeList: airingAnime,
+            Data: { title: "Trending Anime", title2: '', icon: `fa-arrow-trend-up` }
+        });
+    } catch (err) {
+        console.error("Error loading currently trending anime page:", err);
+        res.status(500).send("Server Error loading trending.");
+    }
+});
+
+rranime.get('/hentai', async (req, res) => {
+    try {
+        const [airingAnime] = await db.execute(`
+            SELECT mal_id, title, english_title, type, episodes, score, image_url 
+            FROM mal_anime 
+            WHERE rating = 'rx'
+            ORDER BY last_updated DESC
+        `);
+        res.render('animeairing', { 
+            animeList: airingAnime,
+            Data: { title: "Hentai", title2: '', icon: `fa-arrow-trend-up` }
+        });
+    } catch (err) {
+        console.error("Error loading currently hentai page:", err);
+        res.status(500).send("Server Error loading trending.");
+    }
+});
+
+rranime.get('/genres/:genreId', async (req, res) => {
+    try {
+        const genreId = req.params.genreId;
+        const [genreMeta] = await db.execute(
+            `SELECT genre_name FROM mal_genres WHERE genre_id = ?`, 
+            [genreId]
+        );
+        if (genreMeta.length === 0) {
+            return res.status(404).send("Genre Not Found");
+        }
+        const currentGenreName = genreMeta[0].genre_name;
+        const [genreAnime] = await db.execute(`
+            SELECT a.mal_id, a.title, a.english_title, a.type, a.episodes, a.score, a.image_url, a.rating
+            FROM mal_anime a
+            JOIN anime_genres_mapping ag ON a.mal_id = ag.anime_id
+            WHERE ag.genre_id = ? AND a.rating != 'rx'
+            ORDER BY a.score DESC, a.last_updated DESC
+        `, [genreId]);
+        res.render('animeairing', { 
+            animeList: genreAnime,
+            Data: { 
+                title: ` ${currentGenreName} Anime`, 
+                title2: ``, 
+                icon: `fa-tv` 
+            }
+        });
+    } catch (err) {
+        console.error(`Error loading genre ID ${req.params.genreId}:`, err);
+        res.status(500).send("Server Error loading genre listing.");
+    }
+});
+
+rranime.get('/genres', async (req, res) => {
+    try {
+        const [allGenres] = await db.execute(`
+            SELECT g.genre_id, g.genre_name, COUNT(ag.anime_id) as total_shows
+            FROM mal_genres g
+            LEFT JOIN anime_genres_mapping ag ON g.genre_id = ag.genre_id
+            GROUP BY g.genre_id
+            HAVING total_shows > 0
+            ORDER BY g.genre_name ASC
+        `);
+        res.render('animegenres', { 
+            genres: allGenres,
+            Data: { title: "Browse by Genre" }
+        });
+    } catch (err) {
+        console.error("Error loading master genre index:", err);
+        res.status(500).send("Server Error loading genre index directory.");
     }
 });
 
@@ -4099,7 +4234,7 @@ async function fetchAndSaveAllMALAnime() {
                 console.error("MAL client ID is missing. Set MAL_ID or MAL_CLIENT_ID in your environment.");
                 break;
             }
-            const url = `https://api.myanimelist.net/v2/anime/ranking?ranking_type=all&limit=${limit}&offset=${offset}&fields=alternative_titles,media_type,num_episodes,status,mean,synopsis`;
+            const url = `https://api.myanimelist.net/v2/anime/ranking?ranking_type=all&limit=${limit}&offset=${offset}&fields=alternative_titles,media_type,num_episodes,status,rating,mean,synopsis,genres`;
             const response = await fetch(url, {
                 method: 'GET',
                 headers: {
@@ -4114,7 +4249,7 @@ async function fetchAndSaveAllMALAnime() {
             }
             if (response.status === 400) {
                 const errorText = await response.text();
-                console.error(`MAL API rejected the request (400). Check endpoint/params. Response: ${errorText}`);
+                console.error(`MAL API rejected the request (400). Paging may have reached its limit depth. Response: ${errorText}`);
                 break;
             }
             if (!response.ok) {
@@ -4130,9 +4265,9 @@ async function fetchAndSaveAllMALAnime() {
             for (const edge of edgeList) {
                 const node = edge.node;
                 if (!node) continue;
-                const insertSql = `
-                    INSERT INTO mal_anime (mal_id, title, english_title, type, episodes, status, score, synopsis, image_url)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                const insertAnimeSql = `
+                    INSERT INTO mal_anime (mal_id, title, english_title, type, episodes, status, score, rating, synopsis, image_url)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON DUPLICATE KEY UPDATE 
                         title = VALUES(title),
                         english_title = VALUES(english_title),
@@ -4140,6 +4275,7 @@ async function fetchAndSaveAllMALAnime() {
                         episodes = VALUES(episodes),
                         status = VALUES(status),
                         score = VALUES(score),
+                        rating = VALUES(rating),
                         synopsis = VALUES(synopsis),
                         image_url = VALUES(image_url);
                 `;
@@ -4149,27 +4285,37 @@ async function fetchAndSaveAllMALAnime() {
                 const type = node.media_type || null;
                 const episodes = node.num_episodes || null;
                 const status = node.status || null;
-                const score = node.mean || null; 
+                const score = node.mean || null;
+                const rating = node.rating || null;
                 const synopsis = node.synopsis || null;
                 const imageUrl = node.main_picture?.large || node.main_picture?.medium || null;
-                await db.query(insertSql, [
-                    malId,
-                    title,
-                    englishTitle,
-                    type,
-                    episodes,
-                    status,
-                    score,
-                    synopsis,
-                    imageUrl
+                await db.query(insertAnimeSql, [
+                    malId, title, englishTitle, type, episodes, status, score, rating, synopsis, imageUrl
                 ]);
+                const apiGenres = node.genres || [];
+                if (apiGenres.length > 0) {
+                    for (const genreItem of apiGenres) {
+                        const genreId = genreItem.id;
+                        const genreName = genreItem.name;
+                        const insertGenreSql = `
+                            INSERT INTO mal_genres (genre_id, genre_name)
+                            VALUES (?, ?)
+                            ON DUPLICATE KEY UPDATE genre_name = VALUES(genre_name);
+                        `;
+                        await db.query(insertGenreSql, [genreId, genreName]);
+                        const insertMappingSql = `
+                            INSERT IGNORE INTO anime_genres_mapping (anime_id, genre_id)
+                            VALUES (?, ?);
+                        `;
+                        await db.query(insertMappingSql, [malId, genreId]);
+                    }
+                }
             }
             console.log(`UPDATED MAL SHOWS [${offset} - ${offset + edgeList.length}] successfully.`);
             offset += edgeList.length;
             await sleep(1500); 
         }
         console.log("MAL synchronization completed successfully!");
-        await fetchAndSaveAiringMALAnime(true);
     } catch (error) {
         console.error("Critical error processing official MAL data:", error);
     }
@@ -4189,18 +4335,23 @@ async function fetchAndSaveAiringMALAnime(isHourlyUpdate = false) {
                 console.error("MAL client ID is missing.");
                 break;
             }
-            const url = `https://api.myanimelist.net/v2/anime/ranking?ranking_type=airing&limit=${limit}&offset=${offset}&fields=alternative_titles,media_type,num_episodes,status,mean,synopsis`;
+            const url = `https://api.myanimelist.net/v2/anime/ranking?ranking_type=${rankingType}&limit=${limit}&offset=${offset}&fields=alternative_titles,media_type,num_episodes,status,mean,synopsis,rating,genres`;
             const response = await fetch(url, {
                 method: 'GET',
                 headers: { 
                     'X-MAL-CLIENT-ID': malClientId,
-                     'Accept': 'application/json'
+                    'Accept': 'application/json'
                 }
             });
             if (response.status === 429) {
                 console.log("MAL Rate limit hit! Sleeping for 10 seconds...");
                 await sleep(10000);
                 continue;
+            }
+            if (response.status === 400) {
+                const errorText = await response.text();
+                console.error(`MAL API rejected request (400). Pagination boundary depth reached. Response: ${errorText}`);
+                break;
             }
             if (!response.ok) {
                 console.error(`MAL API Error: Status ${response.status}.`);
@@ -4209,14 +4360,15 @@ async function fetchAndSaveAiringMALAnime(isHourlyUpdate = false) {
             const payload = await response.json();
             const edgeList = payload.data || [];
             if (edgeList.length === 0) {
+                console.log(`Sync completed for (${rankingType}). No more records remaining.`);
                 break;
             }
             for (const edge of edgeList) {
                 const node = edge.node;
                 if (!node) continue;
                 const insertSql = `
-                    INSERT INTO mal_anime (mal_id, title, english_title, type, episodes, status, score, synopsis, image_url)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO mal_anime (mal_id, title, english_title, type, episodes, status, score, rating, synopsis, image_url)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON DUPLICATE KEY UPDATE 
                         title = VALUES(title),
                         english_title = VALUES(english_title),
@@ -4224,20 +4376,41 @@ async function fetchAndSaveAiringMALAnime(isHourlyUpdate = false) {
                         episodes = VALUES(episodes),
                         status = VALUES(status),
                         score = VALUES(score),
+                        rating = VALUES(rating),
                         synopsis = VALUES(synopsis),
                         image_url = VALUES(image_url);
                 `;
+                const malId = node.id;
                 await db.query(insertSql, [
-                    node.id,
+                    malId,
                     node.title,
                     node.alternative_titles?.en || null,
                     node.media_type || null,
                     node.num_episodes || null,
                     node.status || null,
-                    node.mean || null, 
+                    node.mean || null,
+                    node.rating || null,
                     node.synopsis || null,
                     node.main_picture?.large || node.main_picture?.medium || null
                 ]);
+                const apiGenres = node.genres || [];
+                if (apiGenres.length > 0) {
+                    for (const genreItem of apiGenres) {
+                        const genreId = genreItem.id;
+                        const genreName = genreItem.name;
+                        const insertGenreSql = `
+                            INSERT INTO mal_genres (genre_id, genre_name)
+                            VALUES (?, ?)
+                            ON DUPLICATE KEY UPDATE genre_name = VALUES(genre_name);
+                        `;
+                        await db.query(insertGenreSql, [genreId, genreName]);
+                        const insertMappingSql = `
+                            INSERT IGNORE INTO anime_genres_mapping (anime_id, genre_id)
+                            VALUES (?, ?);
+                        `;
+                        await db.query(insertMappingSql, [malId, genreId]);
+                    }
+                }
             }
             console.log(`UPDATED MAL SHOWS [${offset} - ${offset + edgeList.length}] successfully.`);
             offset += edgeList.length;
@@ -4291,6 +4464,34 @@ async function fetchEpisodesFromAniList(malId) {
         }
         return null;
     }
+}
+
+async function fetchRule34Posts(query) {
+  const params = new URLSearchParams({
+    page: "dapi",
+    s: "post",
+    q: "index",
+    json: "1",
+    limit: "10",
+    tags: query,
+    user_id: process.env.R34_ID,
+    api_key: process.env.R34_API
+  });
+  try {
+    const response = await fetch(`https://api.rule34.xxx/index.php?${params.toString()}`, {
+      method: "GET",
+      headers: {
+        "User-Agent": "DiscordBot/1.0 (Discordjs; "+process.env.DEVEMAIL+")"
+      }
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP error! Status: ${response.status}`);
+    }
+    const data = await response.json();
+    return data;
+  } catch (err) {
+    console.error("Failed to fetch data from Rule34:", err);
+  }
 }
 
 async function handleLeaderboard(req, res, sortColumn, title) {

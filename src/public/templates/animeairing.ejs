@@ -5,16 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Currently Airing Anime - RRAnime</title>
     <link rel="stylesheet" href="/css/animeairing.css">
-    <link rel="stylesheet" href="css/animeheader.css">
-    <link rel="stylesheet" href="css/animefooter.css">
+    <link rel="stylesheet" href="/css/animeheader.css">
+    <link rel="stylesheet" href="/css/animefooter.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
 <%- include('animeheader') %>
     <main class="airing-container">
-        <header class="airing-header">
-            <h1><i class="fas fa-satellite-dish pulse-icon"></i> Currently Airing</h1>
-        </header>
+            <h1><i class="fas <%- Data.icon %> pulse-icon"></i><%= Data.title %></h1>
+            <%- Data.title2 %>
         <% if (animeList.length === 0) { %>
             <div class="empty-state">
                 <i class="fas fa-tv-slash"></i>

@@ -122,8 +122,23 @@ CREATE TABLE mal_anime (
     type VARCHAR(50),
     episodes INT,
     status VARCHAR(50),
+    rating VARCHAR(50),
+    genre VARCHAR(50),
     score DECIMAL(4,2),
     synopsis TEXT,
     image_url VARCHAR(500),
     last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+CREATE TABLE mal_genres (
+    genre_id INT PRIMARY KEY,
+    genre_name VARCHAR(100) NOT NULL
+);
+
+CREATE TABLE anime_genres_mapping (
+    anime_id INT,
+    genre_id INT,
+    PRIMARY KEY (anime_id, genre_id),
+    FOREIGN KEY (anime_id) REFERENCES mal_anime(mal_id) ON DELETE CASCADE,
+    FOREIGN KEY (genre_id) REFERENCES mal_genres(genre_id) ON DELETE CASCADE
 );
