@@ -28,7 +28,7 @@
     "mysql": "^2.18.1",
     "mysql2": "^3.23.1",
     "node-cron": "^4.2.1",
-    "nodemailer": "^10.0.9",
+    "nodemailer": "^10.1.2",
     "passport": "^0.7.0",
     "passport-discord": "^0.1.4",
     "passport-local": "^1.0.0",
