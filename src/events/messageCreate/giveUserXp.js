@@ -55,10 +55,14 @@ module.exports = async (client, message) => {
                     });
                 const data = await rankCard.build({ format: 'png' });
                 const attachment = new AttachmentBuilder(data, { name: 'levelup.png' });
-                message.channel.send({
-                    content: `🎉 Congratulations ${message.member}! You reached **Level ${newLevel}** and earned **${numtoemo(100 * Number(user.level))}** 💵!`,
-                    files: [attachment]
-                });
+                if (message.guild.id === "1275077158254936095") {
+                    return;
+                } else {
+                    message.channel.send({
+                        content: `🎉 Congratulations ${message.member}! You reached **Level ${newLevel}** and earned **${numtoemo(100 * Number(user.level))}** 💵!`,
+                        files: [attachment]
+                    });
+                }
             } else {
                 await db.query('UPDATE users SET xp = ? WHERE userid = ?', [newXp, message.author.id]);
             }
