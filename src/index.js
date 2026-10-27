@@ -2596,7 +2596,7 @@ client.on('messageCreate', async (message) => {
 
 //// Website Coding
 // Website Init
-const mainweb = express(), web = express(), admin = express(), apiweb = express(), rrme = express(), rranime = express();
+const mainweb = express(), web = express(), admin = express(), apiweb = express(), rrme = express();
 web.set('view engine', 'ejs');
 web.set('views', path.join(__dirname, 'public', 'templates'));
 rrme.set('view engine', 'ejs');
