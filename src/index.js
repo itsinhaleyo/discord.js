@@ -2,7 +2,7 @@ require('dotenv').config();
 const { REST, Routes, ActionRowBuilder, MessageFlags, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, ButtonBuilder, ButtonStyle, ComponentType, ActivityType, ApplicationCommandOptionType, Client, GatewayIntentBits, IntentsBitField, EmbedBuilder, AttachmentBuilder, Events } = require('discord.js'),
       { VoiceConnectionStatus, joinVoiceChannel, createAudioPlayer, createAudioResource, getVoiceConnection, StreamType, AudioPlayerStatus, NoSubscriberBehavior } = require('@discordjs/voice'),
       { LeaderboardBuilder, RankCardBuilder, Font } = require('canvacord'), express = require('express'), session = require('express-session'), MySQLStore = require('express-mysql-session')(session),
-      { GoogleGenAI } = require("@google/genai"), axios = require('axios'), passport = require('passport'), DiscordStrategy = require('passport-discord').Strategy, nodemailer = require('nodemailer'),
+      { GoogleGenAI } = require("@google/genai"), axios = require('axios'), passport = require('passport'), DiscordStrategy = require('passport-discord').Strategy,
       { getData, getTracks } = require('spotify-url-info')(require('isomorphic-unfetch')), vhost = require('vhost'), discordTTS = require('discord-tts'),
       { MusicCard } = require("./handlers/MusicCard.js"), { BalanceCard } = require("./handlers/BalanceCard.js"), cron = require('node-cron'),
       fs = require('fs'), path = require('path'), util = require('util'),
@@ -10,13 +10,6 @@ const { REST, Routes, ActionRowBuilder, MessageFlags, StringSelectMenuBuilder, S
       songsDir = path.join(__dirname, 'songs'), torrentDir = path.join(__dirname, 'torrents');
 Font.loadDefault();
 const priceCache = {};
-
-// Email Transporter
-const email = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 465,
-  auth: { user: process.env.EMAIL, pass: process.env.EMAIL_PASSWORD }
-});
 
 // Error Logging to error_logs TABLE
 function logError(code, error) {
@@ -3846,73 +3839,9 @@ autoRoute('/error_logs', 'error_logs');
 autoRoute('/towers', 'towers');
 apiweb.use((req, res) => { res.status(404).json({ error: "API Route Not Found", help: "List of API endpoints at https://api.itsinhaleyo.online/" }); });
 
-// RRM Earthworks URL's
-rrme.get('/', (req, res) => {
-    try { 
-        res.render('earthworkslanding'); 
-    } catch (err) { 
-        console.error(err); 
-        logError('RRME_LANDING_PAGE_ERROR', err);
-        res.status(500).send("Error loading Earthworks: " + err.message); 
-    } 
-});
-rrme.post('/contactform', async (req, res) => {
-    try {
-        const { usersname, formemail, phonenumber, message } = req.body;
-        console.log(`Contact Form Submission:\nName: ${usersname}\nEmail: ${formemail}\nPhone: ${phonenumber}\nMessage: ${message}`);
-        const mailOptions = {
-            from: process.env.EMAIL,
-            to: process.env.RRMEMAIL,
-            subject: 'Form Submission Received',
-            html: `
-                <p><strong>Name:</strong> ${usersname}</p>
-                <p><strong>Email:</strong> <a href="mailto:${formemail}">${formemail}</a></p>
-                <p><strong>Phone:</strong> <a href="tel:${phonenumber}">${phonenumber}</a></p>
-                <p><strong>Message:</strong><br>${message}</p>
-            `
-        };
-        email.sendMail(mailOptions, (error, info) => {
-            if (error) console.log(error);
-            else console.log('Email sent: ' + info.response);
-            res.redirect('/formsuccess');
-        });
-        const mailOptions2 = {
-            from: process.env.EMAIL,
-            to: process.env.DEVEMAIL,
-            subject: 'Form Submission Received',
-            html: `
-                <p><strong>Name:</strong> ${usersname}</p>
-                <p><strong>Email:</strong> <a href="mailto:${formemail}">${formemail}</a></p>
-                <p><strong>Phone:</strong> <a href="tel:${phonenumber}">${phonenumber}</a></p>
-                <p><strong>Message:</strong><br>${message}</p>
-            `
-        };
-        email.sendMail(mailOptions2, (error, info) => {
-            if (error) console.log(error);
-            else console.log('Email sent: ' + info.response);
-            res.redirect('/formsuccess');
-        });
-    } catch (err) {
-        console.error(err);
-        logError('RRME_CONTACT_FORM_ERROR', err);
-        res.status(500).json({ success: false, message: "Error submitting contact form." });
-    }
-});
-rrme.get(`/formsuccess`, (req, res) => { 
-    try { 
-        res.render('earthworksformsuccess'); 
-    } catch (err) { 
-        console.error(err); 
-        logError('RRME_FORM_SUCCESS_PAGE_ERROR', err);
-        res.status(500).send("Error loading success page: " + err.message); 
-    } 
-});
-rrme.get('/*any', (req, res) => { res.redirect('/'); });
-
 mainweb.use(vhost(`api.itsinhaleyo.online`, apiweb));
 mainweb.use(vhost(`admin.itsinhaleyo.online`, admin));
 mainweb.use(vhost(`itsinhaleyo.online`, web));
-mainweb.use(vhost(`rrmearthworks.com`, rrme));
 mainweb.listen(port, () => { console.log(`Websites running on PORT:${port}/`); });
 
 async function fetchRule34Posts(query) {
